@@ -10,6 +10,7 @@ Decisions taken (2026-07-14):
 | 4 | **Multi-company by design** — more entities are expected; `company_id` is a first-class dimension, not a hack |
 | 5 | **Business rules become settings** — credit limits, payment terms, stock reorder levels |
 | 6 | **Everything is versioned and audited** — who, when, why — on every entity, enforced at the persistence layer. See [AUDIT.md](AUDIT.md) |
+| 7 | **Legacy data is left as-is; errors are prevented from cutover forward.** No historical remediation. Balances import as an *opening balance*, not a recomputation. Known defects surface in a **Data Exceptions** screen for correction when the business chooses. See [LEGACY-DATA-POLICY.md](LEGACY-DATA-POLICY.md) and [DATA-AUDIT-FINDINGS.md](DATA-AUDIT-FINDINGS.md) |
 
 Scope removed by decisions 1–2: 14 legacy actions (`WCategory` 3, `WProducts` 5,
 `CustomerDashboard` 3, `Home` 3). Remaining: **~234 legacy actions → ~120 endpoints**
