@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Smartnet.Api/Smartnet.Api.csproj" />
+  <Project Path="Smartnet.Domain/Smartnet.Domain.csproj" />
+  <Project Path="Smartnet.Infrastructure/Smartnet.Infrastructure.csproj" />
+  <Project Path="Smartnet.Tests/Smartnet.Tests.csproj" />
+</Solution>

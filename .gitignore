@@ -19,3 +19,9 @@ Thumbs.db
 *.sql
 *.dump
 data/
+
+# build artifacts
+bin/
+obj/
+.next/
+node_modules/
