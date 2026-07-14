@@ -9,6 +9,7 @@ Decisions taken (2026-07-14):
 | 3 | **Invoices stay editable** — no forced immutability. **Mitigation: every edit is versioned and audited** (see §Invoice edits) |
 | 4 | **Multi-company by design** — more entities are expected; `company_id` is a first-class dimension, not a hack |
 | 5 | **Business rules become settings** — credit limits, payment terms, stock reorder levels |
+| 6 | **Everything is versioned and audited** — who, when, why — on every entity, enforced at the persistence layer. See [AUDIT.md](AUDIT.md) |
 
 Scope removed by decisions 1–2: 14 legacy actions (`WCategory` 3, `WProducts` 5,
 `CustomerDashboard` 3, `Home` 3). Remaining: **~234 legacy actions → ~120 endpoints**
@@ -36,21 +37,32 @@ schema from Phase 1 even though only two companies exist today.
 
 ---
 
-## Invoice edits (decision 3)
+## Versioning & audit (decisions 3 + 6)
 
-Invoices remain editable, as they are today. To keep that safe:
+Full spec in **[AUDIT.md](AUDIT.md)**. In summary — it applies to *everything*, not just invoices:
 
-- `invoice_versions` — a full snapshot of the header + lines on every edit
-  (`version_no`, `changed_by`, `changed_at`, `reason`, prior totals).
-- The current invoice row is always version *n*; history is queryable and printable.
-- **Balances are never mutated in place.** Payments, credit notes and edits all write to a
-  ledger; the balance is derived. (Closes ISSUES B2/B3 without changing your workflow.)
-- Tax rates are still **snapshotted per line at save** (ISSUES B6) — so editing an invoice
-  next year doesn't silently re-rate it at a new VAT percentage.
-- An edit that changes totals on an invoice with payments against it raises a warning, not a
-  silent recalculation.
+- **Audit columns** on every table: `created_by/at`, `updated_by/at`, `deleted_by/at`,
+  `row_version`. User **id**, not a display-name string. UTC. **Nothing is hard-deleted.**
+- **`audit_log`** — append-only, written by an EF Core `SaveChanges` interceptor **inside the
+  same transaction** as the business change. A developer cannot forget to audit it, because
+  there is no audit code to write. The app's DB user has `INSERT`/`SELECT` only — **no
+  `UPDATE`/`DELETE`** — so the log cannot be rewritten by the application.
+- **`document_versions`** — a full JSON snapshot of every financial document at every version,
+  including v1. Self-contained (carries the resolved tax rates and company header as they
+  stood), so reprinting last year's invoice reproduces *that* document, not today's VAT rate
+  applied to old lines.
+- **Reason capture** — mandatory on invoice edits, deletes, permission changes and settings
+  changes; optional elsewhere. Enforced server-side via an `X-Change-Reason` header, not by a
+  hopeful frontend.
+- **Login (success and failure), print, email and export are audited too** — so "who exported
+  the customer list?" and "was this invoice ever emailed?" become answerable. Today neither is.
+- **`row_version`** gives optimistic concurrency: two users editing the same invoice now
+  conflict loudly instead of one silently overwriting the other.
 
-This gives you the current workflow with an audit trail behind it.
+This is what makes decision 3 (invoices stay editable) defensible: you keep the workflow your
+staff have, and an auditor can still be answered.
+
+**Closes:** F1, F2, B3, and the silent-overwrite concurrency hole.
 
 ---
 
@@ -196,19 +208,22 @@ Nginx sends all traffic to the new stack. Drop the plaintext `password` column. 
 
 ## Timeline
 
-| Phase | Effort |
-|---|---|
-| 0 · Foundations | 1 wk |
-| 1 · Auth, users & settings | 3 wk |
-| 2 · Design system *(overlaps)* | 1.5 wk |
-| 3 · Master data | 2.5 wk |
-| 4 · Dashboard & reports | 2.5 wk |
-| 5 · Documents engine | 5 wk |
-| 6 · Purchasing & service | 3 wk |
-| 7 · Money & documents | 2.5 wk |
-| 8 · PDF templates | 2.5 wk |
-| 9 · Cutover | 1.5 wk |
-| **Total** | **~24 weeks / ~5.5 months** (one developer, sequential) |
+| Phase | Effort | Includes |
+|---|---|---|
+| 0 · Foundations | 1 wk | |
+| 1 · Auth, users & settings | **4 wk** | +1 wk: audit infrastructure (columns, `audit_log`, interceptor, versions, reason capture) |
+| 2 · Design system *(overlaps)* | **2 wk** | +0.5 wk: reusable History tab (version list, diff, restore) |
+| 3 · Master data | 2.5 wk | inherits audit for free |
+| 4 · Dashboard & reports | **3 wk** | +0.5 wk: admin Audit Log viewer |
+| 5 · Documents engine | 5 wk | document versioning already in place |
+| 6 · Purchasing & service | 3 wk | |
+| 7 · Money & documents | 2.5 wk | |
+| 8 · PDF templates | 2.5 wk | *deferred* |
+| 9 · Cutover | 1.5 wk | |
+| **Total** | **~26 weeks / ~6 months** | one developer, sequential |
+
+Audit adds ~2 weeks, all of it early. Retrofitting it later would touch every module — which
+is precisely why it goes in Phase 1, before a single business entity is written.
 
 The strangler approach means value ships from Phase 1 — you are not waiting 5 months for
 a big-bang release.
