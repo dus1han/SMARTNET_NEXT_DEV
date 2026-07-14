@@ -1,0 +1,16 @@
+﻿# build
+bin/
+obj/
+node_modules/
+.next/
+dist/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+
+# os
+Thumbs.db
+.DS_Store
