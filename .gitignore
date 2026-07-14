@@ -14,3 +14,8 @@ appsettings.*.local.json
 # os
 Thumbs.db
 .DS_Store
+
+# data dumps - contain customer data
+*.sql
+*.dump
+data/
