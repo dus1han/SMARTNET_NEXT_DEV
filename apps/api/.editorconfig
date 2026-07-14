@@ -1,0 +1,16 @@
+# The scaffolded legacy entities and DbContext mirror a schema we do not control
+# (varchar money, no primary keys, MySQL-ish naming). Analysing them is noise —
+# we are not going to rename `UserPermission` in a table we did not design.
+#
+# Everything we write by hand is still fully analysed, including the banned-symbol
+# rules: no double-typed money, no raw SQL, no DateTime.Now.
+
+[Smartnet.Infrastructure/Entities/**.cs]
+dotnet_analyzer_diagnostic.severity = none
+dotnet_diagnostic.CA1711.severity = none
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA2227.severity = none
+dotnet_diagnostic.CA1002.severity = none
+
+[Smartnet.Infrastructure/Persistence/SmartnetLegacyDbContext.cs]
+dotnet_analyzer_diagnostic.severity = none

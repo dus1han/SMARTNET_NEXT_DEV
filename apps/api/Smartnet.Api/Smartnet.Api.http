@@ -1,0 +1,6 @@
+@Smartnet.Api_HostAddress = http://localhost:5127
+
+GET {{Smartnet.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

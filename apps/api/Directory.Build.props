@@ -1,0 +1,37 @@
+<Project>
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!-- A warning that can be ignored will be ignored. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+
+    <!-- Fail the build on a package with a known vulnerability. -->
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <WarningsAsErrors>NU1903;NU1904</WarningsAsErrors>
+  </PropertyGroup>
+
+  <!--
+    The scaffolded legacy entities are generated code and mirror a schema we do
+    not control (varchar money, no keys). They are exempt from style rules; the
+    money/SQL bans below still apply to everything we write by hand.
+  -->
+  <ItemGroup>
+    <Compile Update="Entities/**/*.cs">
+      <ExcludeFromCodeCoverage>true</ExcludeFromCodeCoverage>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="4.14.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

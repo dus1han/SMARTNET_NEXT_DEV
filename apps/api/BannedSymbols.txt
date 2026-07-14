@@ -1,0 +1,23 @@
+# Symbols banned in this codebase, enforced at build time (RS0030 = error).
+# Each line here exists because the legacy system used it and we found the damage
+# in the live data. See docs/DATA-AUDIT-FINDINGS.md.
+
+# --- money must never touch binary floating point ---
+# The legacy app stored money as varchar, parsed it to double, and did arithmetic
+# in binary floating point. Use decimal.
+M:System.Convert.ToDouble(System.String); use decimal.Parse / Convert.ToDecimal — money is never double
+M:System.Convert.ToDouble(System.Object); use decimal.Parse / Convert.ToDecimal — money is never double
+M:System.Double.Parse(System.String); use decimal.Parse — money is never double
+M:System.Single.Parse(System.String); use decimal.Parse — money is never float
+
+# --- raw SQL ---
+# 346 string-concatenated SQL call sites in the legacy app, including a pre-auth
+# injection in the login query. Use EF Core or parameterised commands.
+M:Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.ExecuteSqlRaw(Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade,System.String,System.Object[]); use ExecuteSql (interpolated) or ExecuteSqlInterpolated
+M:Microsoft.EntityFrameworkCore.RelationalQueryableExtensions.FromSqlRaw``1(System.Linq.IQueryable{``0},System.String,System.Object[]); use FromSql (interpolated) or FromSqlInterpolated
+
+# --- time ---
+# The legacy app wrote server-local DateTime.Now straight into the database with
+# no timezone handling. Store UTC.
+P:System.DateTime.Now; use DateTime.UtcNow — timestamps are stored in UTC
+P:System.DateTime.Today; use DateOnly.FromDateTime(DateTime.UtcNow) — timestamps are stored in UTC

@@ -1,0 +1,53 @@
+# Smartnet — local / deploy stack.
+#
+# NOTE: there is deliberately NO database service here.
+# MariaDB runs on the HOST (185.73.8.1). Dev points at smartnet_invsys_dev;
+# production points at smartnet_invsys. Keeping one database means no schema
+# drift between a container copy and the real thing.
+
+services:
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    environment:
+      # supplied from ../.env — never baked into the image
+      ConnectionStrings__Smartnet: ${ConnectionStrings__Smartnet}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5080
+      Cors__WebOrigin: ${Cors__WebOrigin:-http://localhost:3000}
+    ports:
+      - "5080:5080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5080}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # The strangler router. Ported paths go to the new stack; everything else is
+  # proxied to the legacy ASP.NET MVC app. One line moves a module across —
+  # and one line moves it back if it misbehaves.
+  nginx:
+    image: nginx:stable-alpine
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+      - web
+    restart: unless-stopped
