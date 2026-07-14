@@ -65,32 +65,39 @@ key on payment submission, and a derived ledger make the mechanism that caused i
 
 ---
 
-## 3. The one exception: orphaned rows must be archived
+## 3. Orphaned rows stay in place — foreign keys via a nullable surrogate
 
-There is a single place where "leave it as it is" and "build it properly" genuinely conflict.
+**Decision: nothing is deleted, moved or archived out of the live tables. All legacy data
+remains exactly where it is.**
 
-**608 orphaned invoice lines** (89 invoices whose headers no longer exist) will block any
-foreign key we add between `invoice_l` and `invoice_h`. Without foreign keys, the new database
-has no more integrity protection than the old one — and FKs are one of the main reasons the new
-system won't repeat these errors.
+The tension: **608 orphaned invoice lines** (89 invoices whose headers no longer exist) would
+block a naive foreign key between `invoice_l` and `invoice_h`. But foreign keys are one of the
+main reasons the new system won't repeat these errors, so we want both.
 
-**Proposal — archive, do not delete:**
+**Solution — a nullable foreign key on a surrogate id:**
 
 ```sql
-CREATE TABLE _archive_orphan_invoice_l LIKE invoice_l;   -- + archived_at, archived_reason
-INSERT INTO _archive_orphan_invoice_l SELECT ... ;        -- the 608 rows, preserved
-DELETE FROM invoice_l WHERE inno NOT IN (SELECT invoiceno FROM invoice_h);
+ALTER TABLE invoice_h ADD COLUMN id BIGINT AUTO_INCREMENT PRIMARY KEY;   -- it has none today
+ALTER TABLE invoice_l ADD COLUMN invoice_id BIGINT NULL;                 -- nullable
+UPDATE invoice_l l JOIN invoice_h h ON l.inno = h.invoiceno
+   SET l.invoice_id = h.id;                                              -- ~11,990 rows linked
+ALTER TABLE invoice_l
+  ADD CONSTRAINT fk_invoice_l_h FOREIGN KEY (invoice_id) REFERENCES invoice_h(id);
 ```
 
-Why this does not violate the decision:
-- These rows belong to invoices that **do not exist**. They appear on no document, in no
-  report, in no balance, in no total. Nothing reads them.
-- **No financial figure changes.** Not one balance, not one total, not one VAT return.
-- Nothing is destroyed — every row is preserved in the archive table, queryable forever.
+- Every line **with** a parent is now protected by a real foreign key.
+- The 608 orphans keep their original `inno` text **unchanged**, and carry `invoice_id = NULL`
+  — which a nullable FK permits. They stay in `invoice_l`, in place, queryable.
+- **No row is deleted. No row is moved. No value is altered.** The only change is an added
+  column.
+- New lines cannot be written without a valid parent — enforced in the application and by a
+  validation check.
 
-If you would still rather not touch them, the fallback is to add no foreign key on that
-relationship. I do not recommend it: it means shipping the new system with the same structural
-weakness that produced the mess. **Your call.**
+Same pattern for every other parent/child relationship carrying orphans.
+
+The orphans appear in the **Data Exceptions** screen (§4) as *"invoice line with no header"*,
+so they are visible rather than silently ignored — but they are never touched without a
+human decision.
 
 ---
 
@@ -140,14 +147,22 @@ Leaving historical data alone is a business judgement. Leaving the front door op
 
 ## 7. Summary
 
+**Every row of legacy data is retained and remains accessible in the new system.** Nothing is
+deleted, moved or archived out — including `invoice_l_old`, the `del_*` soft-delete tables and
+the unused web-catalogue tables. Where a table is not part of a live module, it is still
+readable through a **Legacy Archive** viewer.
+
 | Finding | Treatment |
 |---|---|
 | Rs. 1.55M duplicate payments (44 groups) | **Left as-is.** Imported as opening balance. Listed in Data Exceptions. |
 | 45 negative balances | **Left as-is.** Will continue to display as negative. |
 | STI-1068 — paid, no payment | **Left as-is.** Listed in Data Exceptions. |
 | 4 invoices, lines ≠ header | **Left as-is.** Listed in Data Exceptions. |
-| 608 orphaned invoice lines | **Archived** (not deleted) so foreign keys can be added. No financial impact. |
-| `invoice_l_old` (11,659 rows) | Archived / dropped — confirm. |
-| money & dates as `varchar` | Retyped at cutover. Verified safe; no value changes. |
-| No PKs / FKs | Added at cutover. |
+| 608 orphaned invoice lines | **Left in place.** Nullable FK on a surrogate id (§3) — no deletion, no move. Flagged in Data Exceptions. |
+| `invoice_l_old` (11,659 rows) | **Retained.** Read-only, exposed via Legacy Archive viewer. |
+| `del_*` tables, `wb_*` tables | **Retained.** Read-only. |
+| money & dates as `varchar` | Retyped at cutover. Verified safe; **no value changes**. |
+| No PKs / FKs | Added at cutover — surrogate keys + nullable FKs, so no row is disturbed. |
 | 4-char plaintext passwords | **Reset immediately** — not deferrable. |
+
+**Nothing in this policy alters a single financial figure, and nothing removes a single row.**
