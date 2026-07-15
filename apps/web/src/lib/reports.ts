@@ -169,6 +169,13 @@ export const getOutstandingReport = (company: CompanyFilter) =>
 export const outstandingReportExportUrl = (company: CompanyFilter) =>
   `/api/reports/outstanding/export${periodQuery({}, { company: companyParam(company) })}`;
 
+/** The per-invoice outstanding list for the selected customers — the "export selected" sheet. */
+export const outstandingDetailExportUrl = (company: CompanyFilter, customers: string[]) =>
+  `/api/reports/outstanding/detail/export${periodQuery(
+    {},
+    { company: companyParam(company), customers: customers.join(",") || undefined },
+  )}`;
+
 // --- Bulk dunning (the one write) ------------------------------------------------------------
 
 export type { DunningResponse } from "@smartnet/api-client";

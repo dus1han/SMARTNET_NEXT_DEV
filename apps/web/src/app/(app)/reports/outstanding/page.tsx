@@ -15,18 +15,19 @@
  */
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Clock, Mail, Wallet } from "lucide-react";
+import { AlertTriangle, Clock, Download, Mail, Wallet } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import {
   getOutstandingReport,
+  outstandingDetailExportUrl,
   outstandingReportExportUrl,
   sendDunning,
   type CompanyFilter,
   type OutstandingRow,
 } from "@/lib/reports";
 import { PageHeader } from "@/components/shell/app-shell";
-import { DataTable, type ColumnDef } from "@/components/data-table";
+import { DataTable, downloadExcel, type ColumnDef } from "@/components/data-table";
 import { ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
 import { AnimatedNumber, Badge, Button, Dialog, ErrorBanner, FadeIn, toast } from "@/components/ui";
 
@@ -34,6 +35,7 @@ export default function OutstandingReportPage() {
   const [company, setCompany] = useState<CompanyFilter>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
+  const [exportingSelected, setExportingSelected] = useState(false);
 
   const report = useQuery({
     queryKey: ["outstanding-report", company],
@@ -105,12 +107,6 @@ export default function OutstandingReportPage() {
       <PageHeader
         title="Customer outstanding"
         description="What customers owe, aged from the invoice date, for the company you are working in."
-        actions={
-          <Button disabled={selected.size === 0} onClick={() => setConfirming(true)}>
-            <Mail />
-            Send statements{selected.size > 0 ? ` (${selected.size})` : ""}
-          </Button>
-        }
       />
 
       <ReportFilterBar company={company} onCompany={changeCompany} showDates={false} />
@@ -159,6 +155,34 @@ export default function OutstandingReportPage() {
         searchPlaceholder="Search customers…"
         exportUrl={outstandingReportExportUrl(company)}
         exportFilename="outstanding.xlsx"
+        actions={
+          <>
+            <Button size="sm" disabled={selected.size === 0} onClick={() => setConfirming(true)}>
+              <Mail />
+              Send statements{selected.size > 0 ? ` (${selected.size})` : ""}
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={selected.size === 0}
+              pending={exportingSelected}
+              onClick={async () => {
+                setExportingSelected(true);
+                try {
+                  await downloadExcel(outstandingDetailExportUrl(company, [...selected]), "outstanding-detail.xlsx");
+                } catch {
+                  toast.error("The export failed.");
+                } finally {
+                  setExportingSelected(false);
+                }
+              }}
+            >
+              <Download />
+              Export selected{selected.size > 0 ? ` (${selected.size})` : ""}
+            </Button>
+          </>
+        }
         empty={{ title: "Nothing outstanding", description: "No customer has an unpaid balance." }}
       />
 

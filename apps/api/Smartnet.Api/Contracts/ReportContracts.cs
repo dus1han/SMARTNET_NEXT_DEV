@@ -269,3 +269,17 @@ public sealed record OutstandingResponse(
     int FlaggedCount,
     int DefectCount,
     IReadOnlyList<OutstandingRow> Rows);
+
+/// <summary>One outstanding invoice — the per-invoice drill-down behind the "export selected" list,
+/// the legacy outstanding-invoice sheet for the chosen customers.</summary>
+public sealed record OutstandingDetailRow(
+    string CustomerCode,
+    string CustomerName,
+    string Category,
+    string InvoiceNo,
+    DateOnly? Date,
+    string? PurchaseOrderNo,
+    decimal Total,
+    decimal Balance,
+    int Days,
+    bool HasDataIssue);

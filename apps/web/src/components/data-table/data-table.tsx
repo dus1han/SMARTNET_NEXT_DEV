@@ -59,6 +59,9 @@ export interface DataTableProps<T> {
   /** Filename for the download. Defaults to the sheet name plus today's date, set by the server. */
   exportFilename?: string;
 
+  /** Extra toolbar buttons, rendered on the same line as (and just before) the Export button. */
+  actions?: ReactNode;
+
   /** Shown when there is genuinely nothing — not while loading, and not when a filter hid it all. */
   empty?: { title: string; description?: string; action?: ReactNode };
 
@@ -84,6 +87,7 @@ export function DataTable<T>({
   searchPlaceholder = "Search…",
   exportUrl,
   exportFilename = "export.xlsx",
+  actions,
   empty,
   onRowClick,
   pageSize = 25,
@@ -128,7 +132,7 @@ export function DataTable<T>({
 
   return (
     <div className="space-y-3">
-      {(searchable || exportUrl) && (
+      {(searchable || exportUrl || actions) && (
         <div className="flex flex-wrap items-center gap-2">
           {searchable && (
             <div className="relative flex-1 sm:max-w-xs">
@@ -147,28 +151,35 @@ export function DataTable<T>({
             </div>
           )}
 
-          {exportUrl && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="ml-auto"
-              pending={exporting}
-              onClick={async () => {
-                setExporting(true);
+          {/* The action row — extra buttons, then Export, kept together on the right. */}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {actions}
 
-                try {
-                  await downloadExcel(exportUrl, exportFilename);
-                } catch {
-                  toast.error("The export failed.");
-                } finally {
-                  setExporting(false);
-                }
-              }}
-            >
-              <Download />
-              Export
-            </Button>
-          )}
+            {exportUrl && (
+              <Button
+                variant="secondary"
+                size="sm"
+                pending={exporting}
+                // Nothing to export → nothing to press. A spreadsheet of headers and no rows is a
+                // support call ("the export is empty"), not a feature.
+                disabled={total === 0}
+                onClick={async () => {
+                  setExporting(true);
+
+                  try {
+                    await downloadExcel(exportUrl, exportFilename);
+                  } catch {
+                    toast.error("The export failed.");
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+              >
+                <Download />
+                Export
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
