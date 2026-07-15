@@ -99,6 +99,7 @@ export type SupplierPurchaseRow = Schemas["SupplierPurchaseRow"];
 export type SupplierPaymentResponse = Schemas["SupplierPaymentResponse"];
 export type SupplierPaymentRow = Schemas["SupplierPaymentRow"];
 export type SupplierOption = Schemas["SupplierOption"];
+export type CompanyOption = Schemas["CompanyOption"];
 
 // --- History ---------------------------------------------------------------------------------
 

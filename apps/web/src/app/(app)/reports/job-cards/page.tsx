@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Coins, TrendingUp, Wrench } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
-import { getJobCardReport, jobCardReportExportUrl, type JobCardRow } from "@/lib/reports";
+import { getJobCardReport, jobCardReportExportUrl, type CompanyFilter, type JobCardRow } from "@/lib/reports";
 import { currentMonthStart, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -19,10 +19,11 @@ import { AnimatedNumber, Badge, ErrorBanner, FadeIn } from "@/components/ui";
 export default function JobCardsReportPage() {
   const [from, setFrom] = useState(currentMonthStart);
   const [to, setTo] = useState(today);
+  const [company, setCompany] = useState<CompanyFilter>("all");
 
   const report = useQuery({
-    queryKey: ["job-card-report", from, to],
-    queryFn: () => getJobCardReport({ from, to }),
+    queryKey: ["job-card-report", from, to, company],
+    queryFn: () => getJobCardReport({ from, to }, company),
   });
 
   const loadError = report.error as ApiError | null;
@@ -35,7 +36,7 @@ export default function JobCardsReportPage() {
         description="Jobs by date for the company you are working in, with cost, sell and profit. Profit is shown once a job is completed."
       />
 
-      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany} />
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
@@ -77,7 +78,7 @@ export default function JobCardsReportPage() {
         defaultSort={{ id: "date", desc: true }}
         searchable={(r) => `${r.jobNo} ${r.customerName} ${r.status}`}
         searchPlaceholder="Search jobs…"
-        exportUrl={jobCardReportExportUrl({ from, to })}
+        exportUrl={jobCardReportExportUrl({ from, to }, company)}
         exportFilename="job-cards.xlsx"
         empty={{ title: "No jobs in this period", description: "Widen the date range." }}
       />

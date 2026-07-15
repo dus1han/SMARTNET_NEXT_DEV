@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Percent, Truck } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
-import { getSupplierVatReport, supplierVatReportExportUrl, type SupplierVatRow } from "@/lib/reports";
+import { getSupplierVatReport, supplierVatReportExportUrl, type CompanyFilter, type SupplierVatRow } from "@/lib/reports";
 import { currentMonthStart, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -16,10 +16,11 @@ import { AnimatedNumber, ErrorBanner, FadeIn } from "@/components/ui";
 export default function SupplierVatReportPage() {
   const [from, setFrom] = useState(currentMonthStart);
   const [to, setTo] = useState(today);
+  const [company, setCompany] = useState<CompanyFilter>("all");
 
   const report = useQuery({
-    queryKey: ["supplier-vat-report", from, to],
-    queryFn: () => getSupplierVatReport({ from, to }),
+    queryKey: ["supplier-vat-report", from, to, company],
+    queryFn: () => getSupplierVatReport({ from, to }, company),
   });
 
   const loadError = report.error as ApiError | null;
@@ -32,7 +33,7 @@ export default function SupplierVatReportPage() {
         description="Input VAT on supplier tax invoices for the period, for the company you are working in."
       />
 
-      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany} />
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
@@ -67,7 +68,7 @@ export default function SupplierVatReportPage() {
         defaultSort={{ id: "date" }}
         searchable={(r) => `${r.invoiceNo} ${r.supplierName} ${r.vatNumber ?? ""}`}
         searchPlaceholder="Search invoices…"
-        exportUrl={supplierVatReportExportUrl({ from, to })}
+        exportUrl={supplierVatReportExportUrl({ from, to }, company)}
         exportFilename="supplier-vat.xlsx"
         empty={{ title: "No tax invoices in this period", description: "Widen the date range." }}
       />
