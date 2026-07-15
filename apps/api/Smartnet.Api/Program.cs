@@ -14,6 +14,7 @@ using Smartnet.Api.Contracts;
 using Smartnet.Api.Dunning;
 using Smartnet.Api.Middleware;
 using Smartnet.Domain.Auditing;
+using Smartnet.Domain.Documents;
 using Smartnet.Domain.Identity;
 using Smartnet.Domain.MasterData;
 using Smartnet.Infrastructure;
@@ -110,6 +111,10 @@ builder.Services.AddScoped<IDocumentNumberAllocator, DocumentNumberAllocator>();
 builder.Services.AddScoped<ICustomerCodeAllocator, CustomerCodeAllocator>();
 builder.Services.AddScoped<ISupplierCodeAllocator, SupplierCodeAllocator>();
 builder.Services.AddScoped<IItemCodeAllocator, ItemCodeAllocator>();
+
+// The one tax engine every document runs its lines through (Phase 5). Stateless, pure decimal — a
+// singleton with nothing to scope.
+builder.Services.AddSingleton<ITaxEngine, TaxEngine>();
 
 // Encrypts the SMTP password at rest (A2). The keys live outside the image; in production they
 // must be persisted to a shared, backed-up location, or a redeploy silently invalidates every

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Smartnet.Domain.Auditing;
+using Smartnet.Domain.Documents;
 using Smartnet.Domain.Identity;
 using Smartnet.Domain.MasterData;
 using Smartnet.Domain.Settings;
@@ -78,6 +79,14 @@ public class SmartnetDbContext : DbContext
 
     /// <summary>Reference data: the margin bands a customer can be put on.</summary>
     public DbSet<ProfitPercent> ProfitPercents => Set<ProfitPercent>();
+
+    // --- Documents (Phase 5) -----------------------------------------------------------------
+
+    /// <summary>Invoices, on the adopted legacy <c>invoice_h</c>. Balance is derived from the ledger.</summary>
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+
+    /// <summary>Invoice lines, on the adopted legacy <c>invoice_l</c>.</summary>
+    public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
 
     /// <summary>
     /// Wraps the save in a transaction so that the business change and the audit rows the
