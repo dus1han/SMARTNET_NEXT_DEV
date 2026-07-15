@@ -1,0 +1,7 @@
+# EF Core writes these files; we do not hand-format them, and reformatting them to satisfy a
+# style rule would only be undone by the next `dotnet ef migrations add`.
+#
+# The money and raw-SQL bans in BannedSymbols.txt are NOT style rules and still apply here —
+# they are what a migration would have to violate to do real damage.
+[*.cs]
+generated_code = true

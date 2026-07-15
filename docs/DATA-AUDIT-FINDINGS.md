@@ -169,3 +169,54 @@ decided on, and corrected, by a human who knows the business.
 - The retype migration (`varchar` → `DECIMAL`/`DATE`) is **verified safe** — every value parses.
 - Adding foreign keys requires the orphans cleaned first (Finding 3).
 - Password rotation and forced reset is **urgent**, not Phase 1 (Finding 7).
+
+---
+
+## 🔴 FINDING 9 — B4 has already happened: two quotations share a number
+
+Found while adding unique indexes to the document-number columns (2026-07-14).
+
+`quotation_h` holds 2,119 rows but only 2,118 distinct `q_no`. Two different quotations, for two
+different customers, are both numbered **`STQ-0`**:
+
+| q_no | company | customer | date | total |
+|---|---|---|---|---|
+| STQ-0 | 1 | C-47 | 2025-09-19 | 50,000 |
+| STQ-0 | 1 | C-102 | 2026-04-03 | 44,645 |
+
+This is ISSUES **B4** — the duplicate-number race — not as a risk but as a fact. The legacy app takes
+a number from a ticket table and never checks that it is unused, and there is no unique index to stop
+the duplicate landing.
+
+**Consequence for the rebuild:** the unique index was applied to `invoice_h`, `cn_h`, `po_h` and
+`jobs_m` (all clean — zero duplicates). It **cannot** be applied to `quotation_h` while these two rows
+stand.
+
+**Not remediated, deliberately.** Per LEGACY-DATA-POLICY.md, legacy data is left as-is: somebody has a
+PDF with STQ-0 printed on it, and renumbering it to make an index build is exactly the historical
+rewriting that policy forbids. It surfaces in **Data Exceptions** for the business to resolve. Add
+`quotation_h` to the unique-index list once they have.
+
+---
+
+## 🟠 FINDING 10 — Three payments are orphaned
+
+Three rows in `payments` reference an `invoiceno` that does not exist in `invoice_h`. They therefore
+cannot be attributed to a company, and their `company_id` is left NULL by the multi-company migration.
+
+Guessing a company for them would file somebody's money under the wrong trading entity. They surface in
+**Data Exceptions**.
+
+---
+
+## 🟡 FINDING 11 — The invoice prefix is not a constant
+
+Company 2 (Smart Net) changed its invoice prefix from `SNI-` to **`26JUL_SNIN_`** on 2026-07-06 and is
+still using it. The prefix encodes the year and month.
+
+Critically, **the counter ran straight through the change**: `SNI-1556` was followed by
+`26JUL_SNIN_1562`. The number and the prefix are independent, and the counter never resets.
+
+The rebuild therefore stores the prefix as a **template** (`{YY}{MON}_SNIN_`) rendered at allocation
+time, so August produces `26AUG_SNIN_` without an edit — while the counter keeps climbing. A literal
+prefix would still be stamping JUL on invoices in August.

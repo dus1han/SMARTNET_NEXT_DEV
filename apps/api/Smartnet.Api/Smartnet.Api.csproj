@@ -11,6 +11,7 @@
          Microsoft.OpenApi 2.x, every version of which currently carries a known
          high-severity advisory (GHSA-v5pm-xwqc-g5wc). Swashbuckle stays on the 1.6.x line.
          It also gives us Swagger UI and the OpenAPI doc the TS client is generated from. -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
       <PrivateAssets>all</PrivateAssets>

@@ -14,3 +14,10 @@ dotnet_diagnostic.CA1002.severity = none
 
 [Smartnet.Infrastructure/Persistence/SmartnetLegacyDbContext.cs]
 dotnet_analyzer_diagnostic.severity = none
+
+# CA1711 reserves the suffix "Permission" for the old Code Access Security types, which have
+# nothing to do with this codebase. `RolePermission` and `UserPermissionOverride` are the correct
+# names for what they are, and renaming them to satisfy a rule about CAS would make the domain
+# harder to read, not safer. The suffix is allowed; the rest of CA1711 still applies.
+[*.cs]
+dotnet_code_quality.CA1711.allowed_suffixes = Permission

@@ -1,0 +1,45 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Smartnet.Domain.Auditing;
+using Smartnet.Infrastructure.Auditing;
+using Smartnet.Infrastructure.Persistence;
+
+namespace Smartnet.Infrastructure;
+
+public static class DependencyInjection
+{
+    /// <summary>
+    /// Registers both contexts and the audit machinery.
+    /// </summary>
+    /// <remarks>
+    /// The audit interceptor is attached here, at the composition root, rather than left to each
+    /// DbContext registration to remember. There is exactly one way to get a
+    /// <see cref="SmartnetDbContext"/> in this application, and it audits.
+    /// </remarks>
+    public static IServiceCollection AddSmartnetPersistence(
+        this IServiceCollection services,
+        string connectionString)
+    {
+        var serverVersion = SmartnetServerVersion.Value;
+
+        services.AddScoped<AuditSaveChangesInterceptor>();
+        services.AddScoped<IAuditWriter, AuditWriter>();
+
+        // The read side. Every history surface goes through it, so the company scoping on the audit
+        // tables lives in one place rather than being re-derived on each screen that reads them.
+        services.AddScoped<IAuditHistory, AuditHistoryReader>();
+
+        services.AddDbContext<SmartnetDbContext>((provider, options) => options
+            .UseMySql(connectionString, serverVersion)
+            .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));
+
+        // The Phase 0 scaffold. Read-only reference to the legacy schema — 46 of its 49 tables
+        // are keyless, so EF cannot write to them even if we wanted it to. Tables leave it for
+        // SmartnetDbContext as each phase adopts them; it is deleted in Phase 9.
+        services.AddDbContext<SmartnetLegacyDbContext>(options => options
+            .UseMySql(connectionString, serverVersion)
+            .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking));
+
+        return services;
+    }
+}
