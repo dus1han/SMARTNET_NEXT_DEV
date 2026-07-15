@@ -1,0 +1,96 @@
+import {
+  Building2,
+  FileText,
+  FlaskConical,
+  LayoutDashboard,
+  Package,
+  Receipt,
+  Settings,
+  ShoppingCart,
+  Truck,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
+
+export interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+
+  /**
+   * The permission required to *see* this link.
+   *
+   * Seeing is not doing. The endpoint behind every one of these denies by default and re-checks the
+   * same permission on the server, so hiding a link is a courtesy to the user, not a control on
+   * them. Getting that backwards is ISSUES A5 — the legacy app hid the menu item and left the
+   * endpoint wide open, which meant any logged-in user could make themselves an administrator.
+   */
+  permission?: string;
+
+  /** Not built yet. Shown greyed out, so the shape of the finished app is visible from day one. */
+  phase?: string;
+}
+
+export interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+export const NAVIGATION: NavSection[] = [
+  {
+    title: "Overview",
+    items: [
+      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    title: "Sales",
+    items: [
+      { href: "/quotations", label: "Quotations", icon: FileText, permission: "search_qu", phase: "Phase 5" },
+      { href: "/invoices", label: "Invoices", icon: Receipt, permission: "search_in", phase: "Phase 5" },
+      { href: "/payments", label: "Payments", icon: Wallet, permission: "payments", phase: "Phase 7" },
+    ],
+  },
+  {
+    title: "Purchasing",
+    items: [
+      { href: "/purchase-orders", label: "Purchase orders", icon: ShoppingCart, permission: "purchaseorder", phase: "Phase 6" },
+    ],
+  },
+  {
+    title: "Master data",
+    items: [
+      { href: "/customers", label: "Customers", icon: Building2, permission: "customer_m" },
+      { href: "/suppliers", label: "Suppliers", icon: Truck, permission: "supplier_m" },
+      { href: "/items", label: "Items", icon: Package, permission: "item_m" },
+    ],
+  },
+  {
+    title: "Administration",
+    items: [
+      { href: "/users", label: "Users", icon: Users, permission: "users" },
+      { href: "/settings", label: "Settings", icon: Settings, permission: "settings.manage" },
+    ],
+  },
+  {
+    // Not a feature, and deliberately visible to everyone: the whole purpose of the line-item
+    // editor prototype is that the people who type invoices all day can reach it and tell us it is
+    // wrong before Phase 5 is built on top of it. It carries no permission because it touches no
+    // data — there is no endpoint behind it at all.
+    title: "Prototypes",
+    items: [
+      { href: "/prototypes/line-items", label: "Line-item editor", icon: FlaskConical },
+    ],
+  },
+];
+
+/** Hides a section entirely when the user may see nothing in it. An empty heading is clutter. */
+export function visibleSections(permissions: string[]): NavSection[] {
+  return NAVIGATION.map((section) => ({
+    ...section,
+    items: section.items.filter(
+      (item) => !item.permission || permissions.includes(item.permission),
+    ),
+  })).filter((section) => section.items.length > 0);
+}

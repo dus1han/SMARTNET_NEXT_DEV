@@ -1,26 +1,245 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+  The design tokens. Every colour in the application comes from here.
+
+  A screen that hardcodes `bg-neutral-900` cannot be re-themed, cannot go dark, and cannot be made
+  to carry a company's brand colour — and there are two companies, with more expected. So the rule
+  is: screens use semantic tokens (bg-surface, text-muted, border-subtle), never raw palette values.
+
+  Tailwind 4 keeps the theme in CSS rather than a JS config, so this file IS the design system's
+  source of truth. The Phase 2 exit criterion — "the theme changes from one file" — means this one.
+*/
+
+/* Class-based, not media-based: the user's toggle has to be able to overrule the OS. */
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Page and panels. `surface` is what a card sits on; `canvas` is what the page is. */
+  --canvas: oklch(99% 0 0);
+  --surface: oklch(100% 0 0);
+  --surface-sunken: oklch(97% 0.002 250);
+
+  /* Text. `muted` is for labels and secondary text, and still passes AA on `surface`. */
+  --text: oklch(20% 0.01 250);
+  --text-muted: oklch(50% 0.015 250);
+
+  /* Borders. `subtle` separates; `strong` is a focused or hovered control. */
+  --border-subtle: oklch(92% 0.004 250);
+  --border-strong: oklch(80% 0.008 250);
+
+  /* The primary action, and the brand.
+     Indigo: it reads as financial and trustworthy, and — the practical reason — it stays out of the
+     way of red, amber and green, which in this application MEAN something (overdue, locked, paid).
+     An app whose brand colour is green cannot then use green to mean "paid". */
+  --primary: oklch(52% 0.19 272);
+  --primary-hover: oklch(47% 0.19 272);
+  --primary-text: oklch(99% 0 0);
+  --primary-subtle: oklch(96% 0.03 272);
+  --primary-ghost: oklch(93% 0.05 272);
+
+  /* The sidebar. Dark in both themes: it frames the content and anchors the eye. */
+  --sidebar: oklch(23% 0.02 268);
+  --sidebar-text: oklch(75% 0.02 268);
+  --sidebar-text-active: oklch(99% 0 0);
+  --sidebar-active: oklch(32% 0.06 270);
+  --sidebar-border: oklch(30% 0.02 268);
+
+  /* State. `danger` is not "red-500" — it is the colour of a destructive action, and it is named
+     for what it means so that changing it changes every destructive control at once. */
+  --danger: oklch(55% 0.19 25);
+  --danger-text: oklch(99% 0 0);
+  --danger-subtle: oklch(96% 0.02 25);
+
+  --warning: oklch(75% 0.15 75);
+  --warning-subtle: oklch(97% 0.03 85);
+  --warning-text: oklch(35% 0.08 65);
+
+  --success: oklch(60% 0.13 155);
+  --success-subtle: oklch(96% 0.03 155);
+  --success-text: oklch(35% 0.07 155);
+
+  --ring: oklch(60% 0.05 250);
+
+  --radius: 0.625rem;
+}
+
+.dark {
+  --canvas: oklch(17% 0.005 250);
+  --surface: oklch(21% 0.006 250);
+  --surface-sunken: oklch(15% 0.005 250);
+
+  --text: oklch(96% 0.002 250);
+  --text-muted: oklch(68% 0.012 250);
+
+  --border-subtle: oklch(28% 0.008 250);
+  --border-strong: oklch(40% 0.012 250);
+
+  /* Lifted for dark: the light-mode indigo goes muddy against a dark surface. */
+  --primary: oklch(64% 0.18 272);
+  --primary-hover: oklch(69% 0.18 272);
+  --primary-text: oklch(15% 0.02 272);
+  --primary-subtle: oklch(26% 0.06 272);
+  --primary-ghost: oklch(30% 0.07 272);
+
+  --sidebar: oklch(19% 0.015 268);
+  --sidebar-text: oklch(70% 0.02 268);
+  --sidebar-text-active: oklch(99% 0 0);
+  --sidebar-active: oklch(29% 0.06 270);
+  --sidebar-border: oklch(26% 0.015 268);
+
+  /* Lifted and desaturated for dark: the light-mode red vibrates against a dark background. */
+  --danger: oklch(62% 0.17 25);
+  --danger-text: oklch(99% 0 0);
+  --danger-subtle: oklch(27% 0.06 25);
+
+  --warning: oklch(78% 0.14 75);
+  --warning-subtle: oklch(27% 0.05 75);
+  --warning-text: oklch(88% 0.09 85);
+
+  --success: oklch(68% 0.13 155);
+  --success-subtle: oklch(25% 0.05 155);
+  --success-text: oklch(85% 0.09 155);
+
+  --ring: oklch(65% 0.05 250);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+
+  --color-subtle: var(--border-subtle);
+  --color-strong: var(--border-strong);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-text: var(--primary-text);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-ghost: var(--primary-ghost);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-text-active: var(--sidebar-text-active);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-border: var(--sidebar-border);
+
+  --color-danger: var(--danger);
+  --color-danger-text: var(--danger-text);
+  --color-danger-subtle: var(--danger-subtle);
+
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-text: var(--warning-text);
+
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-text: var(--success-text);
+
+  --color-ring: var(--ring);
+
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* The sliding bar used by ProgressBar and RouteProgress. Indeterminate on purpose: nothing here
+   knows how long the request will take, so a bar that filled to 60% would be lying. */
+@keyframes indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/*
+  The sign-in screen's ambient motion.
+
+  Deliberately slow — 20–35 seconds a cycle. This is the one screen in the application that is
+  allowed to be *inviting* rather than merely efficient: it is the first thing a new member of staff
+  sees, and it is the only screen with nothing on it to read. Everywhere past it, motion is
+  functional and short (150–250ms) because the user came to do a job.
+
+  Two rules still hold, and are enforced rather than promised:
+
+    - `prefers-reduced-motion` kills all of it, via the global rule below. For some people motion
+      causes nausea, and an aurora drifting behind a password field is exactly the kind of thing
+      that does it.
+    - Nothing animates while the user is typing. The orbs are paused with `animation-play-state`
+      the moment anything on the page takes focus — see the sign-in page. A background that keeps
+      moving under a form is the reason "nothing animates while typing" is a house rule at all.
+*/
+@keyframes drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(8%, -6%, 0) scale(1.18);
+  }
+}
+
+@keyframes drift-alt {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.1);
+  }
+  100% {
+    transform: translate3d(-7%, 7%, 0) scale(0.92);
+  }
+}
+
+/* The light that crosses the sign-in button on hover. One pass, 700ms, then gone. */
+@keyframes sheen {
+  0% {
+    transform: translateX(-120%) skewX(-12deg);
+  }
+  100% {
+    transform: translateX(260%) skewX(-12deg);
+  }
+}
+
+@theme {
+  --animate-indeterminate: indeterminate 1.1s ease-in-out infinite;
+
+  --animate-drift: drift 24s ease-in-out infinite alternate;
+  --animate-drift-alt: drift-alt 33s ease-in-out infinite alternate;
+  --animate-sheen: sheen 700ms ease-out;
+}
+
+@layer base {
+  body {
+    background-color: var(--canvas);
+    color: var(--text);
+  }
+
+  /* Money and quantities line up in columns. A grid of figures that jitters is a grid nobody
+     can scan, and this application is mostly grids of figures. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+    Motion: 150–250ms, ease-out (DEVELOPMENT.md §8).
+
+    `prefers-reduced-motion` is honoured bluntly and globally rather than screen by screen. It is
+    not a preference about taste — for some people motion causes nausea — and forty screens each
+    remembering to check it is forty chances to forget.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
