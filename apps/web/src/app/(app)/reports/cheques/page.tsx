@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Banknote, Hash } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
-import { chequeReportExportUrl, getChequeReport, type ChequeRow } from "@/lib/reports";
+import { chequeReportExportUrl, getChequeReport, type ChequeRow, type CompanyFilter } from "@/lib/reports";
 import { currentMonthStart, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -20,10 +20,11 @@ import { AnimatedNumber, ErrorBanner, FadeIn } from "@/components/ui";
 export default function ChequesReportPage() {
   const [from, setFrom] = useState(currentMonthStart);
   const [to, setTo] = useState(today);
+  const [company, setCompany] = useState<CompanyFilter>("all");
 
   const report = useQuery({
-    queryKey: ["cheque-report", from, to],
-    queryFn: () => getChequeReport({ from, to }),
+    queryKey: ["cheque-report", from, to, company],
+    queryFn: () => getChequeReport({ from, to }, company),
   });
 
   const loadError = report.error as ApiError | null;
@@ -36,7 +37,7 @@ export default function ChequesReportPage() {
         description="Cheques by date for the company you are working in. The export lists each one with its amount in words."
       />
 
-      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany} />
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
@@ -71,7 +72,7 @@ export default function ChequesReportPage() {
         defaultSort={{ id: "date", desc: true }}
         searchable={(r) => `${r.payTo ?? ""} ${r.bank ?? ""} ${r.chequeNo ?? ""} ${r.createdBy ?? ""}`}
         searchPlaceholder="Search cheques…"
-        exportUrl={chequeReportExportUrl({ from, to })}
+        exportUrl={chequeReportExportUrl({ from, to }, company)}
         exportFilename="cheques.xlsx"
         empty={{ title: "No cheques in this period", description: "Widen the date range." }}
       />

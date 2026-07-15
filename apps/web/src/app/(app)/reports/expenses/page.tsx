@@ -18,6 +18,7 @@ import {
   expenseReportExportUrl,
   getExpenseCategories,
   getExpenseReport,
+  type CompanyFilter,
   type ExpenseReportRow,
 } from "@/lib/reports";
 import { currentMonthStart, today } from "@/lib/period";
@@ -29,13 +30,14 @@ import { AnimatedNumber, ErrorBanner, FadeIn, Select } from "@/components/ui";
 export default function ExpensesReportPage() {
   const [from, setFrom] = useState(currentMonthStart);
   const [to, setTo] = useState(today);
+  const [company, setCompany] = useState<CompanyFilter>("all");
   const [category, setCategory] = useState<number | undefined>(undefined);
 
   const categories = useQuery({ queryKey: ["expense-categories"], queryFn: getExpenseCategories });
 
   const report = useQuery({
-    queryKey: ["expense-report", from, to, category],
-    queryFn: () => getExpenseReport({ from, to }, category),
+    queryKey: ["expense-report", from, to, company, category],
+    queryFn: () => getExpenseReport({ from, to }, company, category),
   });
 
   const loadError = report.error as ApiError | null;
@@ -48,7 +50,7 @@ export default function ExpensesReportPage() {
         description="Expenses for the period, for the company you are working in, optionally by category. Every line is in the export."
       />
 
-      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo}>
+      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany}>
         <Select
           label="Category"
           value={category ?? ""}
@@ -100,7 +102,7 @@ export default function ExpensesReportPage() {
         defaultSort={{ id: "date", desc: true }}
         searchable={(r) => `${r.category} ${r.description ?? ""} ${r.addedBy ?? ""} ${r.paymentMethod ?? ""}`}
         searchPlaceholder="Search expenses…"
-        exportUrl={expenseReportExportUrl({ from, to }, category)}
+        exportUrl={expenseReportExportUrl({ from, to }, company, category)}
         exportFilename="expenses.xlsx"
         empty={{
           title: "No expenses in this period",

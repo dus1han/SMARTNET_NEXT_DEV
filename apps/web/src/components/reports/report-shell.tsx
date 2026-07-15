@@ -1,28 +1,50 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { Card, Input } from "@/components/ui";
+import { getReportCompanies, type CompanyFilter } from "@/lib/reports";
+import { Card, Input, Select } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
 /**
  * The report filter bar — every report's, so a new report is a query and a column set (Phase 2's
  * exit criterion, carried into Phase 4).
  *
- * The date window rides the request, never the session: that is the whole reason the legacy stale-
- * filter and `cvatcomp = to` corrupt-filter bugs cannot exist here. Company is not a field — reports
- * scope to the company the user is signed into (the shell switcher), like every other screen. What
- * varies per report is any report-specific filter, dropped in via `children`.
+ * The filters ride the request, never the session — that is the whole reason the legacy stale-filter
+ * and `cvatcomp = to` corrupt-filter bugs cannot exist here. Company is a first-class filter: "All"
+ * (every company the user may see, aggregated) or one entity. It sits here, in the shared bar, so
+ * every report gets it uniformly. Report-specific filters drop in via `children`.
  */
-export function ReportFilterBar({ from, to, onFrom, onTo, children }: {
+export function ReportFilterBar({ from, to, onFrom, onTo, company, onCompany, children }: {
   from: string;
   to: string;
   onFrom: (value: string) => void;
   onTo: (value: string) => void;
+  company: CompanyFilter;
+  onCompany: (value: CompanyFilter) => void;
   children?: ReactNode;
 }) {
+  const companies = useQuery({ queryKey: ["report-companies"], queryFn: getReportCompanies });
+
   return (
     <Card className="flex flex-wrap items-end gap-4 p-4">
+      {(companies.data?.length ?? 0) > 0 && (
+        <Select
+          label="Company"
+          value={company === "all" ? "all" : String(company)}
+          onChange={(e) => onCompany(e.target.value === "all" ? "all" : Number(e.target.value))}
+          className="w-48"
+        >
+          <option value="all">All companies</option>
+          {companies.data!.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </Select>
+      )}
+
       <Input
         label="From"
         type="date"

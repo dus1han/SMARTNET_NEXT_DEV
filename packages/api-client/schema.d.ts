@@ -977,6 +977,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reports/companies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CompanyOption"][];
+                        "application/json": components["schemas"]["CompanyOption"][];
+                        "text/json": components["schemas"]["CompanyOption"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reports/sales": {
         parameters: {
             query?: never;
@@ -989,6 +1026,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1029,6 +1067,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1065,6 +1104,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                     category?: number;
                 };
                 header?: never;
@@ -1106,6 +1146,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                     category?: number;
                 };
                 header?: never;
@@ -1180,6 +1221,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1220,6 +1262,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1256,6 +1299,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1296,6 +1340,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1332,6 +1377,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1372,6 +1418,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1408,6 +1455,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1448,6 +1496,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1484,6 +1533,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1524,6 +1574,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1560,6 +1611,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1600,6 +1652,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1636,6 +1689,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                     supplier?: string;
                 };
                 header?: never;
@@ -1677,6 +1731,7 @@ export interface paths {
                 query?: {
                     from?: string;
                     to?: string;
+                    company?: string;
                     supplier?: string;
                 };
                 header?: never;
@@ -2911,6 +2966,11 @@ export interface components {
             createdAt?: string | null;
             printedAt?: string | null;
             hasDataIssue: boolean;
+        };
+        CompanyOption: {
+            /** Format: int64 */
+            id: number;
+            name: string;
         };
         CompanyProfile: {
             /** Format: int64 */

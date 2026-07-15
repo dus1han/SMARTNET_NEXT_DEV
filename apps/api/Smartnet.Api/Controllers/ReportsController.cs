@@ -1,4 +1,5 @@
 using System.Globalization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Smartnet.Api.Auth;
@@ -17,15 +18,16 @@ namespace Smartnet.Api.Controllers;
 /// The reports. Read-only over the legacy tables, one spine underneath them all.
 /// </summary>
 /// <remarks>
-/// This is the reporting spine proved twice. Sales and Expenses read different legacy tables and
-/// project different columns; they share everything else — the read-only <see cref="SmartnetLegacyDbContext"/>,
-/// the defensive money/date parsing, the <see cref="ReportPeriod"/> filter, and the streamed
-/// <see cref="IExcelExporter"/>. A third report is a query and a column set, nothing more.
+/// This is the reporting spine proved many times over. Each report reads a different legacy table and
+/// projects a different column set; they share everything else — the read-only
+/// <see cref="SmartnetLegacyDbContext"/>, the defensive money/date parsing, the
+/// <see cref="ReportPeriod"/> filter, and the streamed <see cref="IExcelExporter"/>.
 ///
-/// <para><b>Filters ride the request, never the session.</b> The date window comes in on the query
-/// string; the company is the one the caller is signed into (<see cref="ICompanyContext.Active"/>,
-/// validated against their token), not a value the client asserts. That kills the legacy stale-filter
-/// round-trip and the <c>cvatcomp = to</c> class of corrupt-filter bug outright.</para>
+/// <para><b>Filters ride the request, never the session.</b> The date window and the company come in on
+/// the query string. The company is "all" (every company the caller may see, aggregated) or one
+/// specific company — but only ever one the token permits (see <see cref="CompanyScope"/>), so it can
+/// only narrow to something already allowed. That kills the legacy stale-filter round-trip and the
+/// <c>cvatcomp = to</c> class of corrupt-filter bug outright.</para>
 ///
 /// <para>Every endpoint carries its existing legacy permission and denies by default. Nothing here
 /// writes business data — the only write is the audit row an export leaves behind.</para>
@@ -35,6 +37,7 @@ namespace Smartnet.Api.Controllers;
 public sealed class ReportsController : ControllerBase
 {
     private readonly SmartnetLegacyDbContext _legacy;
+    private readonly SmartnetDbContext _db;
     private readonly IExcelExporter _excel;
     private readonly ICompanyContext _company;
     private readonly IAuditWriter _audit;
@@ -42,16 +45,35 @@ public sealed class ReportsController : ControllerBase
 
     public ReportsController(
         SmartnetLegacyDbContext legacy,
+        SmartnetDbContext db,
         IExcelExporter excel,
         ICompanyContext company,
         IAuditWriter audit,
         TimeProvider time)
     {
         _legacy = legacy;
+        _db = db;
         _excel = excel;
         _company = company;
         _audit = audit;
         _time = time;
+    }
+
+    /// <summary>The companies the caller may filter any report by — their accessible set.</summary>
+    [HttpGet("companies")]
+    [Authorize]
+    public async Task<ActionResult<IReadOnlyList<CompanyOption>>> Companies(CancellationToken cancellationToken)
+    {
+        var accessible = _company.Accessible.ToList();
+
+        var companies = await _db.Companies
+            .Where(c => accessible.Contains(c.Id))
+            .OrderBy(c => c.Name)
+            .Select(c => new CompanyOption(c.Id, c.Name))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return Ok(companies);
     }
 
     // --- Sales (sales_rpt) -------------------------------------------------------------------
@@ -61,17 +83,19 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<SalesReportResponse>> Sales(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken) =>
-        Ok(await BuildSales(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false));
+        Ok(await BuildSales(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("sales/export")]
     [RequirePermission(Permissions.SalesReport)]
     public async Task<IActionResult> SalesExport(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken)
     {
-        var report = await BuildSales(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false);
+        var report = await BuildSales(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false);
 
         var workbook = _excel.Export<SalesReportRow>(
             "Sales",
@@ -102,19 +126,21 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<ExpenseReportResponse>> Expenses(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         [FromQuery] long? category,
         CancellationToken cancellationToken) =>
-        Ok(await BuildExpenses(new ReportPeriod(from, to), category, cancellationToken).ConfigureAwait(false));
+        Ok(await BuildExpenses(new ReportPeriod(from, to), company, category, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("expenses/export")]
     [RequirePermission(Permissions.ExpensesReport)]
     public async Task<IActionResult> ExpensesExport(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         [FromQuery] long? category,
         CancellationToken cancellationToken)
     {
-        var report = await BuildExpenses(new ReportPeriod(from, to), category, cancellationToken).ConfigureAwait(false);
+        var report = await BuildExpenses(new ReportPeriod(from, to), company, category, cancellationToken).ConfigureAwait(false);
 
         var workbook = _excel.Export<ExpenseReportRow>(
             "Expenses",
@@ -154,17 +180,19 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<CustomerSalesResponse>> CustomerSales(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken) =>
-        Ok(await BuildCustomerSales(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false));
+        Ok(await BuildCustomerSales(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("customer-sales/export")]
     [RequirePermission(Permissions.CustomerSalesReport)]
     public async Task<IActionResult> CustomerSalesExport(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken)
     {
-        var report = await BuildCustomerSales(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false);
+        var report = await BuildCustomerSales(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false);
 
         var workbook = _excel.Export<CustomerSalesRow>(
             "Customer sales",
@@ -189,17 +217,19 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<ChequeReportResponse>> Cheques(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken) =>
-        Ok(await BuildCheques(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false));
+        Ok(await BuildCheques(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("cheques/export")]
     [RequirePermission(Permissions.ChequesReport)]
     public async Task<IActionResult> ChequesExport(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken)
     {
-        var report = await BuildCheques(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false);
+        var report = await BuildCheques(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false);
 
         var workbook = _excel.Export<ChequeRow>(
             "Cheques",
@@ -228,17 +258,19 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<JobCardReportResponse>> JobCards(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken) =>
-        Ok(await BuildJobCards(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false));
+        Ok(await BuildJobCards(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("job-cards/export")]
     [RequirePermission(Permissions.JobCardsReport)]
     public async Task<IActionResult> JobCardsExport(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken)
     {
-        var report = await BuildJobCards(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false);
+        var report = await BuildJobCards(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false);
 
         var workbook = _excel.Export<JobCardRow>(
             "Job cards",
@@ -266,17 +298,19 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<CustomerVatResponse>> CustomerVat(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken) =>
-        Ok(await BuildCustomerVat(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false));
+        Ok(await BuildCustomerVat(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("customer-vat/export")]
     [RequirePermission(Permissions.CustomerVatReport)]
     public async Task<IActionResult> CustomerVatExport(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken)
     {
-        var report = await BuildCustomerVat(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false);
+        var report = await BuildCustomerVat(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false);
 
         var workbook = _excel.Export<CustomerVatRow>(
             "Customer VAT",
@@ -301,17 +335,19 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<SupplierVatResponse>> SupplierVat(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken) =>
-        Ok(await BuildSupplierVat(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false));
+        Ok(await BuildSupplierVat(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("supplier-vat/export")]
     [RequirePermission(Permissions.SupplierVatReport)]
     public async Task<IActionResult> SupplierVatExport(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken)
     {
-        var report = await BuildSupplierVat(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false);
+        var report = await BuildSupplierVat(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false);
 
         var workbook = _excel.Export<SupplierVatRow>(
             "Supplier VAT",
@@ -335,17 +371,19 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<SupplierPurchaseResponse>> SupplierPurchase(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken) =>
-        Ok(await BuildSupplierPurchase(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false));
+        Ok(await BuildSupplierPurchase(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("supplier-purchase/export")]
     [RequirePermission(Permissions.SupplierPurchaseReport)]
     public async Task<IActionResult> SupplierPurchaseExport(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         CancellationToken cancellationToken)
     {
-        var report = await BuildSupplierPurchase(new ReportPeriod(from, to), cancellationToken).ConfigureAwait(false);
+        var report = await BuildSupplierPurchase(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false);
 
         var workbook = _excel.Export<SupplierPurchaseRow>(
             "Supplier purchase",
@@ -367,19 +405,21 @@ public sealed class ReportsController : ControllerBase
     public async Task<ActionResult<SupplierPaymentResponse>> SupplierPayments(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         [FromQuery] string? supplier,
         CancellationToken cancellationToken) =>
-        Ok(await BuildSupplierPayments(new ReportPeriod(from, to), supplier, cancellationToken).ConfigureAwait(false));
+        Ok(await BuildSupplierPayments(new ReportPeriod(from, to), company, supplier, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("supplier-payments/export")]
     [RequirePermission(Permissions.SupplierPaymentsReport)]
     public async Task<IActionResult> SupplierPaymentsExport(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
         [FromQuery] string? supplier,
         CancellationToken cancellationToken)
     {
-        var report = await BuildSupplierPayments(new ReportPeriod(from, to), supplier, cancellationToken).ConfigureAwait(false);
+        var report = await BuildSupplierPayments(new ReportPeriod(from, to), company, supplier, cancellationToken).ConfigureAwait(false);
 
         var workbook = _excel.Export<SupplierPaymentRow>(
             "Supplier payments",
@@ -414,20 +454,38 @@ public sealed class ReportsController : ControllerBase
 
     // --- The spine ---------------------------------------------------------------------------
 
-    private async Task<SalesReportResponse> BuildSales(ReportPeriod period, CancellationToken cancellationToken)
+    /// <summary>
+    /// The company id(s) a report is scoped to — one when a specific accessible company is chosen,
+    /// otherwise every company the caller may see ("all" or absent). Never a company outside the token's
+    /// accessible set, so the filter can only narrow to something already permitted. A List, not an
+    /// array, so the downstream <c>Contains</c> translates to a SQL IN (see the dashboard fix).
+    /// </summary>
+    private List<string> CompanyScope(string? company)
     {
-        if (_company.Active is not { } companyId)
+        var accessible = _company.Accessible.ToList();
+
+        if (long.TryParse(company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            && accessible.Contains(id))
+        {
+            return [id.ToString(CultureInfo.InvariantCulture)];
+        }
+
+        return accessible.Select(i => i.ToString(CultureInfo.InvariantCulture)).ToList();
+    }
+
+    private async Task<SalesReportResponse> BuildSales(ReportPeriod period, string? company, CancellationToken cancellationToken)
+    {
+        var scope = CompanyScope(company);
+        if (scope.Count == 0)
         {
             return new SalesReportResponse(EmptySalesSummary, []);
         }
 
-        var companyText = companyId.ToString(CultureInfo.InvariantCulture);
-
-        // Read-only and parameterised (EF, no string concatenation). Scoped to this company in SQL;
-        // the date window is applied in memory by the same ISO string comparison the legacy SQL used,
-        // so a blank or malformed indate is handled rather than throwing (see ReportPeriod / LegacyValue).
+        // Read-only and parameterised (EF, no string concatenation). Scoped to the chosen company (or
+        // all of them) in SQL; the date window is applied in memory by the same ISO string comparison
+        // the legacy SQL used, so a blank/malformed date is handled rather than throwing.
         var invoices = await _legacy.InvoiceHs
-            .Where(h => h.Company == companyText)
+            .Where(h => scope.Contains(h.Company!))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -438,17 +496,17 @@ public sealed class ReportsController : ControllerBase
 
     private async Task<ExpenseReportResponse> BuildExpenses(
         ReportPeriod period,
+        string? company,
         long? category,
         CancellationToken cancellationToken)
     {
-        if (_company.Active is not { } companyId)
+        var scope = CompanyScope(company);
+        if (scope.Count == 0)
         {
             return new ExpenseReportResponse(0m, 0, 0, []);
         }
 
-        var companyText = companyId.ToString(CultureInfo.InvariantCulture);
-
-        var query = _legacy.ExpenseTrs.Where(e => e.Company == companyText);
+        var query = _legacy.ExpenseTrs.Where(e => scope.Contains(e.Company));
 
         if (category is { } categoryId)
         {
@@ -465,17 +523,16 @@ public sealed class ReportsController : ControllerBase
         return ExpenseReport.Build(expenses, categoryNames, period);
     }
 
-    private async Task<CustomerSalesResponse> BuildCustomerSales(ReportPeriod period, CancellationToken cancellationToken)
+    private async Task<CustomerSalesResponse> BuildCustomerSales(ReportPeriod period, string? company, CancellationToken cancellationToken)
     {
-        if (_company.Active is not { } companyId)
+        var scope = CompanyScope(company);
+        if (scope.Count == 0)
         {
             return new CustomerSalesResponse(0m, 0m, 0, 0, []);
         }
 
-        var companyText = companyId.ToString(CultureInfo.InvariantCulture);
-
         var invoices = await _legacy.InvoiceHs
-            .Where(h => h.Company == companyText)
+            .Where(h => scope.Contains(h.Company!))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -484,34 +541,32 @@ public sealed class ReportsController : ControllerBase
         return CustomerSalesReport.Build(invoices, customerNames, period);
     }
 
-    private async Task<ChequeReportResponse> BuildCheques(ReportPeriod period, CancellationToken cancellationToken)
+    private async Task<ChequeReportResponse> BuildCheques(ReportPeriod period, string? company, CancellationToken cancellationToken)
     {
-        if (_company.Active is not { } companyId)
+        var scope = CompanyScope(company);
+        if (scope.Count == 0)
         {
             return new ChequeReportResponse(0m, 0, 0, []);
         }
 
-        var companyText = companyId.ToString(CultureInfo.InvariantCulture);
-
         var cheques = await _legacy.Cheques
-            .Where(c => c.Company == companyText)
+            .Where(c => scope.Contains(c.Company))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
         return ChequeReport.Build(cheques, period);
     }
 
-    private async Task<JobCardReportResponse> BuildJobCards(ReportPeriod period, CancellationToken cancellationToken)
+    private async Task<JobCardReportResponse> BuildJobCards(ReportPeriod period, string? company, CancellationToken cancellationToken)
     {
-        if (_company.Active is not { } companyId)
+        var scope = CompanyScope(company);
+        if (scope.Count == 0)
         {
             return new JobCardReportResponse(0m, 0m, 0m, 0, 0, []);
         }
 
-        var companyText = companyId.ToString(CultureInfo.InvariantCulture);
-
         var jobs = await _legacy.JobsMs
-            .Where(j => j.Company == companyText)
+            .Where(j => scope.Contains(j.Company))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -520,17 +575,16 @@ public sealed class ReportsController : ControllerBase
         return JobCardReport.Build(jobs, customerNames, period);
     }
 
-    private async Task<CustomerVatResponse> BuildCustomerVat(ReportPeriod period, CancellationToken cancellationToken)
+    private async Task<CustomerVatResponse> BuildCustomerVat(ReportPeriod period, string? company, CancellationToken cancellationToken)
     {
-        if (_company.Active is not { } companyId)
+        var scope = CompanyScope(company);
+        if (scope.Count == 0)
         {
             return new CustomerVatResponse(0m, 0m, 0, 0, []);
         }
 
-        var companyText = companyId.ToString(CultureInfo.InvariantCulture);
-
         var invoices = await _legacy.InvoiceHs
-            .Where(h => h.Company == companyText)
+            .Where(h => scope.Contains(h.Company!))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -539,17 +593,16 @@ public sealed class ReportsController : ControllerBase
         return CustomerVatReport.Build(invoices, customers, period);
     }
 
-    private async Task<SupplierVatResponse> BuildSupplierVat(ReportPeriod period, CancellationToken cancellationToken)
+    private async Task<SupplierVatResponse> BuildSupplierVat(ReportPeriod period, string? company, CancellationToken cancellationToken)
     {
-        if (_company.Active is not { } companyId)
+        var scope = CompanyScope(company);
+        if (scope.Count == 0)
         {
             return new SupplierVatResponse(0m, 0m, 0, 0, []);
         }
 
-        var companyText = companyId.ToString(CultureInfo.InvariantCulture);
-
         var invoices = await _legacy.SupplierInvoices
-            .Where(i => i.Company == companyText)
+            .Where(i => scope.Contains(i.Company!))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -558,17 +611,16 @@ public sealed class ReportsController : ControllerBase
         return SupplierVatReport.Build(invoices, suppliers, period);
     }
 
-    private async Task<SupplierPurchaseResponse> BuildSupplierPurchase(ReportPeriod period, CancellationToken cancellationToken)
+    private async Task<SupplierPurchaseResponse> BuildSupplierPurchase(ReportPeriod period, string? company, CancellationToken cancellationToken)
     {
-        if (_company.Active is not { } companyId)
+        var scope = CompanyScope(company);
+        if (scope.Count == 0)
         {
             return new SupplierPurchaseResponse(0m, 0m, 0, 0, []);
         }
 
-        var companyText = companyId.ToString(CultureInfo.InvariantCulture);
-
         var invoices = await _legacy.SupplierInvoices
-            .Where(i => i.Company == companyText)
+            .Where(i => scope.Contains(i.Company!))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -579,30 +631,33 @@ public sealed class ReportsController : ControllerBase
 
     private async Task<SupplierPaymentResponse> BuildSupplierPayments(
         ReportPeriod period,
+        string? company,
         string? supplierCode,
         CancellationToken cancellationToken)
     {
-        // A supplier must be chosen — this report is "what did we pay THIS supplier?".
-        if (_company.Active is not { } companyId || string.IsNullOrWhiteSpace(supplierCode))
+        var scope = CompanyScope(company);
+        if (scope.Count == 0)
         {
             return new SupplierPaymentResponse(0m, 0, 0, []);
         }
 
-        var companyText = companyId.ToString(CultureInfo.InvariantCulture);
+        var query = _legacy.SupplierInvoices.Where(i => scope.Contains(i.Company!));
 
-        // Scoped to the active company — the legacy report had no company filter, so it could show one
-        // supplier's payments across every trading entity; here it stays within the company in scope.
-        var invoices = await _legacy.SupplierInvoices
-            .Where(i => i.Company == companyText && i.Supcode == supplierCode)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+        // One supplier, or every supplier ("all" or absent).
+        if (!string.IsNullOrWhiteSpace(supplierCode)
+            && !string.Equals(supplierCode, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(i => i.Supcode == supplierCode);
+        }
+
+        var invoices = await query.ToListAsync(cancellationToken).ConfigureAwait(false);
 
         if (invoices.Count == 0)
         {
             return new SupplierPaymentResponse(0m, 0, 0, []);
         }
 
-        // A List, not a HashSet, for the IN filter — see the note on the dashboard's company scoping.
+        // A List, not a HashSet, for the IN filter — see the note on CompanyScope / the dashboard fix.
         var invoiceIds = invoices.Select(i => i.Id.ToString(CultureInfo.InvariantCulture)).ToList();
 
         var payments = await _legacy.SupplierInvPays
@@ -682,7 +737,7 @@ public sealed class ReportsController : ControllerBase
             AuditAction.Export,
             "Report",
             report,
-            details: new { report, rows, company = _company.Active },
+            details: new { report, rows },
             cancellationToken: cancellationToken).ConfigureAwait(false);
 
         return File(

@@ -12,6 +12,7 @@ import { ApiError } from "@/lib/api";
 import {
   customerSalesReportExportUrl,
   getCustomerSalesReport,
+  type CompanyFilter,
   type CustomerSalesRow,
 } from "@/lib/reports";
 import { currentMonthStart, today } from "@/lib/period";
@@ -23,10 +24,11 @@ import { AnimatedNumber, ErrorBanner, FadeIn } from "@/components/ui";
 export default function CustomerSalesReportPage() {
   const [from, setFrom] = useState(currentMonthStart);
   const [to, setTo] = useState(today);
+  const [company, setCompany] = useState<CompanyFilter>("all");
 
   const report = useQuery({
-    queryKey: ["customer-sales-report", from, to],
-    queryFn: () => getCustomerSalesReport({ from, to }),
+    queryKey: ["customer-sales-report", from, to, company],
+    queryFn: () => getCustomerSalesReport({ from, to }, company),
   });
 
   const loadError = report.error as ApiError | null;
@@ -39,7 +41,7 @@ export default function CustomerSalesReportPage() {
         description="Sales grouped by customer for the period, ranked by profit, for the company you are working in."
       />
 
-      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany} />
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
@@ -81,7 +83,7 @@ export default function CustomerSalesReportPage() {
         defaultSort={{ id: "profit", desc: true }}
         searchable={(r) => `${r.customerName} ${r.customerCode}`}
         searchPlaceholder="Search customers…"
-        exportUrl={customerSalesReportExportUrl({ from, to })}
+        exportUrl={customerSalesReportExportUrl({ from, to }, company)}
         exportFilename="customer-sales.xlsx"
         empty={{ title: "No sales in this period", description: "Widen the date range." }}
       />

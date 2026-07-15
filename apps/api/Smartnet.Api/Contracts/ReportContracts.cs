@@ -1,5 +1,8 @@
 namespace Smartnet.Api.Contracts;
 
+/// <summary>A company the caller may filter a report by — the shared All/company selector's options.</summary>
+public sealed record CompanyOption(long Id, string Name);
+
 // The reports read the legacy tables read-only (invoice_h, expense_tr, …); they neither adopt nor
 // migrate them — that is Phase 5–7. Every money figure is parsed once, defensively, from the legacy
 // varchar columns to decimal (see LegacyValue); a row that carried an unreadable value is flagged

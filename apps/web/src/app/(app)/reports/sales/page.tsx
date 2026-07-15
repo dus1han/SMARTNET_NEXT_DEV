@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CreditCard, TrendingUp, Wallet } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
-import { getSalesReport, salesReportExportUrl, type SalesReportRow } from "@/lib/reports";
+import { getSalesReport, salesReportExportUrl, type CompanyFilter, type SalesReportRow } from "@/lib/reports";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { ReportFilterBar, StatTile, formatMoney, formatReportDate } from "@/components/reports";
@@ -23,10 +23,11 @@ import { currentMonthStart, today } from "@/lib/period";
 export default function SalesReportPage() {
   const [from, setFrom] = useState(currentMonthStart);
   const [to, setTo] = useState(today);
+  const [company, setCompany] = useState<CompanyFilter>("all");
 
   const report = useQuery({
-    queryKey: ["sales-report", from, to],
-    queryFn: () => getSalesReport({ from, to }),
+    queryKey: ["sales-report", from, to, company],
+    queryFn: () => getSalesReport({ from, to }, company),
   });
 
   const loadError = report.error as ApiError | null;
@@ -39,7 +40,7 @@ export default function SalesReportPage() {
         description="Cash, credit and total sales with profit for the period, for the company you are working in. Every invoice line is in the export."
       />
 
-      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany} />
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
@@ -85,7 +86,7 @@ export default function SalesReportPage() {
         defaultSort={{ id: "date", desc: true }}
         searchable={(r) => `${r.invoiceNo} ${r.customerName} ${r.customerCode} ${r.type}`}
         searchPlaceholder="Search invoices…"
-        exportUrl={salesReportExportUrl({ from, to })}
+        exportUrl={salesReportExportUrl({ from, to }, company)}
         exportFilename="sales.xlsx"
         empty={{
           title: "No sales in this period",

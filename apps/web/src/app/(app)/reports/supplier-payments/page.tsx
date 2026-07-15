@@ -13,6 +13,7 @@ import {
   getReportSuppliers,
   getSupplierPaymentReport,
   supplierPaymentReportExportUrl,
+  type CompanyFilter,
   type SupplierPaymentRow,
 } from "@/lib/reports";
 import { currentMonthStart, today } from "@/lib/period";
@@ -24,14 +25,14 @@ import { AnimatedNumber, ErrorBanner, FadeIn, Select } from "@/components/ui";
 export default function SupplierPaymentsReportPage() {
   const [from, setFrom] = useState(currentMonthStart);
   const [to, setTo] = useState(today);
-  const [supplier, setSupplier] = useState<string>("");
+  const [company, setCompany] = useState<CompanyFilter>("all");
+  const [supplier, setSupplier] = useState<string>("all");
 
   const suppliers = useQuery({ queryKey: ["report-suppliers"], queryFn: getReportSuppliers });
 
   const report = useQuery({
-    queryKey: ["supplier-payment-report", from, to, supplier],
-    queryFn: () => getSupplierPaymentReport({ from, to }, supplier || undefined),
-    enabled: supplier !== "",
+    queryKey: ["supplier-payment-report", from, to, company, supplier],
+    queryFn: () => getSupplierPaymentReport({ from, to }, company, supplier),
   });
 
   const loadError = report.error as ApiError | null;
@@ -44,14 +45,14 @@ export default function SupplierPaymentsReportPage() {
         description="Payments made to a supplier in the period, for the company you are working in."
       />
 
-      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo}>
+      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany}>
         <Select
           label="Supplier"
           value={supplier}
           onChange={(e) => setSupplier(e.target.value)}
           className="w-56"
         >
-          <option value="">Select a supplier…</option>
+          <option value="all">All suppliers</option>
           {suppliers.data?.map((s) => (
             <option key={s.code} value={s.code}>
               {s.name}
@@ -67,14 +68,14 @@ export default function SupplierPaymentsReportPage() {
           label="Total paid"
           icon={Banknote}
           color="indigo"
-          value={supplier && data ? <AnimatedNumber value={data.total} format={formatMoney} /> : "—"}
+          value={data ? <AnimatedNumber value={data.total} format={formatMoney} /> : "—"}
         />
         <StatTile
           label="Payments"
           icon={Hash}
           color="slate"
           delayMs={70}
-          value={supplier && data ? <AnimatedNumber value={data.count} format={(n) => Math.round(n).toLocaleString()} /> : "—"}
+          value={data ? <AnimatedNumber value={data.count} format={(n) => Math.round(n).toLocaleString()} /> : "—"}
         />
       </div>
 
@@ -88,18 +89,14 @@ export default function SupplierPaymentsReportPage() {
 
       <DataTable
         columns={columns}
-        rows={supplier ? data?.rows : []}
-        loading={supplier !== "" && report.isPending}
+        rows={data?.rows}
+        loading={report.isPending}
         defaultSort={{ id: "paidDate", desc: true }}
         searchable={(r) => `${r.invoiceNo} ${r.payMethod ?? ""} ${r.reference ?? ""}`}
         searchPlaceholder="Search payments…"
-        exportUrl={supplier ? supplierPaymentReportExportUrl({ from, to }, supplier) : undefined}
+        exportUrl={supplierPaymentReportExportUrl({ from, to }, company, supplier)}
         exportFilename="supplier-payments.xlsx"
-        empty={
-          supplier
-            ? { title: "No payments in this period", description: "Widen the date range." }
-            : { title: "Choose a supplier", description: "Select a supplier above to see its payments." }
-        }
+        empty={{ title: "No payments in this period", description: "Widen the date range or clear the supplier filter." }}
       />
     </FadeIn>
   );

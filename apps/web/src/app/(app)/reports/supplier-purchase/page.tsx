@@ -12,6 +12,7 @@ import { ApiError } from "@/lib/api";
 import {
   getSupplierPurchaseReport,
   supplierPurchaseReportExportUrl,
+  type CompanyFilter,
   type SupplierPurchaseRow,
 } from "@/lib/reports";
 import { currentMonthStart, today } from "@/lib/period";
@@ -23,10 +24,11 @@ import { AnimatedNumber, ErrorBanner, FadeIn } from "@/components/ui";
 export default function SupplierPurchaseReportPage() {
   const [from, setFrom] = useState(currentMonthStart);
   const [to, setTo] = useState(today);
+  const [company, setCompany] = useState<CompanyFilter>("all");
 
   const report = useQuery({
-    queryKey: ["supplier-purchase-report", from, to],
-    queryFn: () => getSupplierPurchaseReport({ from, to }),
+    queryKey: ["supplier-purchase-report", from, to, company],
+    queryFn: () => getSupplierPurchaseReport({ from, to }, company),
   });
 
   const loadError = report.error as ApiError | null;
@@ -39,7 +41,7 @@ export default function SupplierPurchaseReportPage() {
         description="Purchases per supplier for the period, with the pending balance, for the company you are working in."
       />
 
-      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany} />
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
@@ -81,7 +83,7 @@ export default function SupplierPurchaseReportPage() {
         defaultSort={{ id: "pending", desc: true }}
         searchable={(r) => `${r.supplierName} ${r.supplierCode}`}
         searchPlaceholder="Search suppliers…"
-        exportUrl={supplierPurchaseReportExportUrl({ from, to })}
+        exportUrl={supplierPurchaseReportExportUrl({ from, to }, company)}
         exportFilename="supplier-purchase.xlsx"
         empty={{ title: "No purchases in this period", description: "Widen the date range." }}
       />
