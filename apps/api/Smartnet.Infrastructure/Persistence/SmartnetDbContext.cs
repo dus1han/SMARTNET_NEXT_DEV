@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Documents;
 using Smartnet.Domain.Identity;
+using Smartnet.Domain.Ledger;
 using Smartnet.Domain.MasterData;
 using Smartnet.Domain.Settings;
 
@@ -87,6 +88,9 @@ public class SmartnetDbContext : DbContext
 
     /// <summary>Invoice lines, on the adopted legacy <c>invoice_l</c>.</summary>
     public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+
+    /// <summary>The receivables ledger. A customer's balance is the sum of these — see <see cref="LedgerEntry"/>.</summary>
+    public DbSet<LedgerEntry> ReceivablesLedger => Set<LedgerEntry>();
 
     /// <summary>
     /// Wraps the save in a transaction so that the business change and the audit rows the

@@ -15,6 +15,7 @@ using Smartnet.Api.Dunning;
 using Smartnet.Api.Middleware;
 using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Documents;
+using Smartnet.Domain.Ledger;
 using Smartnet.Domain.Identity;
 using Smartnet.Domain.MasterData;
 using Smartnet.Infrastructure;
@@ -23,6 +24,7 @@ using Smartnet.Infrastructure.Identity;
 using Smartnet.Domain.Exporting;
 using Smartnet.Infrastructure.Exporting;
 using Smartnet.Infrastructure.MasterData;
+using Smartnet.Infrastructure.Ledger;
 using Smartnet.Infrastructure.Numbering;
 using Smartnet.Infrastructure.Settings;
 using Smartnet.Infrastructure.Persistence;
@@ -115,6 +117,10 @@ builder.Services.AddScoped<IItemCodeAllocator, ItemCodeAllocator>();
 // The one tax engine every document runs its lines through (Phase 5). Stateless, pure decimal — a
 // singleton with nothing to scope.
 builder.Services.AddSingleton<ITaxEngine, TaxEngine>();
+
+// The receivables ledger read side — a customer's balance, derived (never stored). Scoped, because it
+// reads through the request's DbContext.
+builder.Services.AddScoped<IReceivablesLedger, ReceivablesLedger>();
 
 // Encrypts the SMTP password at rest (A2). The keys live outside the image; in production they
 // must be persisted to a shared, backed-up location, or a redeploy silently invalidates every

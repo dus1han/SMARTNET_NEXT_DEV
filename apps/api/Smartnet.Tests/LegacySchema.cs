@@ -94,8 +94,13 @@ public static class LegacySchema
     /// </remarks>
     public static IReadOnlyList<string> DocumentTables =>
     [
-        // Carries both: the company it belongs to, and the number the children join on.
-        Numbered("invoice_h", "invoiceno", company: true),
+        // invoice_h and invoice_l are now ADOPTED (Phase 5), not merely company-id'd, so they need
+        // their full legacy shape — every column the new entity maps or the seed migration reads,
+        // including the three that are NOT NULL (discountper, beforedisctot, contactperson), because a
+        // new-invoice insert has to satisfy them just as a legacy one did. Faithful to production
+        // (SHOW COLUMNS, 2026-07-15): all money and dates are varchar (Finding 5), there is no key.
+        InvoiceH,
+        InvoiceL,
 
         // Already company-aware in the legacy schema, and each numbers its own documents.
         Numbered("quotation_h", "q_no", company: true),
@@ -114,6 +119,48 @@ public static class LegacySchema
         Child("cn_h", numberColumn: "cnno"),
         Child("del_cn_h", numberColumn: null),
     ];
+
+    /// <summary>
+    /// <c>invoice_h</c> in its full pre-adoption shape — all 18 columns, faithful to production. Money
+    /// and dates are <c>varchar</c> (Finding 5); <c>discountper</c>, <c>beforedisctot</c> and
+    /// <c>contactperson</c> are NOT NULL, which is why a new invoice must write them (the dual-write),
+    /// not just its own <c>decimal</c> columns.
+    /// </summary>
+    public const string InvoiceH = """
+        CREATE TABLE `invoice_h` (
+          `it` varchar(100) DEFAULT NULL,
+          `invoiceno` varchar(100) DEFAULT NULL,
+          `invtype` varchar(100) DEFAULT NULL,
+          `indate` varchar(100) DEFAULT NULL,
+          `customer` varchar(100) DEFAULT NULL,
+          `pono` varchar(100) DEFAULT NULL,
+          `totamount` varchar(100) DEFAULT NULL,
+          `balance` varchar(100) DEFAULT NULL,
+          `preparedby` varchar(100) DEFAULT NULL,
+          `cdatetime` varchar(100) DEFAULT NULL,
+          `cost` varchar(100) DEFAULT NULL,
+          `company` varchar(100) DEFAULT NULL,
+          `novattotal` varchar(100) DEFAULT NULL,
+          `vtype` varchar(100) DEFAULT NULL,
+          `vper` varchar(100) DEFAULT NULL,
+          `discountper` varchar(50) NOT NULL,
+          `beforedisctot` varchar(100) NOT NULL,
+          `contactperson` varchar(100) NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary><c>invoice_l</c> — the invoice's lines, all nullable, keyless. <c>desc</c> is text.</summary>
+    public const string InvoiceL = """
+        CREATE TABLE `invoice_l` (
+          `inno` varchar(100) DEFAULT NULL,
+          `itemno` bigint(21) DEFAULT NULL,
+          `desc` text DEFAULT NULL,
+          `qty` varchar(100) DEFAULT NULL,
+          `rate` varchar(100) DEFAULT NULL,
+          `tot` varchar(100) DEFAULT NULL,
+          `itemcode` varchar(100) DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
 
     /// <summary>A document table that carries both a company and its own document number.</summary>
     private static string Numbered(string table, string numberColumn, bool company) => $"""

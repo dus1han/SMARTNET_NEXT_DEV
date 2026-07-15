@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Smartnet.Domain.Auditing;
+using Smartnet.Domain.Documents;
 using Smartnet.Infrastructure.Auditing;
+using Smartnet.Infrastructure.Documents;
 using Smartnet.Infrastructure.Persistence;
 
 namespace Smartnet.Infrastructure;
@@ -28,6 +30,13 @@ public static class DependencyInjection
         // The read side. Every history surface goes through it, so the company scoping on the audit
         // tables lives in one place rather than being re-derived on each screen that reads them.
         services.AddScoped<IAuditHistory, AuditHistoryReader>();
+
+        // The write side of document_versions — Phase 5's supply of the writer Phase 1 left for it.
+        services.AddScoped<IDocumentVersionWriter, DocumentVersionWriter>();
+
+        // The invoice save pipeline (Phase 5, slice 1): tax engine + number + ledger + stock + snapshot,
+        // one transaction.
+        services.AddScoped<IInvoiceCreator, InvoiceCreator>();
 
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)

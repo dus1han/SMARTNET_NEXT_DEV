@@ -5,6 +5,40 @@ using Smartnet.Domain.Documents;
 namespace Smartnet.Infrastructure.Persistence.Configurations;
 
 /// <summary>
+/// The <c>invoice_h</c> legacy varchar columns the new save writes alongside its typed ones — declared
+/// as EF shadow properties (not fields on the domain entity) and set by the save pipeline. One list, so
+/// the mapping and the writing cannot drift apart. Property names match the column, except
+/// <see cref="Cost"/>, whose column <c>cost</c> would collide with the entity's typed <c>Cost</c>.
+/// </summary>
+internal static class InvoiceLegacyShadow
+{
+    public const string It = "it";
+    public const string InvType = "invtype";
+    public const string InDate = "indate";
+    public const string Customer = "customer";
+    public const string TotAmount = "totamount";
+    public const string Balance = "balance";
+    public const string PreparedBy = "preparedby";
+    public const string CDateTime = "cdatetime";
+    public const string Cost = "legacyCost";
+    public const string NoVatTotal = "novattotal";
+    public const string VType = "vtype";
+    public const string VPer = "vper";
+    public const string DiscountPer = "discountper";
+    public const string BeforeDiscTot = "beforedisctot";
+    public const string Company = "company";
+
+    public static readonly (string Name, string Column, int Length)[] All =
+    [
+        (It, "it", 100), (InvType, "invtype", 100), (InDate, "indate", 100), (Customer, "customer", 100),
+        (TotAmount, "totamount", 100), (Balance, "balance", 100), (PreparedBy, "preparedby", 100),
+        (CDateTime, "cdatetime", 100), (Cost, "cost", 100), (NoVatTotal, "novattotal", 100),
+        (VType, "vtype", 100), (VPer, "vper", 100), (DiscountPer, "discountper", 50),
+        (BeforeDiscTot, "beforedisctot", 100), (Company, "company", 100),
+    ];
+}
+
+/// <summary>
 /// Invoices, mapped onto the adopted legacy <c>invoice_h</c> / <c>invoice_l</c> tables.
 /// </summary>
 /// <remarks>
@@ -59,6 +93,19 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.Cost).HasColumnName("cost_amount").HasColumnType("decimal(18,4)");
 
         builder.Property(i => i.DataOrigin).HasColumnName("data_origin").HasMaxLength(16);
+
+        // --- Legacy shadow columns -----------------------------------------------------------------
+        // The new app's source of truth is the decimal columns above; these legacy varchar columns are
+        // written *alongside* on save so the still-live legacy readers (payments, job cards) and the new
+        // app's own Phase 4 reports — which read invoice_h by its legacy column names — see a complete
+        // row. Three of them (discountper, beforedisctot, contactperson) are NOT NULL, so a new invoice
+        // must write them just as a legacy one did; the rest keep the reports whole. They are shadow
+        // properties, not fields on the honestly-typed domain entity, set by the save pipeline. All go
+        // at the Phase 9 retype. (contactperson is a real property above, set non-null by the pipeline.)
+        foreach (var (name, column, length) in InvoiceLegacyShadow.All)
+        {
+            builder.Property<string>(name).HasColumnName(column).HasMaxLength(length);
+        }
 
         builder.ConfigureAuditColumns();
 
