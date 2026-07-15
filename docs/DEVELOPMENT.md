@@ -245,6 +245,26 @@ A module is done when **all** of these hold:
 
 These exist because the legacy system violated each one, and we found the damage in the data.
 
+### Confirm it against the legacy app. Every time.
+
+**The legacy source is at `C:\Users\Saboor.a\Desktop\SMARTNET_DEV`** (not under version control —
+ISSUES E1 — so back a file up before touching it).
+
+Before designing anything, and before any migration, **read what the old app actually does** — not what
+its screens imply, not what the schema suggests, and not what the module is called. The rule exists
+because assuming has already cost us, twice:
+
+- The item master looked abandoned (500 items, zero invoice lines referencing one). It is not: item
+  invoices *are* raised, and the **save throws the item code away**. Reading `InvoiceController` said in
+  a minute what the data could only hint at.
+- `cus_m.c_form` looked like a tenant boundary. It is an *indication* of trading entity, and a company
+  filter built on it would have hidden 116 customers from the people who invoice them weekly.
+- The positional `INSERT INTO invoice_h VALUES (…)` was a hypothetical blocker for two phases. It was
+  real, in 23 places, and Phase 1 had already broken three of them.
+
+**The legacy app is still the live app.** Every migration must leave its writes working, and the only
+way to know is to go and look.
+
 ### Money
 - `decimal` in C#, `DECIMAL(18,4)` in the DB. **Never `double`, never `float`, never `varchar`.**
 - Rounding is explicit and per `app_settings` (per-line vs per-document).

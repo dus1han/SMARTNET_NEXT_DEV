@@ -1,0 +1,132 @@
+using Microsoft.EntityFrameworkCore;
+using Smartnet.Domain.Auditing;
+using Smartnet.Domain.Identity;
+using Smartnet.Domain.MasterData;
+using Smartnet.Domain.Settings;
+
+namespace Smartnet.Infrastructure.Persistence;
+
+/// <summary>
+/// The application's own context: it owns the migrations, and everything it tracks is audited.
+/// </summary>
+/// <remarks>
+/// It sits alongside the Phase 0 scaffolded <see cref="SmartnetLegacyDbContext"/>, which mirrors
+/// the legacy schema as it stands (46 of its 49 tables are keyless, so EF cannot write to them
+/// at all). Tables move across to this context as each phase adopts them, gaining a primary key
+/// and audit columns on the way. The legacy context is deleted in Phase 9 along with the app.
+/// </remarks>
+public class SmartnetDbContext : DbContext
+{
+    public SmartnetDbContext(DbContextOptions<SmartnetDbContext> options) : base(options)
+    {
+    }
+
+    public DbSet<AuditLogEntry> AuditLog => Set<AuditLogEntry>();
+
+    public DbSet<DocumentVersion> DocumentVersions => Set<DocumentVersion>();
+
+    /// <summary>
+    /// The legacy <c>user_m</c> table, adopted into this context in Slice 2. It is the first
+    /// legacy table to cross over: it gains a primary key, audit columns and a password hash,
+    /// all additively, while the legacy app keeps reading and writing it.
+    /// </summary>
+    public DbSet<User> Users => Set<User>();
+
+    public DbSet<Role> Roles => Set<Role>();
+
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+
+    public DbSet<UserRole> UserRoles => Set<UserRole>();
+
+    public DbSet<UserPermissionOverride> UserPermissionOverrides => Set<UserPermissionOverride>();
+
+    // --- Settings (Slice 4) -------------------------------------------------------------------
+
+    /// <summary>The legacy <c>companies_m</c>, adopted and extended with the document header.</summary>
+    public DbSet<Company> Companies => Set<Company>();
+
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+
+    public DbSet<DocumentSeries> DocumentSeries => Set<DocumentSeries>();
+
+    public DbSet<TaxRate> TaxRates => Set<TaxRate>();
+
+    public DbSet<MailSettings> MailSettings => Set<MailSettings>();
+
+    public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+
+    public DbSet<EmailLogEntry> EmailLog => Set<EmailLogEntry>();
+
+    // --- Master data (Phase 3, slice 1) -------------------------------------------------------
+    //
+    // Three more legacy tables cross over: cus_m, sup_m and item_m, none of which had a primary key
+    // (Finding 6 — three keys in a 49-table database). They gain one, the audit columns, and — in
+    // the case of the money and date columns — a type. Additively: the legacy app is still writing
+    // all three.
+
+    public DbSet<Customer> Customers => Set<Customer>();
+
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+
+    public DbSet<Item> Items => Set<Item>();
+
+    /// <summary>Stock receipts. Six rows, and nothing has ever consumed one — see <see cref="StockBatch"/>.</summary>
+    public DbSet<StockBatch> StockBatches => Set<StockBatch>();
+
+    /// <summary>The immutable stock ledger. An item's balance is the sum of these — see <see cref="StockMovement"/>.</summary>
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+
+    /// <summary>Reference data: the margin bands a customer can be put on.</summary>
+    public DbSet<ProfitPercent> ProfitPercents => Set<ProfitPercent>();
+
+    /// <summary>
+    /// Wraps the save in a transaction so that the business change and the audit rows the
+    /// interceptor writes for it commit together — or not at all.
+    /// </summary>
+    /// <remarks>
+    /// <b>This override is load-bearing.</b> The interceptor writes its rows in a second save
+    /// (an inserted row has no key until the INSERT has run, and the audit row must name it).
+    /// Without an enclosing transaction those are two independent commits, and a failure between
+    /// them leaves a business change with no audit trail — the exact divergence AUDIT.md exists
+    /// to prevent.
+    /// <para>
+    /// When the caller has already opened a transaction — the normal case for a business
+    /// operation, which is required to be one transaction — we join theirs rather than nesting.
+    /// </para>
+    /// </remarks>
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        if (Database.CurrentTransaction is not null)
+        {
+            return await base.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using var transaction = await Database
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var written = await base.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+        return written;
+    }
+
+    /// <summary>
+    /// The synchronous path is not supported: the audit interceptor's second write is async, and
+    /// a half-audited save is worse than a failed one.
+    /// </summary>
+    public override int SaveChanges() => throw new NotSupportedException(
+        "Use SaveChangesAsync. The audit interceptor writes its rows asynchronously, and the " +
+        "synchronous path cannot guarantee they land in the same transaction.");
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(SmartnetDbContext).Assembly);
+
+        // A property-bag entity, so it cannot be registered by IEntityTypeConfiguration.
+        LegacyUserPermissions.Configure(modelBuilder);
+
+        base.OnModelCreating(modelBuilder);
+    }
+}

@@ -1,0 +1,13 @@
+# Test code, not production code. Two rules are relaxed here and nowhere else.
+[*.cs]
+
+# CA1707 — underscores in member names. Test names are sentences: they are read in the failure
+# output by whoever broke them, so `A_failed_write_leaves_no_audit_row_behind` beats
+# `AFailedWriteLeavesNoAuditRowBehind`.
+dotnet_diagnostic.CA1707.severity = none
+
+# CA1711 — type names ending in 'Collection'. xUnit's [CollectionDefinition] convention.
+dotnet_diagnostic.CA1711.severity = none
+
+# Everything else still applies. In particular the money, raw-SQL and DateTime.Now bans in
+# BannedSymbols.txt: a test that does money in double proves nothing about code that does not.

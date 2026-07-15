@@ -47,6 +47,11 @@ services:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "8080:80"
+    # host.docker.internal is automatic on Docker Desktop but not on Linux,
+    # where the legacy app will actually be deployed. Map it explicitly so the
+    # same compose file works in both places.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - api
       - web
