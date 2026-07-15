@@ -9,8 +9,11 @@ import { cn } from "@/lib/cn";
 const button = cva(
   cn(
     "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium",
-    // 200ms, ease-out — and disabled globally under prefers-reduced-motion (globals.css).
-    "transition-colors duration-200 ease-out",
+    // 200ms, ease-out — and disabled globally under prefers-reduced-motion (globals.css). Transitions
+    // colour, shadow and transform so the hover lift and the press both read; the tiny active-scale is
+    // the tactile "it heard me" that a data-entry app clicked a thousand times a day earns its keep on.
+    "transition-[color,background-color,border-color,box-shadow,transform] duration-200 ease-out",
+    "active:scale-[0.97]",
     // Focus must be visible for anyone driving this by keyboard, which in a data-entry app that
     // people use all day is most of them.
     "outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas",

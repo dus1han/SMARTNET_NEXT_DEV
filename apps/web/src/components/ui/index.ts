@@ -14,4 +14,5 @@ export { Dialog } from "./dialog";
 export { ErrorBanner } from "./error-banner";
 export { toast, Toaster } from "./toast";
 export { Spinner, LoadingPanel, ProgressBar, Stagger, FadeIn } from "./motion";
+export { AnimatedNumber } from "./animated-number";
 export { RouteProgress } from "./route-progress";
