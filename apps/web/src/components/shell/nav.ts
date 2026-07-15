@@ -1,15 +1,22 @@
 import {
+  Banknote,
+  BarChart3,
   Building2,
   FileText,
   FlaskConical,
+  HandCoins,
   LayoutDashboard,
   Package,
+  Percent,
   Receipt,
+  ScrollText,
   Settings,
+  ShoppingBag,
   ShoppingCart,
   Truck,
   Users,
   Wallet,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -64,6 +71,20 @@ export const NAVIGATION: NavSection[] = [
       { href: "/customers", label: "Customers", icon: Building2, permission: "customer_m" },
       { href: "/suppliers", label: "Suppliers", icon: Truck, permission: "supplier_m" },
       { href: "/items", label: "Items", icon: Package, permission: "item_m" },
+    ],
+  },
+  {
+    title: "Reports",
+    items: [
+      { href: "/reports/sales", label: "Sales", icon: BarChart3, permission: "sales_rpt" },
+      { href: "/reports/customer-sales", label: "Customer sales", icon: Users, permission: "customersales_rpt" },
+      { href: "/reports/expenses", label: "Expenses", icon: Banknote, permission: "expenses_rpt" },
+      { href: "/reports/cheques", label: "Cheques", icon: ScrollText, permission: "chequerpt" },
+      { href: "/reports/job-cards", label: "Job cards", icon: Wrench, permission: "jobcards_rpt" },
+      { href: "/reports/customer-vat", label: "Customer VAT", icon: Percent, permission: "cusvat_rpt" },
+      { href: "/reports/supplier-vat", label: "Supplier VAT", icon: Percent, permission: "suppliervat_rpt" },
+      { href: "/reports/supplier-purchase", label: "Supplier purchases", icon: ShoppingBag, permission: "supplierpurchase_rpt" },
+      { href: "/reports/supplier-payments", label: "Supplier payments", icon: HandCoins, permission: "supplierpayments_rpt" },
     ],
   },
   {

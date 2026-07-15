@@ -68,6 +68,38 @@ export type StockMovement = Schemas["StockMovementDto"];
 export type StockBatch = Schemas["StockBatchDto"];
 export type CreateStockAdjustmentRequest = Schemas["CreateStockAdjustmentRequest"];
 
+// --- Dashboard -------------------------------------------------------------------------------
+
+export type DashboardResponse = Schemas["DashboardResponse"];
+export type DailySalesPoint = Schemas["DailySalesPoint"];
+export type DashboardCompanyOption = Schemas["DashboardCompanyOption"];
+
+// --- Reports ---------------------------------------------------------------------------------
+
+export type SalesReportResponse = Schemas["SalesReportResponse"];
+export type SalesReportRow = Schemas["SalesReportRow"];
+export type SalesReportSummary = Schemas["SalesReportSummary"];
+export type ExpenseReportResponse = Schemas["ExpenseReportResponse"];
+export type ExpenseReportRow = Schemas["ExpenseReportRow"];
+export type ExpenseCategory = Schemas["ExpenseCategoryDto"];
+
+export type CustomerSalesResponse = Schemas["CustomerSalesResponse"];
+export type CustomerSalesRow = Schemas["CustomerSalesRow"];
+export type ChequeReportResponse = Schemas["ChequeReportResponse"];
+export type ChequeRow = Schemas["ChequeRow"];
+export type JobCardReportResponse = Schemas["JobCardReportResponse"];
+export type JobCardRow = Schemas["JobCardRow"];
+
+export type CustomerVatResponse = Schemas["CustomerVatResponse"];
+export type CustomerVatRow = Schemas["CustomerVatRow"];
+export type SupplierVatResponse = Schemas["SupplierVatResponse"];
+export type SupplierVatRow = Schemas["SupplierVatRow"];
+export type SupplierPurchaseResponse = Schemas["SupplierPurchaseResponse"];
+export type SupplierPurchaseRow = Schemas["SupplierPurchaseRow"];
+export type SupplierPaymentResponse = Schemas["SupplierPaymentResponse"];
+export type SupplierPaymentRow = Schemas["SupplierPaymentRow"];
+export type SupplierOption = Schemas["SupplierOption"];
+
 // --- History ---------------------------------------------------------------------------------
 
 export type AuditEntry = Schemas["AuditEntry"];
