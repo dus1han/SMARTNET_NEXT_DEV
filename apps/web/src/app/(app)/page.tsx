@@ -1,205 +1,127 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowRight,
-  KeyRound,
-  ScrollText,
-  Settings as SettingsIcon,
-  ShieldCheck,
-  Users as UsersIcon,
-  type LucideIcon,
-} from "lucide-react";
-import Link from "next/link";
-import { me } from "@/lib/auth";
-import { listCompanies } from "@/lib/settings";
-import { cn } from "@/lib/cn";
-import { PageHeader } from "@/components/shell/app-shell";
-import { Badge, Card } from "@/components/ui";
-
 /**
- * The landing page.
+ * The dashboard — Phase 4, slice 2. One screen, two shapes.
  *
- * It is deliberately NOT the real dashboard — that is Phase 4, and it needs reports and charts that
- * do not exist yet. Inventing plausible sales figures to make the screen look busy would be worse
- * than an empty one: somebody would eventually believe them, and this is an accounting system.
- *
- * So it shows what is actually true today: who you are, what you may reach, and what the rebuild
- * has already fixed.
+ * The server chooses the shape from the token: a user who holds `dashboard` sees the company view
+ * (every invoice in the company they are working in); everyone else sees the "my" view, scoped to what
+ * they prepared. That scoping is approximate until Phase 5 — it joins on the legacy `preparedby` name
+ * string, which a rename breaks — and it says so. The three legacy dashboard controllers (Admin, User,
+ * and the dropped Customer one) collapse to this.
  */
-export default function HomePage() {
-  const { data: user } = useQuery({ queryKey: ["me"], queryFn: me });
-  const { data: companies } = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
 
-  const permissions = user?.permissions ?? [];
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { AlertTriangle, Building2, Coins, TrendingUp, UserRound, Wallet } from "lucide-react";
+import { useState } from "react";
+import { ApiError } from "@/lib/api";
+import { getDashboard, type CompanyFilter } from "@/lib/dashboard";
+import { PageHeader } from "@/components/shell/app-shell";
+import { DailySalesChart } from "@/components/dashboard/daily-sales-chart";
+import { CompanyFilterCard } from "@/components/dashboard/company-filter-card";
+import { StatTile, formatMoney } from "@/components/reports";
+import { AnimatedNumber, Badge, Card, CardHeader, ErrorBanner, FadeIn, LoadingPanel } from "@/components/ui";
+
+export default function DashboardPage() {
+  const [company, setCompany] = useState<CompanyFilter>("all");
+
+  const dashboard = useQuery({
+    queryKey: ["dashboard", company],
+    queryFn: () => getDashboard(company),
+    // Keep the current figures on screen while a company switch loads, so the tiles animate to the new
+    // numbers rather than collapsing to a spinner and back.
+    placeholderData: keepPreviousData,
+  });
+
+  const loadError = dashboard.error as ApiError | null;
+  const data = dashboard.data;
 
   return (
-    <>
+    <FadeIn className="space-y-6">
       <PageHeader
-        title={`Welcome back, ${user?.username ?? ""}`}
-        description="Authentication, roles, auditing and settings are live."
+        title="Dashboard"
+        description={data ? periodLabel(data.periodStart, data.periodEnd) : "This month at a glance."}
+        actions={
+          data?.view === "my" ? (
+            <Badge
+              tone="warning"
+              title="Scoped to documents prepared under your name. Until Phase 5, that is a name match on the legacy data — approximate."
+            >
+              Your sales · approximate
+            </Badge>
+          ) : undefined
+        }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
-          icon={ShieldCheck}
-          label="Your permissions"
-          value={String(permissions.length)}
-          hint="Enforced on every request"
-        />
-        <Stat
-          icon={SettingsIcon}
-          label="Companies"
-          value={companies ? String(companies.length) : "—"}
-          hint="Scoped by the switcher above"
-        />
-        <Stat
-          icon={KeyRound}
-          label="Passwords"
-          value="Argon2id"
-          hint="Was: 4-char plaintext"
-          tone="success"
-        />
-        <Stat
-          icon={ScrollText}
-          label="Every change"
-          value="Audited"
-          hint="Who, when and why"
-          tone="success"
-        />
-      </div>
+      {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <h2 className="font-medium text-text">What the rebuild has closed</h2>
-          <p className="mt-1 text-sm text-muted">Each of these was a live defect in the old system.</p>
-
-          <ul className="mt-5 space-y-4">
-            {CLOSED.map((entry) => (
-              <li key={entry.id} className="flex gap-3">
-                <Badge tone="success" className="mt-0.5 shrink-0 font-mono">
-                  {entry.id}
-                </Badge>
-
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-text">{entry.title}</p>
-                  <p className="mt-0.5 text-sm text-muted">{entry.detail}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
-
-        <Card>
-          <h2 className="font-medium text-text">Jump to</h2>
-          <p className="mt-1 text-sm text-muted">Only what your permissions allow.</p>
-
-          <div className="mt-5 space-y-2">
-            {permissions.includes("users") && (
-              <Shortcut href="/users" icon={UsersIcon} label="Manage users" />
-            )}
-
-            {permissions.includes("settings.manage") && (
-              <Shortcut href="/settings" icon={SettingsIcon} label="Settings" />
-            )}
-
-            {!permissions.includes("users") && !permissions.includes("settings.manage") && (
-              <p className="text-sm text-muted">
-                Your account holds no administrative permissions. The modules you do have arrive from
-                Phase 3 onward.
-              </p>
+      {dashboard.isPending ? (
+        <LoadingPanel />
+      ) : data ? (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatTile
+              label="Sales this month"
+              icon={TrendingUp}
+              color="indigo"
+              delayMs={0}
+              value={<AnimatedNumber value={data.totalSales} format={formatMoney} />}
+              sub={`Cash ${formatMoney(data.cashSales)} · Credit ${formatMoney(data.creditSales)}`}
+            />
+            <StatTile
+              label="Profit this month"
+              icon={Coins}
+              color="emerald"
+              delayMs={70}
+              value={<AnimatedNumber value={data.profit} format={formatMoney} />}
+            />
+            <StatTile
+              label="Outstanding"
+              icon={Wallet}
+              color="amber"
+              delayMs={140}
+              value={<AnimatedNumber value={data.outstanding} format={formatMoney} />}
+            />
+            {data.companies.length >= 2 ? (
+              <CompanyFilterCard
+                companies={data.companies}
+                selected={company}
+                onChange={setCompany}
+                delayMs={210}
+              />
+            ) : (
+              <StatTile
+                label={data.view === "my" ? "Your invoices" : "Company"}
+                icon={data.view === "my" ? UserRound : Building2}
+                color="violet"
+                delayMs={210}
+                value={data.view === "my" ? "Yours only" : "All"}
+              />
             )}
           </div>
-        </Card>
-      </div>
-    </>
+
+          {data.flaggedCount > 0 && (
+            <p className="flex items-center gap-2 text-sm text-warning-text">
+              <AlertTriangle className="size-4" aria-hidden />
+              {data.flaggedCount} invoice{data.flaggedCount === 1 ? "" : "s"} this month carry a value
+              we could not read from the legacy data. It is counted as zero.
+            </p>
+          )}
+
+          <Card>
+            <CardHeader
+              title="Daily sales"
+              description="Cash and credit for each day of the month, for the company you are working in."
+            />
+            <DailySalesChart points={data.chart} />
+          </Card>
+        </>
+      ) : null}
+    </FadeIn>
   );
 }
 
-const CLOSED = [
-  {
-    id: "A4",
-    title: "Plaintext passwords",
-    detail:
-      "Both accounts were four characters, stored in clear text. Now Argon2id, upgraded silently on first login.",
-  },
-  {
-    id: "A5",
-    title: "Cosmetic authorization",
-    detail:
-      "Any logged-in user could call the admin endpoints. Now denied by default, checked per permission.",
-  },
-  {
-    id: "A2",
-    title: "Hardcoded SMTP password",
-    detail: "Shipped in the source code. Now encrypted at rest, write-only, with a send kill switch.",
-  },
-  {
-    id: "B4",
-    title: "Duplicate document numbers",
-    detail:
-      "Two quotations already share the number STQ-0. Numbers are now unique-indexed and allocated under a lock.",
-  },
-  {
-    id: "F2",
-    title: "No audit trail",
-    detail: "Updates and deletes recorded nothing at all. Every change now carries who, when and why.",
-  },
-];
-
-function Stat({ icon: Icon, label, value, hint, tone }: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  hint: string;
-  tone?: "success";
-}) {
-  return (
-    <Card className="relative overflow-hidden">
-      {/* A whisper of the accent behind the corner, so a row of cards reads with some depth rather
-          than as four grey boxes. Decorative, and hidden from assistive tech. */}
-      <div
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute -right-6 -top-6 size-20 rounded-full blur-2xl",
-          tone === "success" ? "bg-success/20" : "bg-primary/20",
-        )}
-      />
-
-      <div className="flex items-center gap-2">
-        <Icon
-          className={cn("size-4", tone === "success" ? "text-success" : "text-primary")}
-          aria-hidden
-        />
-        <p className="text-sm font-medium text-muted">{label}</p>
-      </div>
-
-      <p className="tabular mt-3 text-2xl font-semibold tracking-tight text-text">{value}</p>
-      <p className="mt-1 text-xs text-muted">{hint}</p>
-    </Card>
-  );
-}
-
-function Shortcut({ href, icon: Icon, label }: { href: string; icon: LucideIcon; label: string }) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "group flex items-center gap-3 rounded-lg border border-subtle px-3 py-2.5 text-sm font-medium text-text",
-        "transition-colors duration-200 hover:border-strong hover:bg-surface-sunken",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
-      )}
-    >
-      <span className="grid size-8 place-items-center rounded-lg bg-primary-ghost text-primary">
-        <Icon className="size-4" aria-hidden />
-      </span>
-
-      <span className="flex-1">{label}</span>
-
-      <ArrowRight
-        className="size-4 text-muted transition-transform duration-200 group-hover:translate-x-0.5"
-        aria-hidden
-      />
-    </Link>
-  );
+function periodLabel(start: string, end: string): string {
+  const from = new Date(`${start}T00:00:00`);
+  if (Number.isNaN(from.getTime())) return `${start} – ${end}`;
+  return from.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }

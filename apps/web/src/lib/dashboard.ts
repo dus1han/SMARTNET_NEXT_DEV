@@ -1,0 +1,17 @@
+import type { DashboardResponse } from "@smartnet/api-client";
+import { api } from "./api";
+
+// Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
+export type { DashboardResponse, DailySalesPoint, DashboardCompanyOption } from "@smartnet/api-client";
+
+/** The company the dashboard is scoped to: a specific company id, or "all" (every accessible one). */
+export type CompanyFilter = number | "all";
+
+/**
+ * The dashboard. The server chooses the shape from the token — a caller who holds `dashboard` gets the
+ * company view, everyone else the "my" view scoped to what they prepared — and scopes the figures to
+ * the chosen company, or aggregates every company the caller may see when `all`. The server only ever
+ * honours a company the token permits, so this can only narrow to something already allowed.
+ */
+export const getDashboard = (company: CompanyFilter = "all") =>
+  api<DashboardResponse>(`/api/dashboard${company === "all" ? "" : `?company=${company}`}`);

@@ -395,6 +395,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    company?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DashboardResponse"];
+                        "application/json": components["schemas"]["DashboardResponse"];
+                        "text/json": components["schemas"]["DashboardResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/history/records/{entityType}/{entityId}": {
         parameters: {
             query?: never;
@@ -932,6 +971,768 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SalesReportResponse"];
+                        "application/json": components["schemas"]["SalesReportResponse"];
+                        "text/json": components["schemas"]["SalesReportResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/sales/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    category?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ExpenseReportResponse"];
+                        "application/json": components["schemas"]["ExpenseReportResponse"];
+                        "text/json": components["schemas"]["ExpenseReportResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/expenses/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    category?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/expenses/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ExpenseCategoryDto"][];
+                        "application/json": components["schemas"]["ExpenseCategoryDto"][];
+                        "text/json": components["schemas"]["ExpenseCategoryDto"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/customer-sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CustomerSalesResponse"];
+                        "application/json": components["schemas"]["CustomerSalesResponse"];
+                        "text/json": components["schemas"]["CustomerSalesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/customer-sales/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/cheques": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ChequeReportResponse"];
+                        "application/json": components["schemas"]["ChequeReportResponse"];
+                        "text/json": components["schemas"]["ChequeReportResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/cheques/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/job-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["JobCardReportResponse"];
+                        "application/json": components["schemas"]["JobCardReportResponse"];
+                        "text/json": components["schemas"]["JobCardReportResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/job-cards/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/customer-vat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CustomerVatResponse"];
+                        "application/json": components["schemas"]["CustomerVatResponse"];
+                        "text/json": components["schemas"]["CustomerVatResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/customer-vat/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/supplier-vat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SupplierVatResponse"];
+                        "application/json": components["schemas"]["SupplierVatResponse"];
+                        "text/json": components["schemas"]["SupplierVatResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/supplier-vat/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/supplier-purchase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SupplierPurchaseResponse"];
+                        "application/json": components["schemas"]["SupplierPurchaseResponse"];
+                        "text/json": components["schemas"]["SupplierPurchaseResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/supplier-purchase/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/supplier-payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    supplier?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SupplierPaymentResponse"];
+                        "application/json": components["schemas"]["SupplierPaymentResponse"];
+                        "text/json": components["schemas"]["SupplierPaymentResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/supplier-payments/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    supplier?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SupplierOption"][];
+                        "application/json": components["schemas"]["SupplierOption"][];
+                        "text/json": components["schemas"]["SupplierOption"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2084,6 +2885,33 @@ export interface components {
             currentPassword: string;
             newPassword: string;
         };
+        ChequeReportResponse: {
+            /** Format: double */
+            total: number;
+            /** Format: int32 */
+            count: number;
+            /** Format: int32 */
+            flaggedCount: number;
+            rows: components["schemas"]["ChequeRow"][];
+        };
+        ChequeRow: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            chequeDate?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            payTo?: string | null;
+            /** Format: double */
+            amount: number;
+            amountInWords: string;
+            bank?: string | null;
+            chequeNo?: string | null;
+            createdBy?: string | null;
+            createdAt?: string | null;
+            printedAt?: string | null;
+            hasDataIssue: boolean;
+        };
         CompanyProfile: {
             /** Format: int64 */
             id: number;
@@ -2141,6 +2969,32 @@ export interface components {
             id: number;
             temporaryPassword: string;
         };
+        CustomerSalesResponse: {
+            /** Format: double */
+            totalSales: number;
+            /** Format: double */
+            totalProfit: number;
+            /** Format: int32 */
+            customerCount: number;
+            /** Format: int32 */
+            flaggedCount: number;
+            rows: components["schemas"]["CustomerSalesRow"][];
+        };
+        CustomerSalesRow: {
+            customerCode: string;
+            customerName: string;
+            /** Format: int32 */
+            invoiceCount: number;
+            /** Format: double */
+            total: number;
+            /** Format: double */
+            cost: number;
+            /** Format: double */
+            profit: number;
+            /** Format: double */
+            balance: number;
+            hasDataIssue: boolean;
+        };
         CustomerSummary: {
             /** Format: int64 */
             id: number;
@@ -2158,6 +3012,67 @@ export interface components {
             profitPercentId?: number | null;
             /** Format: double */
             creditLimit: number;
+        };
+        CustomerVatResponse: {
+            /** Format: double */
+            totalValue: number;
+            /** Format: double */
+            totalVat: number;
+            /** Format: int32 */
+            count: number;
+            /** Format: int32 */
+            flaggedCount: number;
+            rows: components["schemas"]["CustomerVatRow"][];
+        };
+        CustomerVatRow: {
+            /** Format: date */
+            date?: string | null;
+            invoiceNo: string;
+            customerName: string;
+            vatNumber?: string | null;
+            documentType: string;
+            /** Format: double */
+            value: number;
+            /** Format: double */
+            vat: number;
+            hasDataIssue: boolean;
+        };
+        DailySalesPoint: {
+            /** Format: date */
+            date: string;
+            /** Format: double */
+            cash: number;
+            /** Format: double */
+            credit: number;
+        };
+        DashboardCompanyOption: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        DashboardResponse: {
+            view: string;
+            approximate: boolean;
+            /** Format: date */
+            periodStart: string;
+            /** Format: date */
+            periodEnd: string;
+            /** Format: double */
+            cashSales: number;
+            /** Format: double */
+            creditSales: number;
+            /** Format: double */
+            totalSales: number;
+            /** Format: double */
+            outstanding: number;
+            /** Format: double */
+            profit: number;
+            /** Format: int32 */
+            flaggedCount: number;
+            chart: components["schemas"]["DailySalesPoint"][];
+            /** Format: int64 */
+            selectedCompanyId?: number | null;
+            companies: components["schemas"]["DashboardCompanyOption"][];
         };
         DocumentSeriesDto: {
             /** Format: int64 */
@@ -2208,6 +3123,34 @@ export interface components {
             subject: string;
             body: string;
         };
+        ExpenseCategoryDto: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        ExpenseReportResponse: {
+            /** Format: double */
+            total: number;
+            /** Format: int32 */
+            count: number;
+            /** Format: int32 */
+            flaggedCount: number;
+            rows: components["schemas"]["ExpenseReportRow"][];
+        };
+        ExpenseReportRow: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            date?: string | null;
+            category: string;
+            description?: string | null;
+            /** Format: double */
+            amount: number;
+            paymentMethod?: string | null;
+            reference?: string | null;
+            addedBy?: string | null;
+            hasDataIssue: boolean;
+        };
         ItemStockResponse: {
             /** Format: int64 */
             itemId: number;
@@ -2235,6 +3178,35 @@ export interface components {
             /** Format: double */
             stockBalance: number;
             belowReorder: boolean;
+        };
+        JobCardReportResponse: {
+            /** Format: double */
+            totalCost: number;
+            /** Format: double */
+            totalSell: number;
+            /** Format: double */
+            totalProfit: number;
+            /** Format: int32 */
+            count: number;
+            /** Format: int32 */
+            flaggedCount: number;
+            rows: components["schemas"]["JobCardRow"][];
+        };
+        JobCardRow: {
+            jobNo: string;
+            /** Format: date */
+            date?: string | null;
+            customerName: string;
+            status: string;
+            /** Format: double */
+            cost: number;
+            /** Format: double */
+            sell: number;
+            /** Format: double */
+            profit?: number | null;
+            jobDoneBy?: string | null;
+            completedBy?: string | null;
+            hasDataIssue: boolean;
         };
         LoginRequest: {
             username: string;
@@ -2319,6 +3291,49 @@ export interface components {
             /** Format: int64 */
             companyId?: number | null;
             permissions: string[];
+        };
+        SalesReportResponse: {
+            summary: components["schemas"]["SalesReportSummary"];
+            rows: components["schemas"]["SalesReportRow"][];
+        };
+        SalesReportRow: {
+            category: string;
+            invoiceNo: string;
+            type: string;
+            /** Format: date */
+            date?: string | null;
+            customerCode: string;
+            customerName: string;
+            purchaseOrderNo?: string | null;
+            /** Format: double */
+            total: number;
+            /** Format: double */
+            balance: number;
+            /** Format: double */
+            cost: number;
+            /** Format: double */
+            profit: number;
+            preparedBy?: string | null;
+            generatedAt?: string | null;
+            hasDataIssue: boolean;
+        };
+        SalesReportSummary: {
+            /** Format: double */
+            cashSales: number;
+            /** Format: double */
+            cashProfit: number;
+            /** Format: double */
+            creditSales: number;
+            /** Format: double */
+            creditProfit: number;
+            /** Format: double */
+            totalSales: number;
+            /** Format: double */
+            totalProfit: number;
+            /** Format: int32 */
+            invoiceCount: number;
+            /** Format: int32 */
+            flaggedCount: number;
         };
         SaveCustomerRequest: {
             name: string;
@@ -2446,6 +3461,52 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        SupplierOption: {
+            code: string;
+            name: string;
+        };
+        SupplierPaymentResponse: {
+            /** Format: double */
+            total: number;
+            /** Format: int32 */
+            count: number;
+            /** Format: int32 */
+            flaggedCount: number;
+            rows: components["schemas"]["SupplierPaymentRow"][];
+        };
+        SupplierPaymentRow: {
+            /** Format: date */
+            paidDate?: string | null;
+            invoiceNo: string;
+            /** Format: date */
+            invoiceDate?: string | null;
+            /** Format: double */
+            amount: number;
+            payMethod?: string | null;
+            reference?: string | null;
+            supplierName: string;
+            hasDataIssue: boolean;
+        };
+        SupplierPurchaseResponse: {
+            /** Format: double */
+            totalPurchase: number;
+            /** Format: double */
+            totalPending: number;
+            /** Format: int32 */
+            supplierCount: number;
+            /** Format: int32 */
+            flaggedCount: number;
+            rows: components["schemas"]["SupplierPurchaseRow"][];
+        };
+        SupplierPurchaseRow: {
+            supplierCode: string;
+            supplierName: string;
+            /** Format: double */
+            totalPurchase: number;
+            /** Format: double */
+            pendingBalance: number;
+            hasDataIssue: boolean;
+        };
         SupplierSummary: {
             /** Format: int64 */
             id: number;
@@ -2456,6 +3517,29 @@ export interface components {
             phone?: string | null;
             email?: string | null;
             vatNumber?: string | null;
+        };
+        SupplierVatResponse: {
+            /** Format: double */
+            totalValue: number;
+            /** Format: double */
+            totalVat: number;
+            /** Format: int32 */
+            count: number;
+            /** Format: int32 */
+            flaggedCount: number;
+            rows: components["schemas"]["SupplierVatRow"][];
+        };
+        SupplierVatRow: {
+            /** Format: date */
+            date?: string | null;
+            invoiceNo: string;
+            supplierName: string;
+            vatNumber?: string | null;
+            /** Format: double */
+            value: number;
+            /** Format: double */
+            vat: number;
+            hasDataIssue: boolean;
         };
         TaxRateDto: {
             /** Format: int64 */
