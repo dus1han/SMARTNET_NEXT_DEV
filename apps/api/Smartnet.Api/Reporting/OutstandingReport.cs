@@ -46,6 +46,49 @@ public static class OutstandingReport
             Rows: rows);
     }
 
+    /// <summary>
+    /// The per-invoice drill-down — every outstanding invoice (balance &gt; 0) for the given set, aged.
+    /// This is what "export selected" produces: the legacy outstanding-invoice list, for the customers
+    /// the user ticked.
+    /// </summary>
+    public static IReadOnlyList<OutstandingDetailRow> Detail(
+        IReadOnlyList<InvoiceH> invoices,
+        IReadOnlyDictionary<string, string> names,
+        DateOnly asOf) =>
+        invoices
+            .Select(h => DetailRow(h, names, asOf))
+            .Where(r => r.Balance > 0m)
+            .OrderBy(r => r.CustomerName, StringComparer.OrdinalIgnoreCase)
+            .ThenByDescending(r => r.Days)
+            .ToList();
+
+    private static OutstandingDetailRow DetailRow(
+        InvoiceH h,
+        IReadOnlyDictionary<string, string> names,
+        DateOnly asOf)
+    {
+        var total = LegacyValue.Money(h.Totamount, out var totalOk);
+        var balance = LegacyValue.Money(h.Balance, out var balanceOk);
+
+        var date = LegacyValue.Date(h.Indate);
+        var dateOk = string.IsNullOrWhiteSpace(h.Indate) || date is not null;
+        var days = date is { } d ? Math.Max(0, asOf.DayNumber - d.DayNumber) : 0;
+
+        var code = h.Customer ?? string.Empty;
+
+        return new OutstandingDetailRow(
+            CustomerCode: code,
+            CustomerName: names.GetValueOrDefault(code, string.Empty),
+            Category: h.It ?? string.Empty,
+            InvoiceNo: h.Invoiceno ?? string.Empty,
+            Date: date,
+            PurchaseOrderNo: h.Pono,
+            Total: total,
+            Balance: balance,
+            Days: days,
+            HasDataIssue: !totalOk || !balanceOk || !dateOk);
+    }
+
     private static OutstandingRow Row(
         string code,
         List<InvoiceH> invoices,

@@ -474,6 +474,52 @@ public sealed class ReportsController : ControllerBase
         return await Download(workbook, "outstanding", report.Rows.Count, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>The outstanding invoice list for a chosen set of customers — the "export selected" sheet.</summary>
+    [HttpGet("outstanding/detail/export")]
+    [RequirePermission(Permissions.CustomerOutstanding)]
+    public async Task<IActionResult> OutstandingDetailExport(
+        [FromQuery] string? company,
+        [FromQuery] string? customers,
+        CancellationToken cancellationToken)
+    {
+        var scope = CompanyScope(company);
+        var codes = (customers ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        IReadOnlyList<OutstandingDetailRow> rows = [];
+
+        if (scope.Count > 0 && codes.Count > 0)
+        {
+            var invoices = await _legacy.InvoiceHs
+                .Where(h => scope.Contains(h.Company!) && codes.Contains(h.Customer!))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var names = await CustomerNames(cancellationToken).ConfigureAwait(false);
+            var asOf = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+            rows = OutstandingReport.Detail(invoices, names, asOf);
+        }
+
+        var workbook = _excel.Export<OutstandingDetailRow>(
+            "Outstanding detail",
+            [
+                new("Customer Code", r => r.CustomerCode),
+                new("Customer", r => r.CustomerName),
+                new("Category", r => r.Category),
+                new("Invoice No", r => r.InvoiceNo),
+                new("Date", r => r.Date is { } d ? d.ToDateTime(TimeOnly.MinValue) : (DateTime?)null, ExcelFormat.Date),
+                new("PO No", r => r.PurchaseOrderNo),
+                new("Total", r => r.Total, ExcelFormat.Money),
+                new("Balance", r => r.Balance, ExcelFormat.Money),
+                new("Days", r => r.Days, ExcelFormat.WholeNumber),
+            ],
+            rows);
+
+        return await Download(workbook, "outstanding-detail", rows.Count, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>The suppliers, for the supplier-payments filter.</summary>
     [HttpGet("suppliers")]
     [RequirePermission(Permissions.SupplierPaymentsReport)]
