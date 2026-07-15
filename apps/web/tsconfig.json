@@ -19,11 +19,14 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@smartnet/api-client": ["../../packages/api-client/index.ts"]
     }
   },
   "include": [
     "next-env.d.ts",
+    "../../packages/api-client/index.ts",
+    "../../packages/api-client/schema.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
