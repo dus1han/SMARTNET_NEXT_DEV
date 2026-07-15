@@ -108,6 +108,9 @@ export type DunningResponse = Schemas["DunningResponse"];
 
 export type AuditEntry = Schemas["AuditEntry"];
 export type RecordHistory = Schemas["RecordHistoryResponse"];
+export type AuditLogResponse = Schemas["AuditLogResponse"];
+export type AuditFacets = Schemas["AuditFacetsResponse"];
+export type AuditActor = Schemas["AuditActorDto"];
 export type DocumentVersionSummary = Schemas["DocumentVersionSummary"];
 export type DocumentVersionDetail = Schemas["DocumentVersionDetail"];
 

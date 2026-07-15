@@ -11,6 +11,7 @@ import {
   Receipt,
   ScrollText,
   Settings,
+  ShieldCheck,
   ShoppingBag,
   ShoppingCart,
   Truck,
@@ -92,6 +93,7 @@ export const NAVIGATION: NavSection[] = [
     title: "Administration",
     items: [
       { href: "/users", label: "Users", icon: Users, permission: "users" },
+      { href: "/audit", label: "Audit log", icon: ShieldCheck, permission: "audit.view" },
       { href: "/settings", label: "Settings", icon: Settings, permission: "settings.manage" },
     ],
   },

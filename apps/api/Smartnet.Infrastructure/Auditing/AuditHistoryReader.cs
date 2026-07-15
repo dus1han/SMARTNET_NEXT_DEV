@@ -64,6 +64,103 @@ public sealed class AuditHistoryReader : IAuditHistory
         return new RecordHistory(events, total);
     }
 
+    public async Task<RecordHistory> BrowseAsync(
+        AuditLogFilter filter,
+        HistoryScope scope,
+        CancellationToken cancellationToken = default)
+    {
+        var query = Visible(_db.AuditLog, scope);
+
+        // Each filter narrows only when set — an absent one is not "match nothing", it is "do not
+        // ask". The bounds are half-open (>= From, < To) so the controller's "to the 14th" maps to
+        // "before the 15th" without an off-by-a-day at midnight.
+        if (filter.From is { } from)
+        {
+            query = query.Where(e => e.ChangedAt >= from);
+        }
+
+        if (filter.To is { } to)
+        {
+            query = query.Where(e => e.ChangedAt < to);
+        }
+
+        if (filter.UserId is { } userId)
+        {
+            query = query.Where(e => e.ChangedBy == userId);
+        }
+
+        if (filter.Action is { } action)
+        {
+            query = query.Where(e => e.Action == action);
+        }
+
+        if (!string.IsNullOrEmpty(filter.EntityType))
+        {
+            query = query.Where(e => e.EntityType == filter.EntityType);
+        }
+
+        var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var rows = await query
+            .OrderByDescending(e => e.ChangedAt)
+            .ThenByDescending(e => e.Id)
+            .Take(HistoryLimits.Clamp(filter.Limit))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var names = await NamesOf(rows.Select(r => r.ChangedBy), cancellationToken)
+            .ConfigureAwait(false);
+
+        var events = rows.Select(row => new HistoryEvent(
+            row.Id,
+            row.EntityType,
+            row.EntityId,
+            row.Action,
+            row.ChangedBy,
+            Name(names, row.ChangedBy),
+            row.ChangedAt,
+            row.Reason,
+            row.Changes,
+            row.IpAddress,
+            row.CorrelationId)).ToList();
+
+        return new RecordHistory(events, total);
+    }
+
+    public async Task<AuditLogFacets> FacetsAsync(
+        HistoryScope scope,
+        CancellationToken cancellationToken = default)
+    {
+        var visible = Visible(_db.AuditLog, scope);
+
+        var entityTypes = await visible
+            .Select(e => e.EntityType)
+            .Distinct()
+            .OrderBy(type => type)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var actorIds = await visible
+            .Where(e => e.ChangedBy != null)
+            .Select(e => e.ChangedBy!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var names = await NamesOf(actorIds.Cast<long?>(), cancellationToken).ConfigureAwait(false);
+
+        // A user who has since been removed still appears — their id is in the log and their actions
+        // still have to be filterable to. "User 14" is the honest label when the name is gone.
+        var actors = actorIds
+            .Select(id => new AuditActor(
+                id,
+                names.TryGetValue(id, out var name) ? name : $"User {id}"))
+            .OrderBy(actor => actor.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        return new AuditLogFacets(entityTypes, actors);
+    }
+
     public async Task<IReadOnlyList<DocumentVersionInfo>> VersionsAsync(
         string docType,
         long docId,

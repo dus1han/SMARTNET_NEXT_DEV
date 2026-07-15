@@ -65,6 +65,62 @@ public sealed class HistoryController : ControllerBase
             history.Total));
     }
 
+    /// <summary>The audit log across every record, filtered — the admin audit viewer.</summary>
+    /// <remarks>
+    /// The filters ride the query string, never a session: the audit log has no stale-filter bug to
+    /// reproduce. Every filter is optional and only narrows. The result is capped and carries the true
+    /// total, so the screen can say "showing 500 of 4,120" rather than imply it has shown everything.
+    /// </remarks>
+    [HttpGet("log")]
+    public async Task<ActionResult<AuditLogResponse>> Log(
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] long? user,
+        [FromQuery] string? action,
+        [FromQuery] string? entityType,
+        [FromQuery] int limit = HistoryLimits.Maximum,
+        CancellationToken cancellationToken = default)
+    {
+        AuditAction? parsedAction = null;
+        if (!string.IsNullOrEmpty(action))
+        {
+            if (!Enum.TryParse<AuditAction>(action, ignoreCase: true, out var value))
+            {
+                return Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: $"'{action}' is not an audit action.");
+            }
+
+            parsedAction = value;
+        }
+
+        var filter = new AuditLogFilter(
+            // A calendar day has no time zone; the log is UTC. "From the 1st" is the 1st at 00:00 UTC,
+            // and "to the 14th" is everything before the 15th at 00:00 UTC — so an event late on the
+            // 14th is inside the window, not dropped at midnight.
+            From: from?.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+            To: to?.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+            UserId: user,
+            Action: parsedAction,
+            EntityType: string.IsNullOrWhiteSpace(entityType) ? null : entityType,
+            Limit: limit);
+
+        var page = await _history.BrowseAsync(filter, Scope, cancellationToken).ConfigureAwait(false);
+
+        return Ok(new AuditLogResponse([.. page.Events.Select(ToContract)], page.Total));
+    }
+
+    /// <summary>The entity types and users present in the visible log — the viewer's filter options.</summary>
+    [HttpGet("log/facets")]
+    public async Task<ActionResult<AuditFacetsResponse>> Facets(CancellationToken cancellationToken)
+    {
+        var facets = await _history.FacetsAsync(Scope, cancellationToken).ConfigureAwait(false);
+
+        return Ok(new AuditFacetsResponse(
+            facets.EntityTypes,
+            [.. facets.Actors.Select(a => new AuditActorDto(a.Id, a.Name))]));
+    }
+
     /// <summary>The versions of one document, newest first, without their snapshots.</summary>
     [HttpGet("documents/{docType}/{docId:long}/versions")]
     public async Task<ActionResult<IReadOnlyList<DocumentVersionSummary>>> Versions(

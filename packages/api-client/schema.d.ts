@@ -519,6 +519,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/history/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    user?: number;
+                    action?: string;
+                    entityType?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AuditLogResponse"];
+                        "application/json": components["schemas"]["AuditLogResponse"];
+                        "text/json": components["schemas"]["AuditLogResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/history/log/facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AuditFacetsResponse"];
+                        "application/json": components["schemas"]["AuditFacetsResponse"];
+                        "text/json": components["schemas"]["AuditFacetsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/history/documents/{docType}/{docId}/versions": {
         parameters: {
             query?: never;
@@ -3069,6 +3150,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AuditActorDto: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
         AuditEntry: {
             /** Format: int64 */
             id: number;
@@ -3084,6 +3170,15 @@ export interface components {
             changes?: string | null;
             ipAddress?: string | null;
             correlationId?: string | null;
+        };
+        AuditFacetsResponse: {
+            entityTypes: string[];
+            actors: components["schemas"]["AuditActorDto"][];
+        };
+        AuditLogResponse: {
+            entries: components["schemas"]["AuditEntry"][];
+            /** Format: int32 */
+            total: number;
         };
         BusinessRule: {
             key: string;
