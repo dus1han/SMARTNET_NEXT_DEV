@@ -434,6 +434,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dunning/outstanding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DunningRequest"];
+                    "text/json": components["schemas"]["DunningRequest"];
+                    "application/*+json": components["schemas"]["DunningRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DunningResponse"];
+                        "application/json": components["schemas"]["DunningResponse"];
+                        "text/json": components["schemas"]["DunningResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/history/records/{entityType}/{entityId}": {
         parameters: {
             query?: never;
@@ -1733,6 +1776,80 @@ export interface paths {
                     to?: string;
                     company?: string;
                     supplier?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/outstanding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    company?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["OutstandingResponse"];
+                        "application/json": components["schemas"]["OutstandingResponse"];
+                        "text/json": components["schemas"]["OutstandingResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/outstanding/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    company?: string;
                 };
                 header?: never;
                 path?: never;
@@ -3176,6 +3293,17 @@ export interface components {
             changedAt: string;
             reason?: string | null;
         };
+        DunningRequest: {
+            customers: string[];
+        };
+        DunningResponse: {
+            /** Format: int32 */
+            queued: number;
+            /** Format: int32 */
+            skipped: number;
+            sendEnabled: boolean;
+            message: string;
+        };
         EmailTemplateDto: {
             /** Format: int64 */
             id: number;
@@ -3307,6 +3435,45 @@ export interface components {
         NumberPreview: {
             now: string;
             nextMonth: string;
+        };
+        OutstandingResponse: {
+            /** Format: double */
+            totalOutstanding: number;
+            /** Format: double */
+            totalCurrent: number;
+            /** Format: double */
+            total30: number;
+            /** Format: double */
+            total60: number;
+            /** Format: double */
+            total90: number;
+            /** Format: int32 */
+            customerCount: number;
+            /** Format: int32 */
+            flaggedCount: number;
+            /** Format: int32 */
+            defectCount: number;
+            rows: components["schemas"]["OutstandingRow"][];
+        };
+        OutstandingRow: {
+            customerCode: string;
+            customerName: string;
+            /** Format: double */
+            outstanding: number;
+            /** Format: double */
+            current: number;
+            /** Format: double */
+            days30: number;
+            /** Format: double */
+            days60: number;
+            /** Format: double */
+            days90: number;
+            /** Format: int32 */
+            oldestDays: number;
+            /** Format: int32 */
+            invoiceCount: number;
+            hasDataIssue: boolean;
+            hasDefect: boolean;
         };
         PermissionCatalogueEntry: {
             key: string;

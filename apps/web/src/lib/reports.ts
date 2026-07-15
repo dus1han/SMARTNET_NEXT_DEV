@@ -3,9 +3,11 @@ import type {
   CompanyOption,
   CustomerSalesResponse,
   CustomerVatResponse,
+  DunningResponse,
   ExpenseCategory,
   ExpenseReportResponse,
   JobCardReportResponse,
+  OutstandingResponse,
   SalesReportResponse,
   SupplierOption,
   SupplierPaymentResponse,
@@ -28,6 +30,8 @@ export type {
   ExpenseReportRow,
   JobCardReportResponse,
   JobCardRow,
+  OutstandingResponse,
+  OutstandingRow,
   SalesReportResponse,
   SalesReportRow,
   SalesReportSummary,
@@ -155,3 +159,23 @@ export const supplierPaymentReportExportUrl = (period: ReportPeriod, company: Co
   `/api/reports/supplier-payments/export${periodQuery(period, { company: companyParam(company), supplier })}`;
 
 export const getReportSuppliers = () => api<SupplierOption[]>("/api/reports/suppliers");
+
+// --- Customer outstanding (customer_outstanding) ---------------------------------------------
+// Point-in-time (no date window) — only the company filter applies.
+
+export const getOutstandingReport = (company: CompanyFilter) =>
+  api<OutstandingResponse>(`/api/reports/outstanding${periodQuery({}, { company: companyParam(company) })}`);
+
+export const outstandingReportExportUrl = (company: CompanyFilter) =>
+  `/api/reports/outstanding/export${periodQuery({}, { company: companyParam(company) })}`;
+
+// --- Bulk dunning (the one write) ------------------------------------------------------------
+
+export type { DunningResponse } from "@smartnet/api-client";
+
+/**
+ * Queues an outstanding statement to each selected customer. Returns at once. Whether anything is
+ * actually sent is gated by the company's mail kill switch (off by default) — the response says which.
+ */
+export const sendDunning = (customers: string[]) =>
+  api<DunningResponse>("/api/dunning/outstanding", { method: "POST", body: { customers } });

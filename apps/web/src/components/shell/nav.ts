@@ -85,6 +85,7 @@ export const NAVIGATION: NavSection[] = [
       { href: "/reports/supplier-vat", label: "Supplier VAT", icon: Percent, permission: "suppliervat_rpt" },
       { href: "/reports/supplier-purchase", label: "Supplier purchases", icon: ShoppingBag, permission: "supplierpurchase_rpt" },
       { href: "/reports/supplier-payments", label: "Supplier payments", icon: HandCoins, permission: "supplierpayments_rpt" },
+      { href: "/reports/outstanding", label: "Outstanding", icon: Wallet, permission: "customer_outstanding" },
     ],
   },
   {

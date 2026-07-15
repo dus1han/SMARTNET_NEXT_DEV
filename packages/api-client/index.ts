@@ -100,6 +100,9 @@ export type SupplierPaymentResponse = Schemas["SupplierPaymentResponse"];
 export type SupplierPaymentRow = Schemas["SupplierPaymentRow"];
 export type SupplierOption = Schemas["SupplierOption"];
 export type CompanyOption = Schemas["CompanyOption"];
+export type OutstandingResponse = Schemas["OutstandingResponse"];
+export type OutstandingRow = Schemas["OutstandingRow"];
+export type DunningResponse = Schemas["DunningResponse"];
 
 // --- History ---------------------------------------------------------------------------------
 
