@@ -227,7 +227,9 @@ export function DataTable<T>({
                   className={cn(
                     "animate-in fade-in-0 fill-mode-backwards border-b border-subtle duration-300 last:border-0",
                     "transition-colors",
-                    onRowClick && "cursor-pointer hover:bg-surface-sunken",
+                    // Every row lifts a touch on hover so the eye can track across a wide grid of
+                    // figures; a clickable row lifts more and shows it is clickable.
+                    onRowClick ? "cursor-pointer hover:bg-surface-sunken" : "hover:bg-surface-sunken/50",
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (

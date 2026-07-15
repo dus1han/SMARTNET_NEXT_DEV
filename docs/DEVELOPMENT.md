@@ -245,6 +245,10 @@ A module is done when **all** of these hold:
 
 These exist because the legacy system violated each one, and we found the damage in the data.
 
+> **Building a screen?** The visual conventions — tokens, page skeleton, `DataTable`, pastel
+> `StatTile`, motion, charts — are in **[UI-CONVENTIONS.md](UI-CONVENTIONS.md)**. Start from an
+> existing screen and you inherit them.
+
 ### Confirm it against the legacy app. Every time.
 
 **The legacy source is at `C:\Users\Saboor.a\Desktop\SMARTNET_DEV`** (not under version control —

@@ -4,12 +4,18 @@ import { cn } from "@/lib/cn";
 
 export function Card({
   className,
+  interactive,
   ...props
-}: HTMLAttributes<HTMLDivElement>) {
+}: HTMLAttributes<HTMLDivElement> & {
+  /** Adds a hover lift + border emphasis. For a card that is a link or opens something. */
+  interactive?: boolean;
+}) {
   return (
     <div
       className={cn(
         "rounded-lg border border-subtle bg-surface p-5 shadow-sm",
+        interactive &&
+          "transition duration-200 ease-out hover:-translate-y-0.5 hover:border-strong hover:shadow-md",
         className,
       )}
       {...props}
