@@ -235,3 +235,37 @@ public sealed record SupplierPaymentResponse(
 
 /// <summary>A selectable supplier — <c>sup_m</c> — for the supplier-payments filter.</summary>
 public sealed record SupplierOption(string Code, string Name);
+
+// --- Customer outstanding report (customer_outstanding) ------------------------------------
+
+/// <param name="Outstanding">Σ of this customer's invoice balances that are &gt; 0 — the figure the
+/// business already puts on its statements, read from the legacy <c>balance</c> column as-is.</param>
+/// <param name="Current">The 0–30 day slice of <see cref="Outstanding"/>; the others are 31–60, 61–90
+/// and 90+, aged from <c>indate</c>.</param>
+/// <param name="HasDefect">True when this customer has an invoice with a <b>negative</b> balance
+/// (Finding 1). The legacy <c>balance &gt; 0</c> filter ignores those, so the outstanding shown is
+/// overstated — it is displayed as the business sends it, and flagged, never silently "corrected"
+/// (Phase 4 is read-only; the data-remediation phase fixes it).</param>
+public sealed record OutstandingRow(
+    string CustomerCode,
+    string CustomerName,
+    decimal Outstanding,
+    decimal Current,
+    decimal Days30,
+    decimal Days60,
+    decimal Days90,
+    int OldestDays,
+    int InvoiceCount,
+    bool HasDataIssue,
+    bool HasDefect);
+
+public sealed record OutstandingResponse(
+    decimal TotalOutstanding,
+    decimal TotalCurrent,
+    decimal Total30,
+    decimal Total60,
+    decimal Total90,
+    int CustomerCount,
+    int FlaggedCount,
+    int DefectCount,
+    IReadOnlyList<OutstandingRow> Rows);

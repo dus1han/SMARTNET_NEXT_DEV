@@ -11,6 +11,7 @@ using Serilog;
 using Smartnet.Api.Auditing;
 using Smartnet.Api.Auth;
 using Smartnet.Api.Contracts;
+using Smartnet.Api.Dunning;
 using Smartnet.Api.Middleware;
 using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Identity;
@@ -98,6 +99,12 @@ builder.Services.AddScoped<ICompanyAccessService, CompanyAccessService>();
 builder.Services.AddScoped<ICompanyContext, CompanyContext>();
 builder.Services.AddSingleton<IMailSender, MailSender>();
 builder.Services.AddSingleton<IExcelExporter, ExcelExporter>();
+
+// Bulk dunning runs off the request thread: an in-process queue (singleton) and a hosted worker that
+// drains it. The endpoint enqueues and returns; nothing blocks. Sending itself is gated by the
+// per-company mail kill switch (off by default) — see DunningController.
+builder.Services.AddSingleton<IDunningChannel, DunningChannel>();
+builder.Services.AddHostedService<DunningBackgroundService>();
 builder.Services.AddScoped<INumberSeriesInitialiser, NumberSeriesInitialiser>();
 builder.Services.AddScoped<IDocumentNumberAllocator, DocumentNumberAllocator>();
 builder.Services.AddScoped<ICustomerCodeAllocator, CustomerCodeAllocator>();

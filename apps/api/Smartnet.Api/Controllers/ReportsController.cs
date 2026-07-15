@@ -437,6 +437,43 @@ public sealed class ReportsController : ControllerBase
         return await Download(workbook, "supplier-payments", report.Rows.Count, cancellationToken).ConfigureAwait(false);
     }
 
+    // --- Customer outstanding (customer_outstanding) -----------------------------------------
+
+    [HttpGet("outstanding")]
+    [RequirePermission(Permissions.CustomerOutstanding)]
+    public async Task<ActionResult<OutstandingResponse>> Outstanding(
+        [FromQuery] string? company,
+        CancellationToken cancellationToken) =>
+        Ok(await BuildOutstanding(company, cancellationToken).ConfigureAwait(false));
+
+    [HttpGet("outstanding/export")]
+    [RequirePermission(Permissions.CustomerOutstanding)]
+    public async Task<IActionResult> OutstandingExport(
+        [FromQuery] string? company,
+        CancellationToken cancellationToken)
+    {
+        var report = await BuildOutstanding(company, cancellationToken).ConfigureAwait(false);
+
+        var workbook = _excel.Export<OutstandingRow>(
+            "Outstanding",
+            [
+                new("Customer Code", r => r.CustomerCode),
+                new("Customer", r => r.CustomerName),
+                new("Outstanding", r => r.Outstanding, ExcelFormat.Money),
+                new("Current", r => r.Current, ExcelFormat.Money),
+                new("31-60", r => r.Days30, ExcelFormat.Money),
+                new("61-90", r => r.Days60, ExcelFormat.Money),
+                new("90+", r => r.Days90, ExcelFormat.Money),
+                new("Oldest (days)", r => r.OldestDays, ExcelFormat.WholeNumber),
+                new("Invoices", r => r.InvoiceCount, ExcelFormat.WholeNumber),
+                // Finding 1 — a negative-balance invoice is distorting this figure.
+                new("Data defect", r => r.HasDefect, ExcelFormat.Boolean),
+            ],
+            report.Rows);
+
+        return await Download(workbook, "outstanding", report.Rows.Count, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>The suppliers, for the supplier-payments filter.</summary>
     [HttpGet("suppliers")]
     [RequirePermission(Permissions.SupplierPaymentsReport)]
@@ -677,6 +714,27 @@ public sealed class ReportsController : ControllerBase
         var names = SupplierNamesFrom(await SupplierParties(cancellationToken).ConfigureAwait(false));
 
         return SupplierPaymentReport.Build(joined, names, period);
+    }
+
+    private async Task<OutstandingResponse> BuildOutstanding(string? company, CancellationToken cancellationToken)
+    {
+        var scope = CompanyScope(company);
+        if (scope.Count == 0)
+        {
+            return new OutstandingResponse(0m, 0m, 0m, 0m, 0m, 0, 0, 0, []);
+        }
+
+        // Outstanding is point-in-time, not a period: every unpaid invoice for the company, aged from
+        // its date to today. There is no from/to filter — the report bar shows only the company.
+        var invoices = await _legacy.InvoiceHs
+            .Where(h => scope.Contains(h.Company!))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var customerNames = await CustomerNames(cancellationToken).ConfigureAwait(false);
+        var asOf = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+
+        return OutstandingReport.Build(invoices, customerNames, asOf);
     }
 
     /// <summary>Customer code → (name, VAT number), for the customer-VAT report.</summary>

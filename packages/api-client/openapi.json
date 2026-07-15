@@ -486,6 +486,66 @@
         }
       }
     },
+    "/api/dunning/outstanding": {
+      "post": {
+        "tags": [
+          "Dunning"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/DunningRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/DunningRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/DunningRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DunningResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DunningResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DunningResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/history/records/{entityType}/{entityId}": {
       "get": {
         "tags": [
@@ -2082,6 +2142,65 @@
           },
           {
             "name": "supplier",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/reports/outstanding": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "parameters": [
+          {
+            "name": "company",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutstandingResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutstandingResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutstandingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/outstanding/export": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "parameters": [
+          {
+            "name": "company",
             "in": "query",
             "schema": {
               "type": "string"
@@ -4367,6 +4486,47 @@
         },
         "additionalProperties": false
       },
+      "DunningRequest": {
+        "required": [
+          "customers"
+        ],
+        "type": "object",
+        "properties": {
+          "customers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DunningResponse": {
+        "required": [
+          "message",
+          "queued",
+          "sendEnabled",
+          "skipped"
+        ],
+        "type": "object",
+        "properties": {
+          "queued": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sendEnabled": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "EmailTemplateDto": {
         "required": [
           "body",
@@ -4819,6 +4979,120 @@
           },
           "nextMonth": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OutstandingResponse": {
+        "required": [
+          "customerCount",
+          "defectCount",
+          "flaggedCount",
+          "rows",
+          "total30",
+          "total60",
+          "total90",
+          "totalCurrent",
+          "totalOutstanding"
+        ],
+        "type": "object",
+        "properties": {
+          "totalOutstanding": {
+            "type": "number",
+            "format": "double"
+          },
+          "totalCurrent": {
+            "type": "number",
+            "format": "double"
+          },
+          "total30": {
+            "type": "number",
+            "format": "double"
+          },
+          "total60": {
+            "type": "number",
+            "format": "double"
+          },
+          "total90": {
+            "type": "number",
+            "format": "double"
+          },
+          "customerCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "flaggedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "defectCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OutstandingRow"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "OutstandingRow": {
+        "required": [
+          "current",
+          "customerCode",
+          "customerName",
+          "days30",
+          "days60",
+          "days90",
+          "hasDataIssue",
+          "hasDefect",
+          "invoiceCount",
+          "oldestDays",
+          "outstanding"
+        ],
+        "type": "object",
+        "properties": {
+          "customerCode": {
+            "type": "string"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "outstanding": {
+            "type": "number",
+            "format": "double"
+          },
+          "current": {
+            "type": "number",
+            "format": "double"
+          },
+          "days30": {
+            "type": "number",
+            "format": "double"
+          },
+          "days60": {
+            "type": "number",
+            "format": "double"
+          },
+          "days90": {
+            "type": "number",
+            "format": "double"
+          },
+          "oldestDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "invoiceCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hasDataIssue": {
+            "type": "boolean"
+          },
+          "hasDefect": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

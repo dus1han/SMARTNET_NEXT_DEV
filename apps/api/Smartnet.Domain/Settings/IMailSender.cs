@@ -19,4 +19,19 @@ public interface IMailSender
         string? password,
         string recipient,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends one real message — the path the dunning queue uses. Honours the same
+    /// <see cref="MailSettings.SendEnabled"/> kill switch as the test: when it is off, nothing leaves
+    /// the building and the caller is told so, which is exactly how bulk dunning stays gated until the
+    /// business turns it on.
+    /// </summary>
+    /// <param name="password">Already decrypted, by the one caller allowed to (see the test send).</param>
+    Task<MailResult> SendAsync(
+        MailSettings settings,
+        string? password,
+        string recipient,
+        string subject,
+        string htmlBody,
+        CancellationToken cancellationToken = default);
 }

@@ -8,22 +8,51 @@ namespace Smartnet.Infrastructure.Settings;
 /// <inheritdoc cref="IMailSender"/>
 public sealed class MailSender : IMailSender
 {
-    public async Task<MailResult> SendTestAsync(
+    public Task<MailResult> SendTestAsync(
         MailSettings settings,
         string? password,
         string recipient,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        SendMessageAsync(
+            settings,
+            password,
+            recipient,
+            "SMARTNET test message",
+            new TextPart("plain")
+            {
+                Text = "This is a test message from SMARTNET. If you are reading it, "
+                     + "outbound mail is configured correctly.",
+            },
+            cancellationToken);
+
+    public Task<MailResult> SendAsync(
+        MailSettings settings,
+        string? password,
+        string recipient,
+        string subject,
+        string htmlBody,
+        CancellationToken cancellationToken = default) =>
+        SendMessageAsync(settings, password, recipient, subject, new TextPart("html") { Text = htmlBody }, cancellationToken);
+
+    private static async Task<MailResult> SendMessageAsync(
+        MailSettings settings,
+        string? password,
+        string recipient,
+        string subject,
+        MimeEntity body,
+        CancellationToken cancellationToken)
     {
-        // The kill switch, honoured even for a test.
+        // The kill switch, honoured on every path — test and dunning alike.
         //
         // This exists so that a restored production backup running in staging cannot mail 223 real
-        // customers about their outstanding balances. If a test message could bypass it, the switch
-        // would be off by exactly the one path somebody would use to "just check".
+        // customers about their outstanding balances, and it is what keeps bulk dunning gated until the
+        // business turns it on. If any send path could bypass it, the switch would be off by exactly
+        // the one path somebody would use to "just check".
         if (!settings.SendEnabled)
         {
             return new MailResult(
                 Sent: false,
-                Error: "Sending is switched off for this company. Turn it on to send a test.");
+                Error: "Sending is switched off for this company. Turn it on to send.");
         }
 
         // A message with no sender is rejected by the server anyway, with a message far less
@@ -40,15 +69,20 @@ public sealed class MailSender : IMailSender
         var message = new MimeMessage();
 
         message.From.Add(new MailboxAddress(settings.FromName ?? string.Empty, from));
-
         message.To.Add(MailboxAddress.Parse(recipient));
-        message.Subject = "SMARTNET test message";
 
-        message.Body = new TextPart("plain")
+        if (!string.IsNullOrWhiteSpace(settings.Bcc))
         {
-            Text = "This is a test message from SMARTNET. If you are reading it, "
-                 + "outbound mail is configured correctly.",
-        };
+            message.Bcc.Add(MailboxAddress.Parse(settings.Bcc));
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.ReplyTo))
+        {
+            message.ReplyTo.Add(MailboxAddress.Parse(settings.ReplyTo));
+        }
+
+        message.Subject = subject;
+        message.Body = body;
 
         using var client = new SmtpClient();
 

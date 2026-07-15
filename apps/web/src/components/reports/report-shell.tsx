@@ -16,13 +16,15 @@ import { cn } from "@/lib/cn";
  * (every company the user may see, aggregated) or one entity. It sits here, in the shared bar, so
  * every report gets it uniformly. Report-specific filters drop in via `children`.
  */
-export function ReportFilterBar({ from, to, onFrom, onTo, company, onCompany, children }: {
-  from: string;
-  to: string;
-  onFrom: (value: string) => void;
-  onTo: (value: string) => void;
+export function ReportFilterBar({ from, to, onFrom, onTo, company, onCompany, showDates = true, children }: {
+  from?: string;
+  to?: string;
+  onFrom?: (value: string) => void;
+  onTo?: (value: string) => void;
   company: CompanyFilter;
   onCompany: (value: CompanyFilter) => void;
+  /** The date range. Off for a point-in-time report like outstanding, which shows only the company. */
+  showDates?: boolean;
   children?: ReactNode;
 }) {
   const companies = useQuery({ queryKey: ["report-companies"], queryFn: getReportCompanies });
@@ -45,22 +47,26 @@ export function ReportFilterBar({ from, to, onFrom, onTo, company, onCompany, ch
         </Select>
       )}
 
-      <Input
-        label="From"
-        type="date"
-        value={from}
-        max={to || undefined}
-        onChange={(e) => onFrom(e.target.value)}
-        className="w-40"
-      />
-      <Input
-        label="To"
-        type="date"
-        value={to}
-        min={from || undefined}
-        onChange={(e) => onTo(e.target.value)}
-        className="w-40"
-      />
+      {showDates && (
+        <>
+          <Input
+            label="From"
+            type="date"
+            value={from ?? ""}
+            max={to || undefined}
+            onChange={(e) => onFrom?.(e.target.value)}
+            className="w-40"
+          />
+          <Input
+            label="To"
+            type="date"
+            value={to ?? ""}
+            min={from || undefined}
+            onChange={(e) => onTo?.(e.target.value)}
+            className="w-40"
+          />
+        </>
+      )}
       {children}
     </Card>
   );
