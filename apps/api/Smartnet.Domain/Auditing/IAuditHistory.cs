@@ -31,6 +31,35 @@ public interface IAuditHistory
         int limit,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The log across every record, filtered and newest first — the admin audit viewer.
+    /// </summary>
+    /// <remarks>
+    /// The per-record read above answers "what happened to <i>this</i>?"; this one answers the
+    /// questions that span records — "who exported the customer list?", "every failed login this
+    /// week", "what did this user change?". Same company scoping, same defensive limit: a filter that
+    /// matches ten thousand rows returns a page of them and a <see cref="RecordHistory.Total"/> that
+    /// tells the truth about the rest, rather than streaming the whole log to a browser.
+    /// </remarks>
+    Task<RecordHistory> BrowseAsync(
+        AuditLogFilter filter,
+        HistoryScope scope,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The distinct values the audit viewer offers as filters — the entity types and the users that
+    /// actually appear in the log the caller may see.
+    /// </summary>
+    /// <remarks>
+    /// Drawn from the log itself, not from the model or the user table: a dropdown of every
+    /// conceivable entity type is a dropdown of mostly dead options, and one of every user lists
+    /// people who have never touched anything. The filter offers what is genuinely there — including
+    /// values the model does not know about, like the <c>Report</c> an export writes.
+    /// </remarks>
+    Task<AuditLogFacets> FacetsAsync(
+        HistoryScope scope,
+        CancellationToken cancellationToken = default);
+
     /// <summary>The versions of one document, newest first. Snapshots are not loaded.</summary>
     Task<IReadOnlyList<DocumentVersionInfo>> VersionsAsync(
         string docType,
@@ -89,6 +118,35 @@ public sealed record HistoryScope(IReadOnlySet<long> Companies)
 /// because a list that silently stops at its limit reads as a complete history.
 /// </param>
 public sealed record RecordHistory(IReadOnlyList<HistoryEvent> Events, int Total);
+
+/// <summary>
+/// The filters the audit viewer narrows the log by. Every one is optional; an absent filter does not
+/// narrow. All of them ride the request — the audit log has no session state to go stale.
+/// </summary>
+/// <param name="From">Inclusive lower bound on <see cref="AuditLogEntry.ChangedAt"/>, UTC.</param>
+/// <param name="To">
+/// Exclusive upper bound, UTC. The caller picks a calendar day; the controller turns "to the 14th"
+/// into "before the 15th", so an event at 14th 23:59 is included rather than silently dropped.
+/// </param>
+/// <param name="UserId">The actor. A failed login's actor is the account that was targeted.</param>
+/// <param name="Action">One <see cref="AuditAction"/>, or every action when null.</param>
+/// <param name="EntityType">The CLR entity name as stored — "User", "Customer", "Report".</param>
+/// <param name="Limit">Clamped to <see cref="HistoryLimits"/> server-side.</param>
+public sealed record AuditLogFilter(
+    DateTime? From,
+    DateTime? To,
+    long? UserId,
+    AuditAction? Action,
+    string? EntityType,
+    int Limit);
+
+/// <summary>The filterable values actually present in the log the caller may see.</summary>
+public sealed record AuditLogFacets(
+    IReadOnlyList<string> EntityTypes,
+    IReadOnlyList<AuditActor> Actors);
+
+/// <summary>A user who appears in the log, resolved to a name for the filter dropdown.</summary>
+public sealed record AuditActor(long Id, string Name);
 
 /// <param name="ChangedByName">
 /// Resolved at read time, and null when the user has since been removed. The log stores the user

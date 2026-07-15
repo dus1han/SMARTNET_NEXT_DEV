@@ -602,6 +602,113 @@
         }
       }
     },
+    "/api/history/log": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entityType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/log/facets": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditFacetsResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditFacetsResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditFacetsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/history/documents/{docType}/{docId}/versions": {
       "get": {
         "tags": [
@@ -3650,6 +3757,23 @@
   },
   "components": {
     "schemas": {
+      "AuditActorDto": {
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "AuditEntry": {
         "required": [
           "action",
@@ -3701,6 +3825,48 @@
           "correlationId": {
             "type": "string",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AuditFacetsResponse": {
+        "required": [
+          "actors",
+          "entityTypes"
+        ],
+        "type": "object",
+        "properties": {
+          "entityTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "actors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditActorDto"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "AuditLogResponse": {
+        "required": [
+          "entries",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEntry"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

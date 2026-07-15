@@ -37,6 +37,23 @@ public sealed record AuditEntry(
 public sealed record RecordHistoryResponse(IReadOnlyList<AuditEntry> Entries, int Total);
 
 /// <summary>
+/// A page of the whole audit log — the admin viewer, across records rather than about one.
+/// </summary>
+/// <param name="Total">
+/// How many rows match the filter, not how many were returned. The viewer caps the page and says
+/// "showing the most recent 500 of 4,120 — narrow the filters", because a truncated log that looks
+/// complete is worse than no log on the one screen whose whole job is to be believed.
+/// </param>
+public sealed record AuditLogResponse(IReadOnlyList<AuditEntry> Entries, int Total);
+
+/// <summary>The values the viewer's filters offer — those actually present in the visible log.</summary>
+public sealed record AuditFacetsResponse(
+    IReadOnlyList<string> EntityTypes,
+    IReadOnlyList<AuditActorDto> Actors);
+
+public sealed record AuditActorDto(long Id, string Name);
+
+/// <summary>
 /// One version of a document, without its snapshot.
 /// </summary>
 /// <remarks>
