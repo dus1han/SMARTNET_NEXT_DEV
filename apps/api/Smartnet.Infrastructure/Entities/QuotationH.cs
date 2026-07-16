@@ -8,6 +8,9 @@ public partial class QuotationH
     /// <summary>The surrogate key the Phase 5 adoption added to <c>quotation_h</c> (it had none).</summary>
     public long Id { get; set; }
 
+    /// <summary>The concurrency token, so the edit screen can load a legacy quotation's version and echo it back.</summary>
+    public int RowVersion { get; set; }
+
     public string? QNo { get; set; }
 
     public string? Qdate { get; set; }

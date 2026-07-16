@@ -212,14 +212,28 @@ public sealed record QuotationDetail(
     string? Validity,
     decimal Subtotal,
     decimal DiscountAmount,
+    decimal DocumentDiscountPercent,
     decimal NetTotal,
     decimal TaxRatePercentage,
     decimal TaxAmount,
     decimal Total,
     long? ConvertedInvoiceId,
     string? ConvertedInvoiceNumber,
+    // The row_version the edit screen echoes back (a legacy quote's real version, so an edit adopts it under
+    // a concurrency guard).
+    int RowVersion,
     string Origin,
     IReadOnlyList<InvoiceLineDetail> Lines);
+
+/// <summary>An edit to a quotation. Lines carry ids to reconcile in place; a reason is required by the endpoint.</summary>
+public sealed record EditQuotationRequest(
+    int ExpectedRowVersion,
+    string? ContactPerson,
+    string? Validity,
+    IReadOnlyList<EditInvoiceLineRequest> Lines,
+    decimal DocumentDiscountPercent = 0m);
+
+public sealed record QuotationEditedResponse(long Id, string Number, decimal Total, int VersionNo);
 
 /// <summary>Server-side validation — the authority, not the hopeful frontend.</summary>
 public sealed class CreateInvoiceRequestValidator : AbstractValidator<CreateInvoiceRequest>

@@ -1573,9 +1573,63 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["EditQuotationRequest"];
+                    "text/json": components["schemas"]["EditQuotationRequest"];
+                    "application/*+json": components["schemas"]["EditQuotationRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["QuotationEditedResponse"];
+                        "application/json": components["schemas"]["QuotationEditedResponse"];
+                        "text/json": components["schemas"]["QuotationEditedResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
-        delete?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["QuotationDeleted"];
+                        "application/json": components["schemas"]["QuotationDeleted"];
+                        "text/json": components["schemas"]["QuotationDeleted"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -4154,6 +4208,15 @@ export interface components {
             /** Format: double */
             documentDiscountPercent: number;
         };
+        EditQuotationRequest: {
+            /** Format: int32 */
+            expectedRowVersion: number;
+            contactPerson?: string | null;
+            validity?: string | null;
+            lines: components["schemas"]["EditInvoiceLineRequest"][];
+            /** Format: double */
+            documentDiscountPercent: number;
+        };
         EmailTemplateDto: {
             /** Format: int64 */
             id: number;
@@ -4460,6 +4523,11 @@ export interface components {
             /** Format: double */
             total: number;
         };
+        QuotationDeleted: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+        };
         QuotationDetail: {
             /** Format: int64 */
             id: number;
@@ -4477,6 +4545,8 @@ export interface components {
             /** Format: double */
             discountAmount: number;
             /** Format: double */
+            documentDiscountPercent: number;
+            /** Format: double */
             netTotal: number;
             /** Format: double */
             taxRatePercentage: number;
@@ -4487,8 +4557,19 @@ export interface components {
             /** Format: int64 */
             convertedInvoiceId?: number | null;
             convertedInvoiceNumber?: string | null;
+            /** Format: int32 */
+            rowVersion: number;
             origin: string;
             lines: components["schemas"]["InvoiceLineDetail"][];
+        };
+        QuotationEditedResponse: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: double */
+            total: number;
+            /** Format: int32 */
+            versionNo: number;
         };
         QuotationSummary: {
             /** Format: int64 */

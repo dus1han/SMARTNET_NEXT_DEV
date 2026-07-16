@@ -1,0 +1,208 @@
+using System.Globalization;
+using Microsoft.EntityFrameworkCore;
+using Smartnet.Domain.Auditing;
+using Smartnet.Domain.Documents;
+using Smartnet.Domain.Settings;
+using Smartnet.Infrastructure.Persistence;
+using Smartnet.Infrastructure.Persistence.Configurations;
+
+namespace Smartnet.Infrastructure.Documents;
+
+/// <inheritdoc cref="IQuotationEditor"/>
+public sealed class QuotationEditor : IQuotationEditor
+{
+    private readonly SmartnetDbContext _db;
+    private readonly ITaxEngine _tax;
+    private readonly IDocumentVersionWriter _versions;
+    private readonly ILegacyQuotationAdopter _adopter;
+    private readonly IBusinessRuleReader _rules;
+    private readonly IChangeContext _change;
+
+    public QuotationEditor(
+        SmartnetDbContext db,
+        ITaxEngine tax,
+        IDocumentVersionWriter versions,
+        ILegacyQuotationAdopter adopter,
+        IBusinessRuleReader rules,
+        IChangeContext change)
+    {
+        _db = db;
+        _tax = tax;
+        _versions = versions;
+        _adopter = adopter;
+        _rules = rules;
+        _change = change;
+    }
+
+    public async Task<QuotationEdited> EditAsync(long quotationId, EditQuotation request, CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await _db.Database
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var quotation = await _db.Quotations
+            .IgnoreQueryFilters()
+            .Include(q => q.Lines)
+            .FirstOrDefaultAsync(q => q.Id == quotationId && q.DeletedAt == null, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Quotation {quotationId} does not exist.");
+
+        // A spent quote is not editable — it became an invoice; changing it would desync the two.
+        if (quotation.ConvertedToInvoiceId is { } invoiceId)
+        {
+            throw new QuotationAlreadyConvertedException(quotation.Number, invoiceId);
+        }
+
+        _db.Entry(quotation).Property(q => q.RowVersion).OriginalValue = request.ExpectedRowVersion;
+
+        // A legacy quotation is adopted into the new model first (materialise + version-1), inside this
+        // transaction; the concurrency check fires on that first save. A no-op for a new quotation.
+        await _adopter.MaterialiseInCurrentTransactionAsync(quotation, cancellationToken).ConfigureAwait(false);
+
+        var company = await _db.Companies
+            .FirstOrDefaultAsync(c => c.Id == quotation.CompanyId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Company {quotation.CompanyId} does not exist.");
+
+        var customer = await _db.Customers
+            .FirstOrDefaultAsync(c => c.Id == quotation.CustomerId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Customer {quotation.CustomerId} does not exist.");
+
+        var rounding = BusinessRules.RoundPerDocument.Equals(
+            await _rules.ResolveAsync(company.Id, BusinessRules.VatRoundingMode, cancellationToken).ConfigureAwait(false),
+            StringComparison.Ordinal)
+            ? TaxRounding.PerDocument
+            : TaxRounding.PerLine;
+
+        var rateName = quotation.TaxRatePercentage == 0m
+            ? "No VAT"
+            : $"VAT {quotation.TaxRatePercentage.ToString("0.##", CultureInfo.InvariantCulture)}%";
+
+        var calc = _tax.Calculate(new TaxCalculationRequest(
+            quotation.Date, company.IsVatRegistered, rounding,
+            [.. request.Lines.Select(l => new TaxLineInput(l.Quantity, l.UnitPrice, l.DiscountPercent))],
+            AvailableRates: [], request.DocumentDiscountPercent,
+            RateOverride: new TaxRateOverride(quotation.TaxRateId, rateName, quotation.TaxRatePercentage)));
+
+        ReconcileLines(quotation, request, calc);
+
+        quotation.ContactPerson = request.ContactPerson ?? string.Empty;
+        quotation.Validity = request.Validity ?? string.Empty;
+        quotation.DiscountPercent = request.DocumentDiscountPercent;
+        quotation.DiscountAmount = calc.Totals.Discount;
+        quotation.Subtotal = calc.Totals.Subtotal;
+        quotation.NetTotal = calc.Totals.Net;
+        quotation.TaxAmount = calc.Totals.Tax;
+        quotation.Total = calc.Totals.Total;
+        quotation.Cost = request.Lines.Sum(l => l.Cost ?? 0m);
+
+        UpdateLegacyShadow(quotation);
+
+        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        var versionNo = await _versions
+            .WriteAsync(DocumentTypes.Quotation, quotation.Id, quotation.CompanyId, Snapshot(quotation, calc), _change.Reason, cancellationToken)
+            .ConfigureAwait(false);
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+        return new QuotationEdited(quotation.Id, quotation.Number, quotation.Total, versionNo);
+    }
+
+    /// <summary>Reconciles the lines in place — update / add / soft-delete. No stock (a quotation issues none).</summary>
+    private void ReconcileLines(Quotation quotation, EditQuotation request, TaxCalculationResult calc)
+    {
+        var existing = quotation.Lines.Where(l => l.DeletedAt is null).ToDictionary(l => l.Id);
+        var kept = new HashSet<long>();
+
+        foreach (var (input, line) in request.Lines.Zip(calc.Lines))
+        {
+            if (input.Id is { } id && existing.TryGetValue(id, out var current))
+            {
+                current.ItemId = input.ItemId;
+                current.ItemCode = input.ItemCode;
+                current.Description = input.Description;
+                current.Quantity = line.Quantity;
+                current.UnitPrice = line.UnitPrice;
+                current.DiscountPercent = line.DiscountPercent;
+                current.Gross = line.Gross;
+                current.Net = line.Net;
+                current.Cost = input.Cost;
+                SetLineShadow(current, quotation.Number);
+                kept.Add(id);
+            }
+            else
+            {
+                var added = new QuotationLine
+                {
+                    QuotationId = quotation.Id,
+                    ItemId = input.ItemId,
+                    ItemCode = input.ItemCode,
+                    Description = input.Description,
+                    Quantity = line.Quantity,
+                    UnitPrice = line.UnitPrice,
+                    DiscountPercent = line.DiscountPercent,
+                    Gross = line.Gross,
+                    Net = line.Net,
+                    Cost = input.Cost,
+                };
+                quotation.Lines.Add(added);
+                SetLineShadow(added, quotation.Number);
+            }
+        }
+
+        foreach (var line in existing.Values.Where(l => !kept.Contains(l.Id)))
+        {
+            _db.QuotationLines.Remove(line);
+        }
+    }
+
+    private void UpdateLegacyShadow(Quotation quotation)
+    {
+        var entry = _db.Entry(quotation);
+        void Set(string name, string? value) => entry.Property(name).CurrentValue = value;
+
+        var hasItem = quotation.Lines.Any(l => l.DeletedAt is null && l.ItemId is not null);
+
+        Set(QuotationLegacyShadow.It, hasItem ? "ITEM" : "SERVICE");
+        Set(QuotationLegacyShadow.TotAmount, Money(quotation.Total));
+        Set(QuotationLegacyShadow.NoVatTotal, Money(quotation.NetTotal));
+        Set(QuotationLegacyShadow.QuoteCost, Money(quotation.Cost));
+        Set(QuotationLegacyShadow.DiscountPer, Money(quotation.DiscountPercent));
+        Set(QuotationLegacyShadow.BeforeDiscTot, Money(quotation.Subtotal));
+    }
+
+    private void SetLineShadow(QuotationLine line, string number)
+    {
+        var entry = _db.Entry(line);
+        entry.Property(QuotationLineLegacyShadow.Qno).CurrentValue = number;
+        entry.Property(QuotationLineLegacyShadow.Qty).CurrentValue = Money(line.Quantity);
+        entry.Property(QuotationLineLegacyShadow.Rate).CurrentValue = Money(line.UnitPrice);
+        entry.Property(QuotationLineLegacyShadow.Total).CurrentValue = Money(line.Gross);
+    }
+
+    private static string Money(decimal value) => value.ToString(CultureInfo.InvariantCulture);
+
+    private static object Snapshot(Quotation quotation, TaxCalculationResult calc) => new
+    {
+        quotation = new
+        {
+            quotation.Number,
+            quotation.Date,
+            quotation.Validity,
+            quotation.ContactPerson,
+            quotation.Subtotal,
+            quotation.DiscountAmount,
+            quotation.NetTotal,
+            quotation.TaxAmount,
+            quotation.Total,
+            quotation.Cost,
+            tax = new { calc.TaxRateId, calc.TaxRateName, calc.TaxRatePercentage },
+        },
+        lines = quotation.Lines.Where(l => l.DeletedAt is null).Select(l => new
+        {
+            l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost,
+        }),
+    };
+}

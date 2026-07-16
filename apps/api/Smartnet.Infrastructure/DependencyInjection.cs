@@ -43,6 +43,12 @@ public static class DependencyInjection
         services.AddScoped<IQuotationCreator, QuotationCreator>();
         services.AddScoped<IQuotationConverter, QuotationConverter>();
 
+        // Quotation edit/void + legacy adoption (Phase 5, slice 5, legacy parity): the mirror of the invoice
+        // edit/void without a ledger or stock; a spent (converted) quote is not editable.
+        services.AddScoped<ILegacyQuotationAdopter, LegacyQuotationAdopter>();
+        services.AddScoped<IQuotationEditor, QuotationEditor>();
+        services.AddScoped<IQuotationDeleter, QuotationDeleter>();
+
         // Credit notes (Phase 5, slice 4): the mirror of the invoice pipeline — a Credit ledger entry
         // (opposite sign) and, where goods are returned, a stock receipt, at the parent invoice's rate.
         services.AddScoped<ICreditNoteCreator, CreditNoteCreator>();

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Smartnet.Api.Auditing;
 using Smartnet.Api.Auth;
 using Smartnet.Api.Contracts;
 using Smartnet.Domain.Documents;
@@ -26,6 +27,8 @@ public sealed class QuotationsController : ControllerBase
 {
     private readonly IQuotationCreator _creator;
     private readonly IQuotationConverter _converter;
+    private readonly IQuotationEditor _editor;
+    private readonly IQuotationDeleter _deleter;
     private readonly ICompanyContext _company;
     private readonly SmartnetDbContext _db;
     private readonly SmartnetLegacyDbContext _legacy;
@@ -34,6 +37,8 @@ public sealed class QuotationsController : ControllerBase
     public QuotationsController(
         IQuotationCreator creator,
         IQuotationConverter converter,
+        IQuotationEditor editor,
+        IQuotationDeleter deleter,
         ICompanyContext company,
         SmartnetDbContext db,
         SmartnetLegacyDbContext legacy,
@@ -41,6 +46,8 @@ public sealed class QuotationsController : ControllerBase
     {
         _creator = creator;
         _converter = converter;
+        _editor = editor;
+        _deleter = deleter;
         _company = company;
         _db = db;
         _legacy = legacy;
@@ -166,15 +173,17 @@ public sealed class QuotationsController : ControllerBase
             quotation.Validity,
             quotation.Subtotal,
             quotation.DiscountAmount,
+            quotation.DiscountPercent,
             quotation.NetTotal,
             quotation.TaxRatePercentage,
             quotation.TaxAmount,
             quotation.Total,
             quotation.ConvertedToInvoiceId,
             convertedInvoiceNumber,
+            quotation.RowVersion,
             "new",
             [.. quotation.Lines.Select(l => new InvoiceLineDetail(
-                null, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
+                l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
     }
 
     /// <summary>
@@ -201,6 +210,16 @@ public sealed class QuotationsController : ControllerBase
             .Where(l => l.Qno == h.QNo)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        // Resolve the line item codes to ids, so an edit keeps the item linkage.
+        var lineCodes = lines.Select(l => l.Itemcode).Where(c => c != null).Distinct().ToList();
+        var itemIdsByCode = (await _db.Items
+            .Where(i => i.Code != null && lineCodes.Contains(i.Code))
+            .Select(i => new { i.Id, i.Code })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false))
+            .ToDictionary(i => i.Code!, i => i.Id, StringComparer.Ordinal);
+        long? ItemIdFor(string? code) => code is not null && itemIdsByCode.TryGetValue(code, out var iid) ? iid : null;
 
         var customer = h.Customer is null
             ? null
@@ -238,16 +257,18 @@ public sealed class QuotationsController : ControllerBase
             h.QValid,
             subtotal,
             subtotal - net,
+            LegacyValue.Money(h.Discountper),
             net,
             LegacyValue.Money(h.Vper),
             total - net,
             total,
             h.ConvertedToInvoiceId,
             convertedInvoiceNumber,
+            h.RowVersion,
             "legacy",
             [.. lines.Select(l => new InvoiceLineDetail(
-                null,
-                null,
+                l.Id,
+                ItemIdFor(l.Itemcode),
                 l.Itemcode,
                 l.Desc,
                 LegacyValue.Money(l.Qty),
@@ -381,5 +402,86 @@ public sealed class QuotationsController : ControllerBase
         }
 
         return Ok(new InvoiceCreatedResponse(created.Id, created.Number, created.Total, created.Outstanding));
+    }
+
+    /// <summary>
+    /// Edit a quotation — versioned, reason-gated, concurrency-guarded (legacy parity). A legacy quotation is
+    /// adopted on save; a converted (spent) quotation cannot be edited.
+    /// </summary>
+    [HttpPut("{id:long}")]
+    [RequirePermission(Permissions.ItemQuotation)]
+    [RequireChangeReason]
+    public async Task<ActionResult<QuotationEditedResponse>> Edit(
+        long id,
+        EditQuotationRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!await CallerMaySee(id, cancellationToken).ConfigureAwait(false))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var edited = await _editor.EditAsync(
+                id,
+                new EditQuotation(
+                    request.ExpectedRowVersion, request.ContactPerson, request.Validity, request.DocumentDiscountPercent,
+                    [.. request.Lines.Select(l => new EditQuotationLine(
+                        l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))]),
+                cancellationToken).ConfigureAwait(false);
+
+            return Ok(new QuotationEditedResponse(edited.Id, edited.Number, edited.Total, edited.VersionNo));
+        }
+        catch (QuotationAlreadyConvertedException converted)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: converted.Message);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "This quotation was changed by someone else while you were editing it. Reload and try again.");
+        }
+    }
+
+    /// <summary>Void a quotation — soft, recoverable, reason-gated (legacy parity). A legacy quote is adopted first.</summary>
+    [HttpDelete("{id:long}")]
+    [RequirePermission(Permissions.ItemQuotation)]
+    [RequireChangeReason]
+    public async Task<ActionResult<QuotationDeleted>> Delete(
+        long id,
+        [FromQuery] int expectedRowVersion,
+        CancellationToken cancellationToken)
+    {
+        if (!await CallerMaySee(id, cancellationToken).ConfigureAwait(false))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            return Ok(await _deleter.DeleteAsync(id, expectedRowVersion, cancellationToken).ConfigureAwait(false));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "This quotation was changed by someone else. Reload and try again.");
+        }
+    }
+
+    /// <summary>Whether the caller may act on this quotation — it exists and is in a company they can see.</summary>
+    private async Task<bool> CallerMaySee(long id, CancellationToken cancellationToken)
+    {
+        var accessible = _company.Accessible.ToList();
+        var companyId = await _db.Quotations
+            .IgnoreQueryFilters()
+            .Where(q => q.Id == id && q.DeletedAt == null)
+            .Select(q => q.CompanyId)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return companyId is not null && accessible.Contains(companyId.Value);
     }
 }

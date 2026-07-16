@@ -125,6 +125,9 @@ export type ConvertQuotationRequest = Schemas["ConvertQuotationRequest"];
 export type QuotationCreatedResponse = Schemas["QuotationCreatedResponse"];
 export type QuotationSummary = Schemas["QuotationSummary"];
 export type QuotationDetail = Schemas["QuotationDetail"];
+export type EditQuotationRequest = Schemas["EditQuotationRequest"];
+export type QuotationEditedResponse = Schemas["QuotationEditedResponse"];
+export type QuotationDeleted = Schemas["QuotationDeleted"];
 
 export type CreateCreditNoteRequest = Schemas["CreateCreditNoteRequest"];
 export type CreditNoteCreatedResponse = Schemas["CreditNoteCreatedResponse"];

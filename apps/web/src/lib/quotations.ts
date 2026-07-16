@@ -1,10 +1,13 @@
 import type {
   ConvertQuotationRequest,
   CreateQuotationRequest,
+  EditQuotationRequest,
   InvoiceCreatedResponse,
   InvoiceTaxRate,
   QuotationCreatedResponse,
+  QuotationDeleted,
   QuotationDetail,
+  QuotationEditedResponse,
   QuotationSummary,
 } from "@smartnet/api-client";
 import { api } from "./api";
@@ -13,6 +16,7 @@ import { api } from "./api";
 export type {
   ConvertQuotationRequest,
   CreateQuotationRequest,
+  EditQuotationRequest,
   QuotationCreatedResponse,
   QuotationDetail,
   QuotationSummary,
@@ -41,3 +45,11 @@ export const createQuotation = (request: CreateQuotationRequest) =>
  */
 export const convertQuotation = (id: number, request: ConvertQuotationRequest) =>
   api<InvoiceCreatedResponse>(`/api/quotations/${id}/convert`, { method: "POST", body: request });
+
+/** Edit a quotation — versioned, reason-gated. A legacy quote is adopted; a converted one is refused (409). */
+export const editQuotation = (id: number, request: EditQuotationRequest, reason: string) =>
+  api<QuotationEditedResponse>(`/api/quotations/${id}`, { method: "PUT", body: request, reason });
+
+/** Void a quotation — soft, recoverable, reason-gated. A stale row_version is a 409. */
+export const deleteQuotation = (id: number, expectedRowVersion: number, reason: string) =>
+  api<QuotationDeleted>(`/api/quotations/${id}?expectedRowVersion=${expectedRowVersion}`, { method: "DELETE", reason });

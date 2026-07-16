@@ -13,9 +13,10 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Pencil, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
-import { convertQuotation, getQuotation } from "@/lib/quotations";
+import { convertQuotation, deleteQuotation, getQuotation } from "@/lib/quotations";
+import { me } from "@/lib/auth";
 import { today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -36,11 +37,16 @@ export default function QuotationViewPage() {
     enabled: Number.isFinite(quotationId),
   });
 
+  const user = useQuery({ queryKey: ["me"], queryFn: me });
   const [converting, setConverting] = useState(false);
+  const [voiding, setVoiding] = useState(false);
   const error = quotation.error as ApiError | null;
   const data = quotation.data;
   const converted = data?.convertedInvoiceId != null;
   const isLegacy = data?.origin === "legacy";
+  // A quotation can be edited/voided by someone with the quotation right (a legacy one is adopted on save).
+  // A converted quote is spent, so it can only be voided, not edited.
+  const canModify = data != null && (user.data?.permissions.includes("item_qu") ?? false);
 
   return (
     <FadeIn className="space-y-6">
@@ -60,13 +66,27 @@ export default function QuotationViewPage() {
           />
           {isLegacy && <Badge tone="neutral">Legacy</Badge>}
         </div>
-        {/* Both new and legacy quotes convert — a legacy one is built from its stored lines. */}
-        {data && !converted && (
-          <Button onClick={() => setConverting(true)}>
-            Convert to invoice
-            <ArrowRight />
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {canModify && !converted && (
+            <Button variant="secondary" onClick={() => router.push(`/quotations/${quotationId}/edit`)}>
+              <Pencil />
+              Edit
+            </Button>
+          )}
+          {canModify && (
+            <Button variant="secondary" onClick={() => setVoiding(true)}>
+              <Trash2 />
+              Void
+            </Button>
+          )}
+          {/* Both new and legacy quotes convert — a legacy one is built from its stored lines. */}
+          {data && !converted && (
+            <Button onClick={() => setConverting(true)}>
+              Convert to invoice
+              <ArrowRight />
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
@@ -137,9 +157,77 @@ export default function QuotationViewPage() {
             }}
             convert={(request) => convertQuotation(quotationId, request)}
           />
+
+          <VoidDialog
+            open={voiding}
+            onOpenChange={setVoiding}
+            quotationNumber={data.number}
+            onVoided={() => {
+              void queryClient.invalidateQueries({ queryKey: ["quotations"] });
+              toast.success(`Quotation ${data.number} voided.`);
+              router.push("/quotations");
+            }}
+            voidQuotation={(reason) => deleteQuotation(quotationId, data.rowVersion, reason)}
+          />
         </>
       )}
     </FadeIn>
+  );
+}
+
+function VoidDialog({ open, onOpenChange, quotationNumber, onVoided, voidQuotation }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  quotationNumber: string;
+  onVoided: () => void;
+  voidQuotation: (reason: string) => Promise<unknown>;
+}) {
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  async function submit() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await voidQuotation(reason);
+      onOpenChange(false);
+      onVoided();
+    } catch (e) {
+      setError(e as ApiError);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Void quotation ${quotationNumber}`}
+      description="The quotation is soft-deleted — recoverable and audited. A legacy quotation is adopted into the new system first."
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button onClick={submit} pending={submitting} disabled={reason.trim().length < 10}>
+            Void quotation
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+        <Input
+          label="Reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          hint="At least 10 characters — this is recorded on the audit trail."
+          placeholder="Why is this quotation being voided?"
+        />
+      </div>
+    </Dialog>
   );
 }
 

@@ -1163,6 +1163,7 @@ public partial class SmartnetLegacyDbContext : DbContext
             // Non-key scalars added by the Phase 5 quotation adoption — a stable handle and the legacy/new
             // discriminator, so a legacy reader can exclude the new app's rows that share this table.
             entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.RowVersion).HasColumnName("row_version");
             entity.Property(e => e.DataOrigin).HasMaxLength(16).HasColumnName("data_origin");
             entity.Property(e => e.ConvertedToInvoiceId).HasColumnName("converted_to_invoice_id");
             entity.Property(e => e.Beforedisctot)
@@ -1221,6 +1222,7 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .HasNoKey()
                 .ToTable("quotation_l");
 
+            entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.Desc)
                 .HasColumnType("text")
                 .HasColumnName("desc");
