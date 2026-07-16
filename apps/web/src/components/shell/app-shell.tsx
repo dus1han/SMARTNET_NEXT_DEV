@@ -36,7 +36,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-canvas">
+    <div className="app-canvas flex h-dvh overflow-hidden">
       {/* Desktop: always there. Mobile: a drawer, because 256px of chrome on a phone leaves no
           room for the invoice. */}
       <div className="hidden lg:flex">
@@ -76,7 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
  */
 function ShellSkeleton() {
   return (
-    <div className="flex h-dvh overflow-hidden bg-canvas">
+    <div className="app-canvas flex h-dvh overflow-hidden">
       <div className="hidden w-64 shrink-0 border-r border-sidebar-border bg-sidebar lg:block" />
 
       <div className="flex flex-1 flex-col">

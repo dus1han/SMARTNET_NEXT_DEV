@@ -16,18 +16,26 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* Page and panels. `surface` is what a card sits on; `canvas` is what the page is. */
-  --canvas: oklch(99% 0 0);
-  --surface: oklch(100% 0 0);
-  --surface-sunken: oklch(97% 0.002 250);
+  /* Page and panels. `surface` is what a card sits on; `canvas` is what the page is.
+     The neutrals carry a whisper of the brand hue (~270, a soft periwinkle) rather than being pure
+     white — a stark white page reads as unfinished, and a faint tint reads as calm and considered.
+     `canvas` is clearly tinted; `surface` stays near-white so a card still lifts off the page. */
+  --canvas: oklch(97.6% 0.014 270);
+  --surface: oklch(99.4% 0.005 270);
+  --surface-sunken: oklch(95.6% 0.016 270);
 
   /* Text. `muted` is for labels and secondary text, and still passes AA on `surface`. */
   --text: oklch(20% 0.01 250);
   --text-muted: oklch(50% 0.015 250);
 
   /* Borders. `subtle` separates; `strong` is a focused or hovered control. */
-  --border-subtle: oklch(92% 0.004 250);
-  --border-strong: oklch(80% 0.008 250);
+  --border-subtle: oklch(90.5% 0.014 270);
+  --border-strong: oklch(79% 0.02 270);
+
+  /* The ambient page wash — two soft pastel blooms in the top corners of the content area, fixed to
+     the viewport. Gentle colour across every screen without touching the cards that carry the data. */
+  --wash-1: oklch(93% 0.05 275 / 0.55);
+  --wash-2: oklch(93% 0.045 210 / 0.45);
 
   /* The primary action, and the brand.
      Indigo: it reads as financial and trustworthy, and — the practical reason — it stays out of the
@@ -66,15 +74,19 @@
 }
 
 .dark {
-  --canvas: oklch(17% 0.005 250);
-  --surface: oklch(21% 0.006 250);
-  --surface-sunken: oklch(15% 0.005 250);
+  --canvas: oklch(17% 0.012 268);
+  --surface: oklch(21% 0.014 268);
+  --surface-sunken: oklch(15% 0.01 268);
 
   --text: oklch(96% 0.002 250);
   --text-muted: oklch(68% 0.012 250);
 
-  --border-subtle: oklch(28% 0.008 250);
-  --border-strong: oklch(40% 0.012 250);
+  --border-subtle: oklch(28% 0.012 268);
+  --border-strong: oklch(40% 0.016 268);
+
+  /* The same ambient wash, deepened for the dark canvas — a low glow rather than a bright bloom. */
+  --wash-1: oklch(34% 0.06 275 / 0.40);
+  --wash-2: oklch(32% 0.05 210 / 0.30);
 
   /* Lifted for dark: the light-mode indigo goes muddy against a dark surface. */
   --primary: oklch(64% 0.18 272);
@@ -269,6 +281,18 @@
 .dark .stat-sky     { --stat-bg1:#082f49; --stat-bg2:#0c4a6e; --stat-fg:#bae6fd; --stat-icon-bg:rgba(56,189,248,.20); --stat-border:rgba(56,189,248,.16); --stat-shadow:rgba(0,0,0,.5); }
 .dark .stat-rose    { --stat-bg1:#4c0519; --stat-bg2:#881337; --stat-fg:#fecdd3; --stat-icon-bg:rgba(251,113,133,.20); --stat-border:rgba(251,113,133,.16); --stat-shadow:rgba(0,0,0,.5); }
 .dark .stat-slate   { --stat-bg1:#1e293b; --stat-bg2:#334155; --stat-fg:#cbd5e1; --stat-icon-bg:rgba(148,163,184,.18); --stat-border:rgba(148,163,184,.16); --stat-shadow:rgba(0,0,0,.5); }
+
+/* The app frame's background — the canvas colour plus the ambient pastel wash. The blooms sit in the
+   top corners of the content area and are painted on the non-scrolling shell, so they stay a calm tint
+   behind the page rather than scrolling away. Cards and the sidebar are opaque on top; the wash shows
+   only in the gaps, which is exactly the amount of colour intended. */
+.app-canvas {
+  background-color: var(--canvas);
+  background-image:
+    radial-gradient(60rem 32rem at 6% -12%, var(--wash-1), transparent 60%),
+    radial-gradient(55rem 30rem at 104% -8%, var(--wash-2), transparent 55%);
+  background-repeat: no-repeat;
+}
 
 @layer base {
   body {
