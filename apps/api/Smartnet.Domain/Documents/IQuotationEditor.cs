@@ -18,7 +18,9 @@ public sealed record EditQuotation(
     string? ContactPerson,
     string? Validity,
     decimal DocumentDiscountPercent,
-    IReadOnlyList<EditQuotationLine> Lines);
+    IReadOnlyList<EditQuotationLine> Lines,
+    // A service quotation's document-level cost; null for an item quotation (cost derived from the lines).
+    decimal? DocumentCost = null);
 
 /// <summary>What an edit returns — the new figures and the version it wrote.</summary>
 public sealed record QuotationEdited(long Id, string Number, decimal Total, int VersionNo);

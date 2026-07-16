@@ -17,6 +17,11 @@ public sealed record NewQuotationLine(
 /// <param name="DocumentDiscountPercent">
 /// A discount on the whole document, after any per-line discounts and before VAT. 0 for none.
 /// </param>
+/// <param name="DocumentCost">
+/// A document-level cost for a <b>service</b> quotation — where cost cannot be derived from item lines, the
+/// user enters one figure (the legacy <c>quotation_h.quotecost</c>). Null for an <b>item</b> quotation,
+/// whose cost is the sum of the line costs from the item master; carried to the invoice on conversion.
+/// </param>
 public sealed record NewQuotation(
     long CompanyId,
     long CustomerId,
@@ -24,7 +29,8 @@ public sealed record NewQuotation(
     string? ContactPerson,
     string? Validity,
     IReadOnlyList<NewQuotationLine> Lines,
-    decimal DocumentDiscountPercent = 0m);
+    decimal DocumentDiscountPercent = 0m,
+    decimal? DocumentCost = null);
 
 /// <summary>What the caller gets back — enough to show a toast and route to the new quotation.</summary>
 public sealed record QuotationCreated(long Id, string Number, decimal Total);

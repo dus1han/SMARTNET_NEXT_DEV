@@ -5397,6 +5397,11 @@
           },
           "acknowledgeCreditLimit": {
             "type": "boolean"
+          },
+          "documentCost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -5492,6 +5497,11 @@
           "documentDiscountPercent": {
             "type": "number",
             "format": "double"
+          },
+          "documentCost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -6477,6 +6487,11 @@
           "documentDiscountPercent": {
             "type": "number",
             "format": "double"
+          },
+          "documentCost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -6510,6 +6525,11 @@
           "documentDiscountPercent": {
             "type": "number",
             "format": "double"
+          },
+          "documentCost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -6679,6 +6699,7 @@
       },
       "InvoiceDetail": {
         "required": [
+          "cost",
           "date",
           "discountAmount",
           "documentDiscountPercent",
@@ -6760,6 +6781,10 @@
             "format": "double"
           },
           "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "cost": {
             "type": "number",
             "format": "double"
           },
@@ -7662,6 +7687,7 @@
       },
       "QuotationDetail": {
         "required": [
+          "cost",
           "date",
           "discountAmount",
           "documentDiscountPercent",
@@ -7738,6 +7764,10 @@
             "format": "double"
           },
           "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "cost": {
             "type": "number",
             "format": "double"
           },

@@ -23,6 +23,11 @@ public sealed record NewInvoiceLine(
 /// confirmation is the override. It is <c>false</c> on a first, un-confirmed attempt (and on a direct
 /// API call), so a breach is caught and surfaced rather than slipping through unseen.
 /// </param>
+/// <param name="DocumentCost">
+/// A document-level cost for a <b>service</b> invoice — where cost cannot be derived from item lines, the
+/// user enters one figure for the whole document (the legacy <c>invoice_h.cost</c> for service invoices).
+/// Null for an <b>item</b> invoice, whose cost is the sum of the line costs carried from the item master.
+/// </param>
 public sealed record NewInvoice(
     long CompanyId,
     long CustomerId,
@@ -32,7 +37,8 @@ public sealed record NewInvoice(
     string? ContactPerson,
     IReadOnlyList<NewInvoiceLine> Lines,
     decimal DocumentDiscountPercent = 0m,
-    bool AcknowledgeCreditLimit = false);
+    bool AcknowledgeCreditLimit = false,
+    decimal? DocumentCost = null);
 
 /// <summary>What the caller gets back — enough to show a toast and route to the new invoice.</summary>
 public sealed record InvoiceCreated(long Id, string Number, decimal Total, decimal Outstanding);

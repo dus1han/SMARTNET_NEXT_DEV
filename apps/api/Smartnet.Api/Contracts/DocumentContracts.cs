@@ -20,7 +20,10 @@ public sealed record CreateInvoiceRequest(
     decimal DocumentDiscountPercent = 0m,
     // Set when the person raising the invoice has been shown a credit-limit breach and confirmed it — the
     // confirmation is the override that lets a soft-gated breach save. False on a first, un-confirmed try.
-    bool AcknowledgeCreditLimit = false);
+    bool AcknowledgeCreditLimit = false,
+    // A service invoice's document-level cost (the legacy service Cost box). Null for an item invoice,
+    // whose cost is the sum of its per-line item costs.
+    decimal? DocumentCost = null);
 
 /// <param name="ItemId">The stock item, or null for a free-typed service line.</param>
 public sealed record CreateInvoiceLineRequest(
@@ -45,7 +48,9 @@ public sealed record EditInvoiceRequest(
     string? PurchaseOrderNo,
     string? ContactPerson,
     IReadOnlyList<EditInvoiceLineRequest> Lines,
-    decimal DocumentDiscountPercent = 0m);
+    decimal DocumentDiscountPercent = 0m,
+    // A service invoice's document-level cost; null for an item invoice (cost derived from the lines).
+    decimal? DocumentCost = null);
 
 /// <param name="Id">The existing line this maps to, or null for a line the edit adds.</param>
 public sealed record EditInvoiceLineRequest(
@@ -182,6 +187,9 @@ public sealed record InvoiceDetail(
     decimal TaxRatePercentage,
     decimal TaxAmount,
     decimal Total,
+    // The document's cost basis — a service invoice's entered figure, or an item invoice's summed line
+    // costs. So the edit screen can seed the service Cost field and margin is visible.
+    decimal Cost,
     decimal Outstanding,
     // The row_version the edit screen loads and sends back, so a concurrent edit is rejected rather than
     // silently overwritten. 0 for a legacy invoice (which the new editor does not touch).
@@ -203,7 +211,10 @@ public sealed record CreateQuotationRequest(
     string? ContactPerson,
     string? Validity,
     IReadOnlyList<CreateInvoiceLineRequest> Lines,
-    decimal DocumentDiscountPercent = 0m);
+    decimal DocumentDiscountPercent = 0m,
+    // A service quotation's document-level cost (the legacy quotecost). Null for an item quotation, whose
+    // cost sums its per-line item costs; carried to the invoice on conversion.
+    decimal? DocumentCost = null);
 
 public sealed record QuotationCreatedResponse(long Id, string Number, decimal Total);
 
@@ -247,6 +258,9 @@ public sealed record QuotationDetail(
     decimal TaxRatePercentage,
     decimal TaxAmount,
     decimal Total,
+    // The document's cost basis — a service quotation's entered figure, or an item quotation's summed line
+    // costs. Seeds the edit screen's service Cost field.
+    decimal Cost,
     long? ConvertedInvoiceId,
     string? ConvertedInvoiceNumber,
     // The row_version the edit screen echoes back (a legacy quote's real version, so an edit adopts it under
@@ -261,7 +275,9 @@ public sealed record EditQuotationRequest(
     string? ContactPerson,
     string? Validity,
     IReadOnlyList<EditInvoiceLineRequest> Lines,
-    decimal DocumentDiscountPercent = 0m);
+    decimal DocumentDiscountPercent = 0m,
+    // A service quotation's document-level cost; null for an item quotation (cost derived from the lines).
+    decimal? DocumentCost = null);
 
 public sealed record QuotationEditedResponse(long Id, string Number, decimal Total, int VersionNo);
 

@@ -51,6 +51,8 @@ export default function NewInvoicePage() {
   const [contact, setContact] = useState("");
   // A discount on the whole document, after the per-line discounts. Held raw so a half-typed "1." is fine.
   const [documentDiscount, setDocumentDiscount] = useState("");
+  // A service invoice's cost is entered at the document level (item lines derive it from the item master).
+  const [serviceCost, setServiceCost] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
@@ -117,6 +119,8 @@ export default function NewInvoicePage() {
         contactPerson: contact || null,
         documentDiscountPercent: docPercent,
         acknowledgeCreditLimit,
+        // Service invoices carry a document-level cost; item invoices derive it from the line item costs.
+        documentCost: kind === "service" && serviceCost !== "" ? Number(serviceCost) : null,
         // Back to the major-unit decimals the API expects, at the boundary and nowhere else.
         lines: lines.map((l) => ({
           itemId: l.itemId,
@@ -259,6 +263,25 @@ export default function NewInvoicePage() {
           <div className="border-t border-subtle pt-2">
             <Row label="Total" value={formatAmount(totals.total)} strong />
           </div>
+
+          {/* A service invoice's cost is entered here (item invoices derive it from the item master). It is
+              the margin basis — it is not added to the total. */}
+          {kind === "service" && (
+            <div className="flex items-center justify-between gap-3 border-t border-subtle pt-2">
+              <label htmlFor="service-cost" className="text-muted">Cost</label>
+              <input
+                id="service-cost"
+                inputMode="decimal"
+                value={serviceCost}
+                onChange={(e) => setServiceCost(e.target.value)}
+                placeholder="0"
+                className={cn(
+                  "w-28 rounded border border-subtle bg-surface px-2 py-1 text-right tabular text-text",
+                  "focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/25",
+                )}
+              />
+            </div>
+          )}
 
           <Button className="mt-2 w-full" onClick={attemptSubmit} pending={submitting} disabled={!canSubmit}>
             Raise invoice

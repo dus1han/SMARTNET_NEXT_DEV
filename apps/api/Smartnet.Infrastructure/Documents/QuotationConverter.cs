@@ -94,6 +94,10 @@ public sealed class QuotationConverter : IQuotationConverter
             throw new InvalidOperationException($"Quotation {quotation.Id} has no company and cannot be converted.");
         }
 
+        // Item quotes derive their cost from the line costs on conversion; a service quote carries the
+        // document-level cost the user entered on it (no re-entry — the legacy convert-time cost box is gone).
+        var hasItem = quotation.Lines.Any(l => l.ItemId is not null);
+
         return new NewInvoice(
             companyId,
             quotation.CustomerId,
@@ -103,7 +107,8 @@ public sealed class QuotationConverter : IQuotationConverter
             request.ContactPerson ?? quotation.ContactPerson,
             [.. quotation.Lines.Select(l => new NewInvoiceLine(
                 l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
-            quotation.DiscountPercent);
+            quotation.DiscountPercent,
+            DocumentCost: hasItem ? null : quotation.Cost);
     }
 
     /// <summary>
@@ -173,6 +178,10 @@ public sealed class QuotationConverter : IQuotationConverter
                 matched ? items[l.Itemcode!].Cost : null);
         }).ToList();
 
+        // As for a new quote: item lines derive cost from the item master; an all-service legacy quote
+        // carries its stored document-level quotecost.
+        var hasItem = lines.Any(l => l.ItemId is not null);
+
         return new NewInvoice(
             companyId,
             customer.Id,
@@ -181,6 +190,7 @@ public sealed class QuotationConverter : IQuotationConverter
             request.PurchaseOrderNo,
             request.ContactPerson ?? h.Contactperson,
             lines,
-            LegacyValue.Money(h.Discountper));
+            LegacyValue.Money(h.Discountper),
+            DocumentCost: hasItem ? null : LegacyValue.Money(h.Quotecost));
     }
 }

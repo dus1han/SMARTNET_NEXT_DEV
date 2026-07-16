@@ -33,7 +33,9 @@ public sealed record EditInvoice(
     string? PurchaseOrderNo,
     string? ContactPerson,
     decimal DocumentDiscountPercent,
-    IReadOnlyList<EditInvoiceLine> Lines);
+    IReadOnlyList<EditInvoiceLine> Lines,
+    // A service invoice's document-level cost; null for an item invoice (cost derived from the lines).
+    decimal? DocumentCost = null);
 
 /// <summary>What the caller gets back after an edit — the new figures and the version it wrote.</summary>
 public sealed record InvoiceEdited(long Id, string Number, decimal Total, decimal Outstanding, int VersionNo);

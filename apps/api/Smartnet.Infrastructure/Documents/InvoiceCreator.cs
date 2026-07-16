@@ -106,7 +106,9 @@ public sealed class InvoiceCreator : IInvoiceCreator
             .AllocateAsync(request.CompanyId, DocumentTypes.Invoice, request.Date, cancellationToken)
             .ConfigureAwait(false);
 
-        var lineCost = request.Lines.Sum(l => l.Cost ?? 0m);
+        // Cost basis: for a service invoice the user enters one document-level figure (item lines carry no
+        // cost); for an item invoice it is the sum of the per-line costs carried from the item master.
+        var cost = request.DocumentCost ?? request.Lines.Sum(l => l.Cost ?? 0m);
         var preparedByName = await PreparedByNameAsync(cancellationToken).ConfigureAwait(false);
 
         var invoice = new Invoice
@@ -131,7 +133,7 @@ public sealed class InvoiceCreator : IInvoiceCreator
             TaxRatePercentage = calc.TaxRatePercentage,
             TaxAmount = calc.Totals.Tax,
             Total = calc.Totals.Total,
-            Cost = lineCost,
+            Cost = cost,
             SourceQuotationId = sourceQuotationId,
             DataOrigin = "new",
 

@@ -101,6 +101,8 @@ function EditForm({ invoice, invoiceId }: { invoice: InvoiceDetail; invoiceId: n
   const [documentDiscount, setDocumentDiscount] = useState(
     invoice.documentDiscountPercent > 0 ? String(invoice.documentDiscountPercent) : "",
   );
+  // A service invoice's document-level cost, seeded from the loaded invoice so an edit does not wipe it.
+  const [serviceCost, setServiceCost] = useState(invoice.cost > 0 ? String(invoice.cost) : "");
   const [reason, setReason] = useState("");
   const [lines, setLines] = useState<DraftLine[]>(() => seedLines(invoice));
   const [submitting, setSubmitting] = useState(false);
@@ -126,6 +128,8 @@ function EditForm({ invoice, invoiceId }: { invoice: InvoiceDetail; invoiceId: n
           purchaseOrderNo: po || null,
           contactPerson: contact || null,
           documentDiscountPercent: docPercent,
+          // Service invoices carry a document-level cost; item invoices derive it from the line item costs.
+          documentCost: kind === "service" && serviceCost !== "" ? Number(serviceCost) : null,
           lines: lines.map((l) => ({
             id: idFromKey(l.key),
             itemId: l.itemId,
@@ -196,6 +200,24 @@ function EditForm({ invoice, invoiceId }: { invoice: InvoiceDetail; invoiceId: n
           <div className="border-t border-subtle pt-2">
             <Row label="Total" value={formatAmount(totals.total)} strong />
           </div>
+
+          {/* A service invoice's cost (item invoices derive it from the item master) — the margin basis. */}
+          {kind === "service" && (
+            <div className="flex items-center justify-between gap-3 border-t border-subtle pt-2">
+              <label htmlFor="service-cost" className="text-muted">Cost</label>
+              <input
+                id="service-cost"
+                inputMode="decimal"
+                value={serviceCost}
+                onChange={(e) => setServiceCost(e.target.value)}
+                placeholder="0"
+                className={cn(
+                  "w-28 rounded border border-subtle bg-surface px-2 py-1 text-right tabular text-text",
+                  "focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/25",
+                )}
+              />
+            </div>
+          )}
 
           <Button className="mt-2 w-full" onClick={submit} pending={submitting} disabled={!canSubmit}>
             Save changes

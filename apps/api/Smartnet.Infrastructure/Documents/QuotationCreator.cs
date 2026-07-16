@@ -82,7 +82,9 @@ public sealed class QuotationCreator : IQuotationCreator
             .AllocateAsync(request.CompanyId, DocumentTypes.Quotation, request.Date, cancellationToken)
             .ConfigureAwait(false);
 
-        var lineCost = request.Lines.Sum(l => l.Cost ?? 0m);
+        // Cost basis: a service quotation carries one document-level figure the user entered (item lines
+        // have no cost); an item quotation sums the per-line costs from the item master.
+        var lineCost = request.DocumentCost ?? request.Lines.Sum(l => l.Cost ?? 0m);
         var preparedByName = await PreparedByNameAsync(cancellationToken).ConfigureAwait(false);
 
         var quotation = new Quotation

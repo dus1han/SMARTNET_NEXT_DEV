@@ -4097,6 +4097,8 @@ export interface components {
             /** Format: double */
             documentDiscountPercent: number;
             acknowledgeCreditLimit: boolean;
+            /** Format: double */
+            documentCost?: number | null;
         };
         CreateItemResponse: {
             /** Format: int64 */
@@ -4126,6 +4128,8 @@ export interface components {
             lines: components["schemas"]["CreateInvoiceLineRequest"][];
             /** Format: double */
             documentDiscountPercent: number;
+            /** Format: double */
+            documentCost?: number | null;
         };
         CreateStockAdjustmentRequest: {
             /** Format: double */
@@ -4432,6 +4436,8 @@ export interface components {
             lines: components["schemas"]["EditInvoiceLineRequest"][];
             /** Format: double */
             documentDiscountPercent: number;
+            /** Format: double */
+            documentCost?: number | null;
         };
         EditQuotationRequest: {
             /** Format: int32 */
@@ -4441,6 +4447,8 @@ export interface components {
             lines: components["schemas"]["EditInvoiceLineRequest"][];
             /** Format: double */
             documentDiscountPercent: number;
+            /** Format: double */
+            documentCost?: number | null;
         };
         EmailTemplateDto: {
             /** Format: int64 */
@@ -4518,6 +4526,8 @@ export interface components {
             taxAmount: number;
             /** Format: double */
             total: number;
+            /** Format: double */
+            cost: number;
             /** Format: double */
             outstanding: number;
             /** Format: int32 */
@@ -4826,6 +4836,8 @@ export interface components {
             taxAmount: number;
             /** Format: double */
             total: number;
+            /** Format: double */
+            cost: number;
             /** Format: int64 */
             convertedInvoiceId?: number | null;
             convertedInvoiceNumber?: string | null;

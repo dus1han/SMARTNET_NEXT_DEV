@@ -178,6 +178,7 @@ public sealed class QuotationsController : ControllerBase
             quotation.TaxRatePercentage,
             quotation.TaxAmount,
             quotation.Total,
+            quotation.Cost,
             quotation.ConvertedToInvoiceId,
             convertedInvoiceNumber,
             quotation.RowVersion,
@@ -262,6 +263,7 @@ public sealed class QuotationsController : ControllerBase
             LegacyValue.Money(h.Vper),
             total - net,
             total,
+            LegacyValue.Money(h.Quotecost), // the stored quote cost (item = summed, service = entered)
             h.ConvertedToInvoiceId,
             convertedInvoiceNumber,
             h.RowVersion,
@@ -346,7 +348,8 @@ public sealed class QuotationsController : ControllerBase
                 request.Validity,
                 [.. request.Lines.Select(l => new NewQuotationLine(
                     l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
-                request.DocumentDiscountPercent),
+                request.DocumentDiscountPercent,
+                request.DocumentCost),
             cancellationToken).ConfigureAwait(false);
 
         return Ok(new QuotationCreatedResponse(created.Id, created.Number, created.Total));
@@ -428,7 +431,8 @@ public sealed class QuotationsController : ControllerBase
                 new EditQuotation(
                     request.ExpectedRowVersion, request.ContactPerson, request.Validity, request.DocumentDiscountPercent,
                     [.. request.Lines.Select(l => new EditQuotationLine(
-                        l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))]),
+                        l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
+                    request.DocumentCost),
                 cancellationToken).ConfigureAwait(false);
 
             return Ok(new QuotationEditedResponse(edited.Id, edited.Number, edited.Total, edited.VersionNo));
