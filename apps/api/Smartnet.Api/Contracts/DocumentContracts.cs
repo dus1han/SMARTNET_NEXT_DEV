@@ -146,6 +146,8 @@ public sealed record InvoiceDetail(
     string? ContactPerson,
     decimal Subtotal,
     decimal DiscountAmount,
+    // The whole-document discount rate, so the edit screen can seed it (the lines carry their own).
+    decimal DocumentDiscountPercent,
     decimal NetTotal,
     decimal TaxRatePercentage,
     decimal TaxAmount,

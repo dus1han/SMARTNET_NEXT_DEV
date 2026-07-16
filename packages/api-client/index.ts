@@ -114,6 +114,11 @@ export type CreditStatus = Schemas["CreditStatus"];
 export type InvoiceSummary = Schemas["InvoiceSummary"];
 export type InvoiceDetail = Schemas["InvoiceDetail"];
 export type InvoiceLineDetail = Schemas["InvoiceLineDetail"];
+export type EditInvoiceRequest = Schemas["EditInvoiceRequest"];
+export type EditInvoiceLineRequest = Schemas["EditInvoiceLineRequest"];
+export type InvoiceEditedResponse = Schemas["InvoiceEditedResponse"];
+export type InvoiceDeleted = Schemas["InvoiceDeleted"];
+export type DeletedInvoiceSummary = Schemas["DeletedInvoiceSummary"];
 
 export type CreateQuotationRequest = Schemas["CreateQuotationRequest"];
 export type ConvertQuotationRequest = Schemas["ConvertQuotationRequest"];

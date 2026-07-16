@@ -4221,6 +4221,8 @@ export interface components {
             /** Format: double */
             discountAmount: number;
             /** Format: double */
+            documentDiscountPercent: number;
+            /** Format: double */
             netTotal: number;
             /** Format: double */
             taxRatePercentage: number;

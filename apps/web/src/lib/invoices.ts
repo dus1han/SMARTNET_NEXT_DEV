@@ -1,8 +1,12 @@
 import type {
   CreateInvoiceRequest,
   CreditStatus,
+  DeletedInvoiceSummary,
+  EditInvoiceRequest,
   InvoiceCreatedResponse,
+  InvoiceDeleted,
   InvoiceDetail,
+  InvoiceEditedResponse,
   InvoiceSummary,
   InvoiceTaxRate,
 } from "@smartnet/api-client";
@@ -13,8 +17,12 @@ export type {
   CreateInvoiceRequest,
   CreateInvoiceLineRequest,
   CreditStatus,
+  DeletedInvoiceSummary,
+  EditInvoiceRequest,
+  EditInvoiceLineRequest,
   InvoiceCreatedResponse,
   InvoiceDetail,
+  InvoiceEditedResponse,
   InvoiceLineDetail,
   InvoiceSummary,
   InvoiceTaxRate,
@@ -45,3 +53,17 @@ export const getCreditStatus = (customerId: number, companyId: number) =>
 /** Raise an invoice — the whole document, posted once (the cart is gone). */
 export const createInvoice = (request: CreateInvoiceRequest) =>
   api<InvoiceCreatedResponse>("/api/invoices", { method: "POST", body: request });
+
+/**
+ * Edit an issued invoice — versioned, reason-gated, concurrency-guarded. `reason` is mandatory. A stale
+ * ExpectedRowVersion (someone else edited it) or a payment against the invoice comes back as a 409.
+ */
+export const editInvoice = (id: number, request: EditInvoiceRequest, reason: string) =>
+  api<InvoiceEditedResponse>(`/api/invoices/${id}`, { method: "PUT", body: request, reason });
+
+/** Void an invoice — soft, recoverable, reason-gated. A stale row_version is a 409. */
+export const deleteInvoice = (id: number, expectedRowVersion: number, reason: string) =>
+  api<InvoiceDeleted>(`/api/invoices/${id}?expectedRowVersion=${expectedRowVersion}`, { method: "DELETE", reason });
+
+/** The deleted-invoice register — voided invoices, with who, when and why. */
+export const getDeletedInvoices = () => api<DeletedInvoiceSummary[]>("/api/invoices/deleted");

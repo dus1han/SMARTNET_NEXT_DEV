@@ -195,6 +195,7 @@ public sealed class InvoicesController : ControllerBase
             invoice.ContactPerson,
             invoice.Subtotal,
             invoice.DiscountAmount,
+            invoice.DiscountPercent,
             invoice.NetTotal,
             invoice.TaxRatePercentage,
             invoice.TaxAmount,
@@ -263,6 +264,7 @@ public sealed class InvoicesController : ControllerBase
             h.Contactperson,
             subtotal,
             subtotal - net, // discount = pre-discount subtotal less the after-discount net
+            LegacyValue.Money(h.Discountper), // the document discount rate, as stored
             net,
             LegacyValue.Money(h.Vper),
             total - net, // tax = grand total less the pre-VAT net

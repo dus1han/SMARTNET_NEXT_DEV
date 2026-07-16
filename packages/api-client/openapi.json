@@ -6172,6 +6172,7 @@
         "required": [
           "date",
           "discountAmount",
+          "documentDiscountPercent",
           "id",
           "kind",
           "lines",
@@ -6230,6 +6231,10 @@
             "format": "double"
           },
           "discountAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "documentDiscountPercent": {
             "type": "number",
             "format": "double"
           },

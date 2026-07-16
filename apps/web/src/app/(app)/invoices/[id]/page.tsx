@@ -9,34 +9,43 @@
  * pipeline writes, dropped in from Phase 2's reusable component.
  */
 
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
-import { getInvoice } from "@/lib/invoices";
+import { deleteInvoice, getInvoice } from "@/lib/invoices";
+import { me } from "@/lib/auth";
 import { daysDueLabel } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
-import { Badge, Card, ErrorBanner, FadeIn, Skeleton } from "@/components/ui";
+import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 import { History } from "@/components/history/history";
 import type { InvoiceLineDetail } from "@/lib/invoices";
 
 export default function InvoiceViewPage() {
   const { id } = useParams<{ id: string }>();
   const invoiceId = Number(id);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [voiding, setVoiding] = useState(false);
 
   const invoice = useQuery({
     queryKey: ["invoice", invoiceId],
     queryFn: () => getInvoice(invoiceId),
     enabled: Number.isFinite(invoiceId),
   });
+  const user = useQuery({ queryKey: ["me"], queryFn: me });
 
   const error = invoice.error as ApiError | null;
   const data = invoice.data;
   const settled = (data?.outstanding ?? 0) <= 0;
   const isLegacy = data?.origin === "legacy";
+  // A new invoice this app owns can be edited or voided, by someone with the invoice right. A legacy row
+  // is read-only. The server re-checks both; this only decides whether to draw the buttons.
+  const canModify = data != null && !isLegacy && (user.data?.permissions.includes("item_in") ?? false);
 
   return (
     <FadeIn className="space-y-6">
@@ -48,12 +57,26 @@ export default function InvoiceViewPage() {
         All invoices
       </Link>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <PageHeader
-          title={data ? `Invoice ${data.number}` : "Invoice"}
-          description={data ? `${data.kind} invoice · ${data.type} · ${formatReportDate(data.date)}` : undefined}
-        />
-        {isLegacy && <Badge tone="neutral">Legacy</Badge>}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <PageHeader
+            title={data ? `Invoice ${data.number}` : "Invoice"}
+            description={data ? `${data.kind} invoice · ${data.type} · ${formatReportDate(data.date)}` : undefined}
+          />
+          {isLegacy && <Badge tone="neutral">Legacy</Badge>}
+        </div>
+        {canModify && (
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => router.push(`/invoices/${invoiceId}/edit`)}>
+              <Pencil />
+              Edit
+            </Button>
+            <Button variant="secondary" onClick={() => setVoiding(true)}>
+              <Trash2 />
+              Void
+            </Button>
+          </div>
+        )}
       </div>
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
@@ -110,9 +133,80 @@ export default function InvoiceViewPage() {
               />
             )}
           </Card>
+
+          <VoidDialog
+            open={voiding}
+            onOpenChange={setVoiding}
+            invoiceNumber={data.number}
+            rowVersion={data.rowVersion}
+            onVoided={() => {
+              void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+              toast.success(`Invoice ${data.number} voided.`);
+              router.push("/invoices");
+            }}
+            voidInvoice={(reason) => deleteInvoice(invoiceId, data.rowVersion, reason)}
+          />
         </>
       )}
     </FadeIn>
+  );
+}
+
+function VoidDialog({ open, onOpenChange, invoiceNumber, onVoided, voidInvoice }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  invoiceNumber: string;
+  rowVersion: number;
+  onVoided: () => void;
+  voidInvoice: (reason: string) => Promise<unknown>;
+}) {
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  async function submit() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await voidInvoice(reason);
+      onOpenChange(false);
+      onVoided();
+    } catch (e) {
+      setError(e as ApiError);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Void invoice ${invoiceNumber}`}
+      description="The invoice is soft-deleted — recoverable and audited. Its ledger charge is reversed and any issued stock returned, through new entries. This cannot be done to a paid invoice."
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={submitting}>
+            Cancel
+          </Button>
+          {/* A reason is mandatory, min 10 chars — the server enforces it too. */}
+          <Button onClick={submit} pending={submitting} disabled={reason.trim().length < 10}>
+            Void invoice
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+        <Input
+          label="Reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          hint="At least 10 characters — this is recorded on the audit trail."
+          placeholder="Why is this invoice being voided?"
+        />
+      </div>
+    </Dialog>
   );
 }
 

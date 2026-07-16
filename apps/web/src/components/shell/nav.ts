@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   ShoppingCart,
+  Trash2,
   Truck,
   Users,
   Wallet,
@@ -58,6 +59,7 @@ export const NAVIGATION: NavSection[] = [
     items: [
       { href: "/quotations", label: "Quotations", icon: FileText, permission: "search_qu" },
       { href: "/invoices", label: "Invoices", icon: Receipt, permission: "search_in" },
+      { href: "/invoices/deleted", label: "Deleted invoices", icon: Trash2, permission: "deleted_in" },
       { href: "/credit-notes", label: "Credit notes", icon: FileMinus, permission: "search_cn" },
       { href: "/payments", label: "Payments", icon: Wallet, permission: "payments", phase: "Phase 7" },
     ],
