@@ -1357,6 +1357,150 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/job-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["JobCardSummary"][];
+                        "application/json": components["schemas"]["JobCardSummary"][];
+                        "text/json": components["schemas"]["JobCardSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateJobCardRequest"];
+                    "text/json": components["schemas"]["CreateJobCardRequest"];
+                    "application/*+json": components["schemas"]["CreateJobCardRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["JobCardCreatedResponse"];
+                        "application/json": components["schemas"]["JobCardCreatedResponse"];
+                        "text/json": components["schemas"]["JobCardCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/job-cards/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["JobCardDetail"];
+                        "application/json": components["schemas"]["JobCardDetail"];
+                        "text/json": components["schemas"]["JobCardDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/job-cards/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CloseJobCardRequest"];
+                    "text/json": components["schemas"]["CloseJobCardRequest"];
+                    "application/*+json": components["schemas"]["CloseJobCardRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/numbering": {
         parameters: {
             query?: never;
@@ -4188,6 +4332,15 @@ export interface components {
             printedAt?: string | null;
             hasDataIssue: boolean;
         };
+        CloseJobCardRequest: {
+            /** Format: int32 */
+            expectedRowVersion: number;
+            /** Format: double */
+            cost: number;
+            /** Format: double */
+            sell: number;
+            completionRemarks?: string | null;
+        };
         CompanyOption: {
             /** Format: int64 */
             id: number;
@@ -4273,6 +4426,25 @@ export interface components {
             /** Format: int64 */
             id: number;
             code: string;
+        };
+        CreateJobCardLineRequest: {
+            /** Format: int64 */
+            itemId?: number | null;
+            description?: string | null;
+            serial?: string | null;
+        };
+        CreateJobCardRequest: {
+            /** Format: int64 */
+            companyId: number;
+            /** Format: int64 */
+            customerId: number;
+            /** Format: date */
+            date: string;
+            contactPerson?: string | null;
+            faultDescription?: string | null;
+            remarks?: string | null;
+            technician?: string | null;
+            lines: components["schemas"]["CreateJobCardLineRequest"][];
         };
         CreatePurchaseOrderRequest: {
             /** Format: int64 */
@@ -4799,6 +4971,41 @@ export interface components {
             stockBalance: number;
             belowReorder: boolean;
         };
+        JobCardCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+        };
+        JobCardDetail: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            companyName?: string | null;
+            customerName?: string | null;
+            customerCode?: string | null;
+            contactPerson?: string | null;
+            faultDescription?: string | null;
+            remarks?: string | null;
+            technician?: string | null;
+            status: string;
+            /** Format: double */
+            cost?: number | null;
+            /** Format: double */
+            sell?: number | null;
+            completionRemarks?: string | null;
+            /** Format: int32 */
+            rowVersion: number;
+            origin: string;
+            lines: components["schemas"]["JobCardLineDetail"][];
+        };
+        JobCardLineDetail: {
+            /** Format: int64 */
+            itemId?: number | null;
+            description?: string | null;
+            serial?: string | null;
+        };
         JobCardReportResponse: {
             /** Format: double */
             totalCost: number;
@@ -4827,6 +5034,16 @@ export interface components {
             jobDoneBy?: string | null;
             completedBy?: string | null;
             hasDataIssue: boolean;
+        };
+        JobCardSummary: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            customerName?: string | null;
+            status: string;
+            origin: string;
         };
         LoginRequest: {
             username: string;

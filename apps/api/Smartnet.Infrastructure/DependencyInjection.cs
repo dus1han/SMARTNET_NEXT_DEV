@@ -77,6 +77,12 @@ public static class DependencyInjection
         services.AddScoped<ISupplierInvoiceCreator>(sp => sp.GetRequiredService<SupplierInvoiceService>());
         services.AddScoped<ISupplierInvoicePayments>(sp => sp.GetRequiredService<SupplierInvoiceService>());
 
+        // Job cards (Phase 6, slice 3): the lightest document — no tax, ledger or stock — with structured
+        // serial lines and a guarded PENDING -> CLOSED close. One service behind both interfaces.
+        services.AddScoped<JobCardService>();
+        services.AddScoped<IJobCardCreator>(sp => sp.GetRequiredService<JobCardService>());
+        services.AddScoped<IJobCardWorkflow>(sp => sp.GetRequiredService<JobCardService>());
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));

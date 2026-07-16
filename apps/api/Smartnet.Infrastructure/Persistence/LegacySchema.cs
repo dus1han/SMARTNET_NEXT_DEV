@@ -125,8 +125,10 @@ public static class LegacySchema
         PoH,
         PoL,
 
-        // Already company-aware in the legacy schema, and numbers its own documents.
-        Numbered("jobs_m", "jobno", company: true),
+        // jobs_m is now ADOPTED (Phase 6, slice 3). It has no key (a surrogate id is added) and — unusually
+        // — every column is NOT NULL, so a new job card writes them all. jobcard_l (its structured serial
+        // lines) is a genuinely new table, created by the migration, not recreated here.
+        JobsMTable,
 
         // supplier_invoice is now ADOPTED (Phase 6, slice 2). Like item_stock it already has an
         // AUTO_INCREMENT `id` — but under a non-unique KEY, not a primary key (Finding 6) — which the
@@ -342,6 +344,33 @@ public static class LegacySchema
           `pay_method` varchar(100) NOT NULL,
           KEY `id` (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>jobs_m</c> in its full pre-adoption shape, faithful to the live scaffold: keyless, and — unusually
+    /// — <b>every column NOT NULL</b> (a new job card must write them all). Charset/collation match the live
+    /// table. The Phase 6 adoption adds a surrogate <c>id</c> and the typed columns beside these.
+    /// </summary>
+    public const string JobsMTable = """
+        CREATE TABLE `jobs_m` (
+          `jdate` varchar(100) NOT NULL,
+          `jobno` varchar(100) NOT NULL,
+          `company` varchar(100) NOT NULL,
+          `customer` varchar(100) NOT NULL,
+          `contactperson` varchar(100) NOT NULL,
+          `faultD` text NOT NULL,
+          `remarks` text NOT NULL,
+          `enteredby` varchar(100) NOT NULL,
+          `entereddt` varchar(100) NOT NULL,
+          `jobdoneby` varchar(100) NOT NULL,
+          `cost` varchar(100) NOT NULL,
+          `sell` varchar(100) NOT NULL,
+          `completionremarks` text NOT NULL,
+          `completedby` varchar(100) NOT NULL,
+          `dompleteddt` varchar(100) NOT NULL,
+          `jstat` varchar(100) NOT NULL,
+          `items` text NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         """;
 
     /// <summary>A document table that carries both a company and its own document number.</summary>

@@ -323,6 +323,23 @@ reversal); full API suite **407**; web `tsc`/`eslint` clean.)*
 (blob dual-write intact), and moves PENDING → CLOSED exactly once with cost/sell captured; a second close
 is refused. Proven by tests.
 
+*(Built and tested. **Domain** — `JobCard` (`IAuditable, ISoftDeletable`, `Status ∈ {PENDING, CLOSED}`) +
+a new `JobCardLine` (one serial per unit), `IJobCardCreator` + `IJobCardWorkflow`. **Adoption** — the
+hand-written additive `Phase6AdoptJobCards` migration adds a surrogate `id` PK + the typed columns to the
+keyless, **fully NOT NULL** `jobs_m`, and creates `jobcard_l` via `CreateTable`; `LegacySchema` gained the
+full `jobs_m` shape (every column NOT NULL, matching the live charset/collation) and the legacy `JobsM`
+read-model `id`/`data_origin`. **Service** (`JobCardService`, both interfaces): create allocates the number
+(`DocumentTypes.JobCard`), writes the header + serial lines, **dual-writes every NOT NULL legacy column and
+the `items` blob** (one line per serial, in the Crystal sheet's format), v1 snapshot; close is guarded —
+PENDING-only (a re-close throws), `row_version`-checked, records cost/sell/completion + who/when, flips to
+CLOSED, v2 snapshot. No tax, ledger or stock. **API** — `JobCardsController` (list & read, new + legacy
+with the blob parsed back to lines; create; reason-gated close), contracts + validators. **Web** — a
+`JobCards` lib, the list (PENDING/CLOSED badge), a new page (customer + contact picker, fault/remarks, a
+serial-line grid), and a read view with the Close dialog (cost/sell/completion + reason) and a profit line
+once closed; a Service nav section. Two integration tests green (booked PENDING with serial lines + blob +
+v1; close records cost/sell + v2, a second close refused); full API suite **419**; web `tsc`/`eslint`
+clean. The contact picker still splits the `;`-separated string — slice 4 repoints it at real rows.)*
+
 ---
 
 ## Slice 4 — Structured customer contacts · ~0.5 week · *retire the last `;`-separated string*

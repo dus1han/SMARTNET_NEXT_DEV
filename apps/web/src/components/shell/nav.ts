@@ -73,6 +73,12 @@ export const NAVIGATION: NavSection[] = [
     ],
   },
   {
+    title: "Service",
+    items: [
+      { href: "/job-cards", label: "Job cards", icon: Wrench, permission: "jobcards" },
+    ],
+  },
+  {
     title: "Master data",
     items: [
       { href: "/customers", label: "Customers", icon: Building2, permission: "customer_m" },

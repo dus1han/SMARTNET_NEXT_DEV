@@ -118,6 +118,12 @@ public class SmartnetDbContext : DbContext
     /// <summary>The payables ledger. A supplier's balance is the sum of these — see <see cref="PayablesLedgerEntry"/>.</summary>
     public DbSet<PayablesLedgerEntry> PayablesLedger => Set<PayablesLedgerEntry>();
 
+    /// <summary>Job cards, on the adopted legacy <c>jobs_m</c>. A service/repair document — no tax, ledger or stock.</summary>
+    public DbSet<JobCard> JobCards => Set<JobCard>();
+
+    /// <summary>Job-card lines (structured serial units), on the new <c>jobcard_l</c> table.</summary>
+    public DbSet<JobCardLine> JobCardLines => Set<JobCardLine>();
+
     /// <summary>
     /// Wraps the save in a transaction so that the business change and the audit rows the
     /// interceptor writes for it commit together — or not at all.

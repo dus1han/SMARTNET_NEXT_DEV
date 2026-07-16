@@ -544,6 +544,81 @@ public sealed record RecordSupplierPaymentRequest(decimal Amount, DateOnly Date,
 
 public sealed record SupplierPaymentRecordedResponse(long SupplierInvoiceId, decimal AmountPaid, decimal Outstanding);
 
+// --- Job cards (Phase 6, slice 3) ---------------------------------------------------------------
+
+/// <summary>One serial-tracked line of a job card — one unit of the customer's equipment.</summary>
+public sealed record CreateJobCardLineRequest(long? ItemId, string? Description, string? Serial);
+
+/// <summary>A new job card, booked in at once — the fault, the equipment (serial-tracked), the technician.</summary>
+public sealed record CreateJobCardRequest(
+    long CompanyId,
+    long CustomerId,
+    DateOnly Date,
+    string? ContactPerson,
+    string? FaultDescription,
+    string? Remarks,
+    string? Technician,
+    IReadOnlyList<CreateJobCardLineRequest> Lines);
+
+public sealed record JobCardCreatedResponse(long Id, string Number);
+
+/// <summary>One row of the job-card list.</summary>
+/// <param name="Origin"><c>new</c> for one this app raised; <c>legacy</c> for one adopted from the old system.</param>
+public sealed record JobCardSummary(
+    long Id,
+    string Number,
+    DateOnly Date,
+    string? CustomerName,
+    string Status,
+    string Origin);
+
+/// <summary>One serial-tracked line, for the read view.</summary>
+public sealed record JobCardLineDetail(long? ItemId, string? Description, string? Serial);
+
+/// <summary>One job card, in full — the read view, with its lines and (once closed) cost/sell.</summary>
+public sealed record JobCardDetail(
+    long Id,
+    string Number,
+    DateOnly Date,
+    string? CompanyName,
+    string? CustomerName,
+    string? CustomerCode,
+    string? ContactPerson,
+    string? FaultDescription,
+    string? Remarks,
+    string? Technician,
+    string Status,
+    decimal? Cost,
+    decimal? Sell,
+    string? CompletionRemarks,
+    int RowVersion,
+    string Origin,
+    IReadOnlyList<JobCardLineDetail> Lines);
+
+/// <summary>Closing a job — the cost, sell and completion remarks, guarded by the row version.</summary>
+public sealed record CloseJobCardRequest(int ExpectedRowVersion, decimal Cost, decimal Sell, string? CompletionRemarks);
+
+/// <summary>Server-side validation for a new job card — company/customer required, at least one line.</summary>
+public sealed class CreateJobCardRequestValidator : AbstractValidator<CreateJobCardRequest>
+{
+    public CreateJobCardRequestValidator()
+    {
+        RuleFor(r => r.CompanyId).GreaterThan(0);
+        RuleFor(r => r.CustomerId).GreaterThan(0);
+        RuleFor(r => r.Lines).NotEmpty().WithMessage("A job card needs at least one line.");
+    }
+}
+
+/// <summary>Server-side validation for closing a job — non-negative cost and sell.</summary>
+public sealed class CloseJobCardRequestValidator : AbstractValidator<CloseJobCardRequest>
+{
+    public CloseJobCardRequestValidator()
+    {
+        RuleFor(r => r.Cost).GreaterThanOrEqualTo(0m);
+        RuleFor(r => r.Sell).GreaterThanOrEqualTo(0m);
+    }
+}
+
 /// <summary>Server-side validation for a new supplier invoice — supplier/company required, money non-negative.</summary>
 public sealed class CreateSupplierInvoiceRequestValidator : AbstractValidator<CreateSupplierInvoiceRequest>
 {

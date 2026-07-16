@@ -5,6 +5,12 @@ namespace Smartnet.Infrastructure.Entities;
 
 public partial class JobsM
 {
+    /// <summary>The surrogate id added by the Phase 6 job-card adoption — a stable handle for legacy reads.</summary>
+    public long Id { get; set; }
+
+    /// <summary>The legacy/new discriminator added by the Phase 6 adoption; legacy rows are <c>legacy</c>.</summary>
+    public string? DataOrigin { get; set; }
+
     public string Jdate { get; set; } = null!;
 
     public string Jobno { get; set; } = null!;

@@ -150,6 +150,14 @@ export type SupplierInvoicePaymentLine = Schemas["SupplierInvoicePaymentLine"];
 export type RecordSupplierPaymentRequest = Schemas["RecordSupplierPaymentRequest"];
 export type SupplierPaymentRecordedResponse = Schemas["SupplierPaymentRecordedResponse"];
 
+export type CreateJobCardRequest = Schemas["CreateJobCardRequest"];
+export type CreateJobCardLineRequest = Schemas["CreateJobCardLineRequest"];
+export type JobCardCreatedResponse = Schemas["JobCardCreatedResponse"];
+export type JobCardSummary = Schemas["JobCardSummary"];
+export type JobCardDetail = Schemas["JobCardDetail"];
+export type JobCardLineDetail = Schemas["JobCardLineDetail"];
+export type CloseJobCardRequest = Schemas["CloseJobCardRequest"];
+
 // --- History ---------------------------------------------------------------------------------
 
 export type AuditEntry = Schemas["AuditEntry"];

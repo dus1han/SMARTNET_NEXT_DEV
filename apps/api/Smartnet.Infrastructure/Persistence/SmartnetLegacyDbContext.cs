@@ -897,6 +897,11 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .HasCharSet("utf8mb4")
                 .UseCollation("utf8mb4_unicode_ci");
 
+            // Non-key scalars added by the Phase 6 job-card adoption — a stable handle and the legacy/new
+            // discriminator, so a legacy reader can exclude the new app's rows that share this table.
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.DataOrigin).HasMaxLength(16).HasColumnName("data_origin");
+
             entity.Property(e => e.Company)
                 .HasMaxLength(100)
                 .HasColumnName("company");
