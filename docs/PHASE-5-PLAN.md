@@ -287,6 +287,17 @@ A credit note against an issued invoice — the mirror of an invoice, posting th
 **Exit:** a credit note against an invoice reduces that customer's derived balance by the note's amount
 through a ledger entry, returns any goods to stock, and reprints as it was issued.
 
+*(Built and tested — credit-note adoption (`cn_h`/`cn_l`, additive migration), the `CreditNoteCreator`
+that posts a `CREDIT` ledger entry (opposite sign, tied to the parent invoice) and, when the note returns
+goods, a `StockMovement.Receipt`, all in one transaction. The note's VAT is **inherited from the parent
+invoice's snapshot** — a small optional rate-override on the shared `TaxEngine` — so a full credit nets
+exactly against the invoice and crediting an old legacy invoice never depends on the rate table still
+covering its date. The controller resolves the parent (new **or** legacy invoice) to the customer, company
+and rate. Three integration tests green: a full credit nets the ledger to zero with an issue+receipt that
+net to zero stock; a no-stock credit leaves stock untouched; a legacy parent's null rate-id is carried
+with the inherited rate. Web: credit-note list/new/view on the shared `LineDraftEditor`, the new screen
+seeding its lines from a picked invoice. All 363 API tests pass.)*
+
 ---
 
 ## Slice 5 — Edit, version & delete · ~1 week

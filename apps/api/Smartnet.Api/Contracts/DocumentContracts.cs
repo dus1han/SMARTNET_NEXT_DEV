@@ -235,3 +235,74 @@ public sealed class ConvertQuotationRequestValidator : AbstractValidator<Convert
             .WithMessage("Type must be 'Cash' or 'Credit'.");
     }
 }
+
+// --- Credit notes (Phase 5, slice 4) ------------------------------------------------------------
+
+/// <summary>
+/// A new credit note, posted whole — raised against a parent invoice, reversing part or all of it. The
+/// customer, company and VAT rate come from the parent invoice (not entered here); the caller supplies the
+/// lines to credit (a subset or the whole), whether the note <see cref="ReturnsStock"/>, and its date. Its
+/// lines are the same <see cref="CreateInvoiceLineRequest"/> draft an invoice uses.
+/// </summary>
+public sealed record CreateCreditNoteRequest(
+    long InvoiceId,
+    DateOnly Date,
+    bool ReturnsStock,
+    IReadOnlyList<CreateInvoiceLineRequest> Lines);
+
+public sealed record CreditNoteCreatedResponse(long Id, string Number, decimal Total);
+
+/// <summary>One row of the credit-note list. <see cref="InvoiceNumber"/> is the invoice it credits.</summary>
+/// <param name="Origin"><c>new</c> for one this app raised; <c>legacy</c> for one adopted from the old system.</param>
+public sealed record CreditNoteSummary(
+    long Id,
+    string Number,
+    DateOnly Date,
+    string? CustomerName,
+    string InvoiceNumber,
+    decimal Total,
+    string Origin);
+
+/// <summary>One credit note, in full — the read view (its parent invoice, and how it was issued).</summary>
+/// <param name="Origin"><c>new</c> (typed figures, a change history) or <c>legacy</c> (the old system's stored figures).</param>
+public sealed record CreditNoteDetail(
+    long Id,
+    string Number,
+    DateOnly Date,
+    string? CompanyName,
+    string Kind,
+    string? CustomerName,
+    string? CustomerCode,
+    long? InvoiceId,
+    string InvoiceNumber,
+    bool ReturnsStock,
+    decimal Subtotal,
+    decimal DiscountAmount,
+    decimal NetTotal,
+    decimal TaxRatePercentage,
+    decimal TaxAmount,
+    decimal Total,
+    string Origin,
+    IReadOnlyList<InvoiceLineDetail> Lines);
+
+/// <summary>Server-side validation for a new credit note — the same line rules as an invoice.</summary>
+public sealed class CreateCreditNoteRequestValidator : AbstractValidator<CreateCreditNoteRequest>
+{
+    public CreateCreditNoteRequestValidator()
+    {
+        RuleFor(r => r.InvoiceId).GreaterThan(0);
+
+        RuleFor(r => r.Lines).NotEmpty().WithMessage("A credit note needs at least one line.");
+
+        RuleForEach(r => r.Lines).ChildRules(line =>
+        {
+            line.RuleFor(l => l.Quantity).GreaterThan(0);
+            line.RuleFor(l => l.UnitPrice).GreaterThanOrEqualTo(0);
+            line.RuleFor(l => l.DiscountPercent).InclusiveBetween(0m, 100m);
+
+            line.RuleFor(l => l)
+                .Must(l => l.ItemId is not null || !string.IsNullOrWhiteSpace(l.Description))
+                .WithMessage("A line must reference an item or carry a description.");
+        });
+    }
+}

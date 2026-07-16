@@ -48,13 +48,28 @@ public sealed record TaxLineInput(
 /// to be computed on the discounted document net (it cannot be attributed back to a line), so the foot
 /// is the authority when it is set.
 /// </param>
+/// <param name="RateOverride">
+/// A rate to apply <b>instead of</b> resolving one from <see cref="AvailableRates"/> by
+/// <see cref="DocumentDate"/>. Used by credit notes, which inherit their parent invoice's snapshotted rate
+/// verbatim so a full credit nets exactly against the invoice it reverses — and so crediting an old invoice
+/// never depends on the rate table still covering that invoice's date. Null for a normal document, which
+/// resolves its own rate.
+/// </param>
 public sealed record TaxCalculationRequest(
     DateOnly DocumentDate,
     bool IsVatRegistered,
     TaxRounding Rounding,
     IReadOnlyList<TaxLineInput> Lines,
     IReadOnlyList<TaxRate> AvailableRates,
-    decimal DocumentDiscountPercent = 0m);
+    decimal DocumentDiscountPercent = 0m,
+    TaxRateOverride? RateOverride = null);
+
+/// <summary>
+/// A pre-resolved rate supplied to the engine instead of a date lookup — the parent invoice's snapshot,
+/// when a credit note inherits it. Carries what the document must store: the row id (null for a legacy
+/// parent), the display name, and the percentage.
+/// </summary>
+public sealed record TaxRateOverride(long? Id, string Name, decimal Percentage);
 
 /// <summary>One line, computed. The rate that produced <see cref="Tax"/> is on the document, not here.</summary>
 public sealed record TaxLineResult(

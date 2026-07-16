@@ -109,6 +109,13 @@ public static class LegacySchema
         QuotationH,
         QuotationL,
 
+        // cn_h and cn_l are now ADOPTED (Phase 5, slice 4), like invoices and quotations, so they need their
+        // full legacy shape — every column the new entity maps or shadows, including the two that are NOT
+        // NULL (invoiceno, stockposting), because a new-credit-note insert has to satisfy them just as a
+        // legacy one did.
+        CnH,
+        CnL,
+
         // Already company-aware in the legacy schema, and each numbers its own documents.
         Numbered("po_h", "po_no", company: true),
         Numbered("jobs_m", "jobno", company: true),
@@ -120,9 +127,7 @@ public static class LegacySchema
         Document("del_invoice_h"),
 
         // NOT company-aware: these hang off an invoice and inherit its company through invoiceno.
-        // Credit notes are numbered as well as parented.
         Child("payments", numberColumn: null),
-        Child("cn_h", numberColumn: "cnno"),
         Child("del_cn_h", numberColumn: null),
     ];
 
@@ -208,6 +213,44 @@ public static class LegacySchema
           `qty` varchar(100) DEFAULT NULL,
           `rate` varchar(100) DEFAULT NULL,
           `total` varchar(100) DEFAULT NULL,
+          `itemcode` varchar(100) DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>cn_h</c> in its full pre-adoption shape, faithful to the legacy app's own <c>INSERT INTO cn_h(…)</c>
+    /// (CNoteController.saveCN). A credit note has a smaller header than an invoice — no customer, company,
+    /// discount or contact columns (it inherits those from its parent invoice) — but its own
+    /// <c>invoiceno</c> (the parent invoice number) and <c>stockposting</c> flag are NOT NULL, which is why a
+    /// new credit note must write them (the dual-write). Money and dates are <c>varchar</c> (Finding 5).
+    /// </summary>
+    public const string CnH = """
+        CREATE TABLE `cn_h` (
+          `cnno` varchar(100) DEFAULT NULL,
+          `invoiceno` varchar(100) NOT NULL,
+          `cndate` varchar(100) DEFAULT NULL,
+          `totamount` varchar(100) DEFAULT NULL,
+          `preparedby` varchar(100) DEFAULT NULL,
+          `cdatetime` varchar(100) DEFAULT NULL,
+          `novattotal` varchar(100) DEFAULT NULL,
+          `vtype` varchar(100) DEFAULT NULL,
+          `vper` varchar(100) DEFAULT NULL,
+          `stockposting` varchar(100) NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>cn_l</c> — the credit note's lines, all nullable, keyless. The line total column is <c>tot</c> (as
+    /// on <c>invoice_l</c>); <c>desc</c> is text.
+    /// </summary>
+    public const string CnL = """
+        CREATE TABLE `cn_l` (
+          `cnno` varchar(100) DEFAULT NULL,
+          `itemno` bigint(21) DEFAULT NULL,
+          `desc` text DEFAULT NULL,
+          `qty` varchar(100) DEFAULT NULL,
+          `rate` varchar(100) DEFAULT NULL,
+          `tot` varchar(100) DEFAULT NULL,
           `itemcode` varchar(100) DEFAULT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """;

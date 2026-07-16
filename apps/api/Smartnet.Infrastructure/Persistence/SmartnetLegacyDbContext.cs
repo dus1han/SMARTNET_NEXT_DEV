@@ -172,6 +172,12 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .HasNoKey()
                 .ToTable("cn_h");
 
+            // Non-key scalars added by the Phase 5 credit-note adoption / multi-company migration — a stable
+            // handle, the company scope (a credit note has no legacy `company` varchar), and the legacy/new
+            // discriminator so a legacy reader can exclude the new app's rows that share this table.
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.CompanyId).HasColumnName("company_id");
+            entity.Property(e => e.DataOrigin).HasMaxLength(16).HasColumnName("data_origin");
             entity.Property(e => e.Cdatetime)
                 .HasMaxLength(100)
                 .HasColumnName("cdatetime");

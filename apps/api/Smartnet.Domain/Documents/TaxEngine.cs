@@ -73,6 +73,13 @@ public sealed class TaxEngine : ITaxEngine
     /// <summary>The single rate the whole document is taxed at: which percentage, name, and row.</summary>
     private static ResolvedRate ResolveDocumentRate(TaxCalculationRequest request)
     {
+        // An inherited rate wins over any date resolution: a credit note is taxed at the rate its parent
+        // invoice was issued under (snapshotted), not whatever is in force today — so the two documents net.
+        if (request.RateOverride is { } inherited)
+        {
+            return new ResolvedRate(inherited.Id, inherited.Name, inherited.Percentage);
+        }
+
         // A company not registered for VAT charges none — full stop.
         if (!request.IsVatRegistered)
         {

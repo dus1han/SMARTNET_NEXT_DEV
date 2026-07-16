@@ -95,6 +95,12 @@ public class SmartnetDbContext : DbContext
     /// <summary>Quotation lines, on the adopted legacy <c>quotation_l</c>.</summary>
     public DbSet<QuotationLine> QuotationLines => Set<QuotationLine>();
 
+    /// <summary>Credit notes, on the adopted legacy <c>cn_h</c>. Posts the opposite ledger sign to an invoice.</summary>
+    public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
+
+    /// <summary>Credit-note lines, on the adopted legacy <c>cn_l</c>.</summary>
+    public DbSet<CreditNoteLine> CreditNoteLines => Set<CreditNoteLine>();
+
     /// <summary>The receivables ledger. A customer's balance is the sum of these — see <see cref="LedgerEntry"/>.</summary>
     public DbSet<LedgerEntry> ReceivablesLedger => Set<LedgerEntry>();
 

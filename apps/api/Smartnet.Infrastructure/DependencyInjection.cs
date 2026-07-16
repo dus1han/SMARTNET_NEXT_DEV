@@ -43,6 +43,10 @@ public static class DependencyInjection
         services.AddScoped<IQuotationCreator, QuotationCreator>();
         services.AddScoped<IQuotationConverter, QuotationConverter>();
 
+        // Credit notes (Phase 5, slice 4): the mirror of the invoice pipeline — a Credit ledger entry
+        // (opposite sign) and, where goods are returned, a stock receipt, at the parent invoice's rate.
+        services.AddScoped<ICreditNoteCreator, CreditNoteCreator>();
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));

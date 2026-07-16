@@ -178,6 +178,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/credit-notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CreditNoteSummary"][];
+                        "application/json": components["schemas"]["CreditNoteSummary"][];
+                        "text/json": components["schemas"]["CreditNoteSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateCreditNoteRequest"];
+                    "text/json": components["schemas"]["CreateCreditNoteRequest"];
+                    "application/*+json": components["schemas"]["CreateCreditNoteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CreditNoteCreatedResponse"];
+                        "application/json": components["schemas"]["CreditNoteCreatedResponse"];
+                        "text/json": components["schemas"]["CreditNoteCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/credit-notes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CreditNoteDetail"];
+                        "application/json": components["schemas"]["CreditNoteDetail"];
+                        "text/json": components["schemas"]["CreditNoteDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/customers": {
         parameters: {
             query?: never;
@@ -3623,6 +3726,14 @@ export interface components {
             purchaseOrderNo?: string | null;
             contactPerson?: string | null;
         };
+        CreateCreditNoteRequest: {
+            /** Format: int64 */
+            invoiceId: number;
+            /** Format: date */
+            date: string;
+            returnsStock: boolean;
+            lines: components["schemas"]["CreateInvoiceLineRequest"][];
+        };
         CreateCustomerResponse: {
             /** Format: int64 */
             id: number;
@@ -3696,6 +3807,54 @@ export interface components {
             /** Format: int64 */
             id: number;
             temporaryPassword: string;
+        };
+        CreditNoteCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: double */
+            total: number;
+        };
+        CreditNoteDetail: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            companyName?: string | null;
+            kind: string;
+            customerName?: string | null;
+            customerCode?: string | null;
+            /** Format: int64 */
+            invoiceId?: number | null;
+            invoiceNumber: string;
+            returnsStock: boolean;
+            /** Format: double */
+            subtotal: number;
+            /** Format: double */
+            discountAmount: number;
+            /** Format: double */
+            netTotal: number;
+            /** Format: double */
+            taxRatePercentage: number;
+            /** Format: double */
+            taxAmount: number;
+            /** Format: double */
+            total: number;
+            origin: string;
+            lines: components["schemas"]["InvoiceLineDetail"][];
+        };
+        CreditNoteSummary: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            customerName?: string | null;
+            invoiceNumber: string;
+            /** Format: double */
+            total: number;
+            origin: string;
         };
         CreditStatus: {
             /** Format: double */

@@ -121,6 +121,11 @@ export type QuotationCreatedResponse = Schemas["QuotationCreatedResponse"];
 export type QuotationSummary = Schemas["QuotationSummary"];
 export type QuotationDetail = Schemas["QuotationDetail"];
 
+export type CreateCreditNoteRequest = Schemas["CreateCreditNoteRequest"];
+export type CreditNoteCreatedResponse = Schemas["CreditNoteCreatedResponse"];
+export type CreditNoteSummary = Schemas["CreditNoteSummary"];
+export type CreditNoteDetail = Schemas["CreditNoteDetail"];
+
 // --- History ---------------------------------------------------------------------------------
 
 export type AuditEntry = Schemas["AuditEntry"];
