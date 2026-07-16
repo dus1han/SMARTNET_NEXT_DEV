@@ -196,6 +196,60 @@ var docPath = ResolveRepoPath("docs", "legacy-analysis", "RECONCILIATION.md");
 await File.WriteAllTextAsync(docPath, BuildDoc(results, buckets, worst, skippedNoLines, skippedUnparseable));
 Console.WriteLine($"\nwrote {docPath}");
 
+// --- Purchase orders (Phase 6, slice 5) --------------------------------------------------------
+// The same reconciliation, for legacy purchase orders: recompute po_h.totamount from po_l's lines
+// through the same engine (po_h has no document-discount column, so the discount is 0) and diff.
+Console.WriteLine($"\nsampling up to {sampleSize} legacy purchase orders (most recent first)");
+var poHeaders = new List<(long Id, string No, string Tot, string Vat)>();
+await using (var cmd = cn.CreateCommand())
+{
+    cmd.CommandText = """
+        SELECT id, po_no, totamount, vatpercent FROM po_h
+        WHERE COALESCE(NULLIF(TRIM(data_origin), ''), 'legacy') <> 'new'
+          AND totamount IS NOT NULL AND TRIM(totamount) <> ''
+        ORDER BY id DESC LIMIT @n
+        """;
+    cmd.Parameters.AddWithValue("@n", sampleSize);
+    await using var r = await cmd.ExecuteReaderAsync();
+    while (await r.ReadAsync())
+        poHeaders.Add((r.GetInt64(0), Str(r, 1), Str(r, 2), Str(r, 3)));
+}
+
+var poLinesByNo = new Dictionary<string, List<TaxLineInput>>(StringComparer.Ordinal);
+var poNos = poHeaders.Select(h => h.No).Where(n => n.Length > 0).Distinct().ToList();
+if (poNos.Count > 0)
+{
+    await using var cmd = cn.CreateCommand();
+    var names = poNos.Select((_, i) => $"@p{i}").ToList();
+    cmd.CommandText = $"SELECT pono, qty, rate FROM po_l WHERE pono IN ({string.Join(",", names)})";
+    for (var i = 0; i < poNos.Count; i++) cmd.Parameters.AddWithValue(names[i], poNos[i]);
+    await using var r = await cmd.ExecuteReaderAsync();
+    while (await r.ReadAsync())
+    {
+        var pono = Str(r, 0);
+        if (pono.Length == 0) continue;
+        if (!poLinesByNo.TryGetValue(pono, out var list)) poLinesByNo[pono] = list = new List<TaxLineInput>();
+        list.Add(new TaxLineInput(ParseMoney(Str(r, 1)), ParseMoney(Str(r, 2)), DiscountPercent: 0m));
+    }
+}
+
+var poResults = new List<Row>();
+var poSkipped = 0;
+foreach (var h in poHeaders)
+{
+    if (!TryParseMoney(h.Tot, out var legacyTotal)) { poSkipped++; continue; }
+    if (!poLinesByNo.TryGetValue(h.No, out var lines) || lines.Count == 0) { poSkipped++; continue; }
+    var vper = ParseMoney(h.Vat);
+    var req = new TaxCalculationRequest(
+        new DateOnly(2000, 1, 1), true, TaxRounding.PerLine, lines, Array.Empty<TaxRate>(),
+        DocumentDiscountPercent: 0m, RateOverride: new TaxRateOverride(null, $"legacy {vper}%", vper));
+    poResults.Add(new Row(h.No, legacyTotal, engine.Calculate(req).Totals.Total, lines.Count));
+}
+
+Console.WriteLine($"reconciled {poResults.Count} purchase orders (skipped {poSkipped})");
+await File.AppendAllTextAsync(docPath, BuildPoSection(poResults, buckets, poSkipped));
+Console.WriteLine($"appended the purchase-order section to {docPath}");
+
 // --- Helpers ------------------------------------------------------------------------------------
 
 async Task Exec(string sql)
@@ -325,6 +379,55 @@ static string BuildDoc(
     sb.AppendLine("  negative balances do. It is **not** fixed silently by this migration.");
     sb.AppendLine();
     sb.AppendLine("_Sign-off: pending business review of the figures above._");
+    return sb.ToString();
+}
+
+static string BuildPoSection(
+    List<Row> results,
+    (string Label, Func<decimal, bool> In)[] buckets,
+    int skipped)
+{
+    var sb = new StringBuilder();
+    sb.AppendLine();
+    sb.AppendLine("---");
+    sb.AppendLine();
+    sb.AppendLine("## Purchase orders (Phase 6, slice 5)");
+    sb.AppendLine();
+    sb.AppendLine("The same method applied to legacy purchase orders: each `po_h.totamount` is recomputed from");
+    sb.AppendLine("its `po_l` lines through the **same** `Smartnet.Domain.TaxEngine`, fed the PO's own stored");
+    sb.AppendLine("VAT rate (`vatpercent`). Legacy POs carry no document discount, so the only variable under");
+    sb.AppendLine("test is again binary `double` (legacy) vs `decimal` (new) arithmetic.");
+    sb.AppendLine();
+
+    if (results.Count == 0)
+    {
+        sb.AppendLine($"_No reconcilable purchase orders in the sample (skipped {skipped})._");
+        return sb.ToString();
+    }
+
+    var diffs = results.Select(r => Math.Abs(r.Diff)).ToList();
+    var withinAPenny = diffs.Count(d => d <= 0.01m);
+    sb.AppendLine($"- **Reconciled:** {results.Count} purchase orders (skipped {skipped})");
+    sb.AppendLine($"- **Within one penny:** {withinAPenny}/{results.Count} "
+        + $"({100.0 * withinAPenny / results.Count:0.0}%)");
+    sb.AppendLine($"- **Largest single difference:** {diffs.Max():0.00}");
+    sb.AppendLine();
+    sb.AppendLine("| Band | Count | Share |");
+    sb.AppendLine("|---|---:|---:|");
+    foreach (var (label, inBucket) in buckets)
+        sb.AppendLine($"| {label} | {diffs.Count(inBucket)} | {100.0 * diffs.Count(inBucket) / results.Count:0.0}% |");
+    sb.AppendLine();
+
+    var worst = results.OrderByDescending(r => Math.Abs(r.Diff)).Take(10).ToList();
+    sb.AppendLine("### Largest differences");
+    sb.AppendLine();
+    sb.AppendLine("| PO | Legacy total | Recomputed | Diff | Lines |");
+    sb.AppendLine("|---|---:|---:|---:|---:|");
+    foreach (var r in worst)
+        sb.AppendLine($"| {r.InvoiceNo} | {r.Legacy:0.00} | {r.Recomputed:0.00} | {r.Diff:0.00} | {r.Lines} |");
+    sb.AppendLine();
+    sb.AppendLine("Same policy as invoices: sub-penny differences are the accepted `double`/`decimal` residue;");
+    sb.AppendLine("anything material is a legacy data defect for **Data Exceptions**, not a silent rewrite.");
     return sb.ToString();
 }
 

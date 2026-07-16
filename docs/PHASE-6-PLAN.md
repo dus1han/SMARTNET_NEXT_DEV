@@ -393,6 +393,24 @@ the removed rows); full API suite **430**; web `tsc`/`eslint` clean.)*
 **Exit (the phase exit):** the PO / supplier-invoice-partial-payment / job-card-close case passes end to
 end, and the PO reconciliation sample is recorded.
 
+*(Built and verified. **Numbering** — no new code needed: `LegacyNumbering.All` already carried the `PO`
+and `JOBCARD` series (added in the slice 1/3 prep), and supplier invoices are unnumbered (the supplier's
+own reference); the E2E proves it, allocating `E2EPO-1` and `E2EJOB-1` transactionally. **Reconciliation**
+— `tools/DbReconcile` gained a purchase-order pass (recompute `po_h.totamount` from `po_l` through the same
+`TaxEngine`); run against the dev copy it reconciled **124 POs, 98.4% exact, 99.2% within a penny, max diff
+0.02** — pure `double`/`decimal` residue, no material defects — appended to
+[legacy-analysis/RECONCILIATION.md](legacy-analysis/RECONCILIATION.md) (which also refreshed the invoice
+sample: 498 invoices, 99.6% within a penny). **E2E** — `tools/E2EHost` seeds a supplier + the PO/job-card
+series; `e2e/phase6.spec.ts` drives, in a real browser, raising a PO, recording a supplier invoice and a
+partial payment (the derived payable falls 100 → 70), and booking + closing a job card (PENDING → CLOSED).
+`npm run e2e` green — **4 passed** (the Phase 5 invoice flow + the three Phase 6 flows).)*
+
+**Phase 6 is complete.** Purchase orders, supplier invoices (on the new payables ledger), job cards
+(structured serial lines + guarded close), and structured customer contacts all ship on the shared engine;
+the service-cost gap the legacy service flow had is restored; and the whole is proven by the full API suite
+(**430**) and a real-browser E2E. The deferred **GRN** (goods receipt against a PO, in partial quantities)
+remains the one flagged follow-up (decision B′) — stock-in stays on the Item Stock adjustment until it lands.
+
 ---
 
 ## What Phase 6 does NOT do

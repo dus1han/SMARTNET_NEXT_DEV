@@ -16,34 +16,29 @@ This is read-only; it writes nothing to the database and dumps no customer data.
 
 ## Result
 
-- **Reconciled:** 2482 invoices
-- **Skipped:** 3 with no lines, 0 with an unparseable total
-- **Within one penny (|diff| ≤ 0.01):** 2477/2482 (99.8%)
-- **Largest single difference:** 700.00
+- **Reconciled:** 498 invoices
+- **Skipped:** 2 with no lines, 0 with an unparseable total
+- **Within one penny (|diff| ≤ 0.01):** 496/498 (99.6%)
+- **Largest single difference:** 0.03
 
 ### Distribution of `|recomputed − legacy total|`
 
 | Band | Count | Share |
 |---|---:|---:|
-| exact (0.00) | 2474 | 99.7% |
-| <= 0.01 | 3 | 0.1% |
-| <= 0.05 | 2 | 0.1% |
+| exact (0.00) | 495 | 99.4% |
+| <= 0.01 | 1 | 0.2% |
+| <= 0.05 | 2 | 0.4% |
 | <= 0.50 | 0 | 0.0% |
 | <= 5.00 | 0 | 0.0% |
-| > 5.00 | 3 | 0.1% |
+| > 5.00 | 0 | 0.0% |
 
 ### Largest differences
 
 | Invoice | Legacy total | Recomputed | Diff | Lines |
 |---|---:|---:|---:|---:|
-| STI-869 | 22535.00 | 21835.00 | -700.00 | 9 |
-| STI-60 | 3405.00 | 3165.00 | -240.00 | 3 |
-| STI-717 | 246015.00 | 245955.00 | -60.00 | 80 |
 | SNI-1494 | 22181.64 | 22181.67 | 0.03 | 37 |
 | SNI-1493 | 139504.32 | 139504.34 | 0.02 | 39 |
 | SNI-1490 | 29737.77 | 29737.78 | 0.01 | 22 |
-| SNI-1068 | 93493.05 | 93493.05 | 0.00 | 22 |
-| SNI-873 | 159099.87 | 159099.87 | 0.00 | 17 |
 | STI-1214 | 7580.00 | 7580.00 | 0.00 | 2 |
 | STI-1213 | 5475.00 | 5475.00 | 0.00 | 1 |
 | STI-1212 | 31000.00 | 31000.00 | 0.00 | 1 |
@@ -51,6 +46,11 @@ This is read-only; it writes nothing to the database and dumps no customer data.
 | 26JUL_SNIN_1568 | 8850.00 | 8850.00 | 0.00 | 1 |
 | STI-1210 | 50850.00 | 50850.00 | 0.00 | 7 |
 | STI-1209 | 14300.00 | 14300.00 | 0.00 | 1 |
+| 26JUL_SNIN_1567 | 17617.40 | 17617.40 | 0.00 | 4 |
+| 26JUL_SNIN_1566 | 12331.00 | 12331.00 | 0.00 | 3 |
+| STI-1208 | 46885.55 | 46885.55 | 0.00 | 25 |
+| STI-1207 | 103435.00 | 103435.00 | 0.00 | 62 |
+| STI-1205 | 14000.00 | 14000.00 | 0.00 | 1 |
 
 ## Proposed policy (for sign-off)
 
@@ -67,3 +67,43 @@ them. The proposed reading of the numbers above:
   negative balances do. It is **not** fixed silently by this migration.
 
 _Sign-off: pending business review of the figures above._
+
+---
+
+## Purchase orders (Phase 6, slice 5)
+
+The same method applied to legacy purchase orders: each `po_h.totamount` is recomputed from
+its `po_l` lines through the **same** `Smartnet.Domain.TaxEngine`, fed the PO's own stored
+VAT rate (`vatpercent`). Legacy POs carry no document discount, so the only variable under
+test is again binary `double` (legacy) vs `decimal` (new) arithmetic.
+
+- **Reconciled:** 124 purchase orders (skipped 0)
+- **Within one penny:** 123/124 (99.2%)
+- **Largest single difference:** 0.02
+
+| Band | Count | Share |
+|---|---:|---:|
+| exact (0.00) | 122 | 98.4% |
+| <= 0.01 | 1 | 0.8% |
+| <= 0.05 | 1 | 0.8% |
+| <= 0.50 | 0 | 0.0% |
+| <= 5.00 | 0 | 0.0% |
+| > 5.00 | 0 | 0.0% |
+
+### Largest differences
+
+| PO | Legacy total | Recomputed | Diff | Lines |
+|---|---:|---:|---:|---:|
+| SNPO-17 | 321470.17 | 321470.19 | 0.02 | 7 |
+| SNPO-62 | 243303.14 | 243303.14 | 0.00 | 3 |
+| SNPO-122 | 26491.00 | 26491.00 | 0.00 | 1 |
+| SNPO-121 | 11800.00 | 11800.00 | 0.00 | 1 |
+| SNPO-120 | 181979.60 | 181979.60 | 0.00 | 2 |
+| SNPO-119 | 11800.00 | 11800.00 | 0.00 | 1 |
+| SNPO-118 | 11101.44 | 11101.44 | 0.00 | 2 |
+| SNPO-117 | 33245.32 | 33245.32 | 0.00 | 3 |
+| SNPO-116 | 9699.60 | 9699.60 | 0.00 | 1 |
+| SNPO-115 | 11800.00 | 11800.00 | 0.00 | 1 |
+
+Same policy as invoices: sub-penny differences are the accepted `double`/`decimal` residue;
+anything material is a legacy data defect for **Data Exceptions**, not a silent rewrite.

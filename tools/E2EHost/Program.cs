@@ -26,6 +26,7 @@ const string SeedUser = "e2e";
 const string SeedPassword = "E2Epassw0rd!";
 const string SeedCustomer = "E2E Customer";
 const string SeedItem = "E2E Widget";
+const string SeedSupplier = "E2E Supplier";
 
 await using var container = new MySqlBuilder("mariadb:10.11")
     .WithDatabase("smartnet_invsys_dev")
@@ -65,17 +66,15 @@ await using (var db = new SmartnetDbContext(SeedOptions(conn, change)))
         IsDefault = true,
     });
 
-    db.DocumentSeries.Add(new DocumentSeries
-    {
-        CompanyId = company.Id,
-        DocType = DocumentTypes.Invoice,
-        Prefix = "E2E-",
-        NextNumber = 1,
-        Padding = 0,
-    });
+    // Numbering series: an invoice series (Phase 5) and the Phase 6 PO and job-card series. Supplier
+    // invoices carry the supplier's own reference and are not numbered, so they need no series.
+    db.DocumentSeries.Add(new DocumentSeries { CompanyId = company.Id, DocType = DocumentTypes.Invoice, Prefix = "E2E-", NextNumber = 1, Padding = 0 });
+    db.DocumentSeries.Add(new DocumentSeries { CompanyId = company.Id, DocType = DocumentTypes.PurchaseOrder, Prefix = "E2EPO-", NextNumber = 1, Padding = 0 });
+    db.DocumentSeries.Add(new DocumentSeries { CompanyId = company.Id, DocType = DocumentTypes.JobCard, Prefix = "E2EJOB-", NextNumber = 1, Padding = 0 });
 
     db.Customers.Add(new Customer { Code = "E2E-CUST", Name = SeedCustomer, CreditLimit = 0m });
     db.Items.Add(new Item { Code = "E2E-ITEM", Name = SeedItem, SellingPrice = 100m, Cost = 60m });
+    db.Suppliers.Add(new Supplier { Code = "E2E-SUP", Name = SeedSupplier });
 
     // A user who can do everything, so the flow is never blocked by a missing permission. A single
     // global role carrying the whole permission catalogue; a global (null-company) assignment grants

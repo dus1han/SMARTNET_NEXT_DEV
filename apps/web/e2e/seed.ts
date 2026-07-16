@@ -9,6 +9,7 @@ export const SEED = {
   customer: "E2E Customer",
   item: "E2E Widget",
   itemPrice: 100,
+  supplier: "E2E Supplier",
 } as const;
 
 export const API_URL = process.env.E2E_API_URL ?? "http://localhost:5099";
