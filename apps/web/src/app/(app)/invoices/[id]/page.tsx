@@ -43,9 +43,9 @@ export default function InvoiceViewPage() {
   const data = invoice.data;
   const settled = (data?.outstanding ?? 0) <= 0;
   const isLegacy = data?.origin === "legacy";
-  // A new invoice this app owns can be edited or voided, by someone with the invoice right. A legacy row
-  // is read-only. The server re-checks both; this only decides whether to draw the buttons.
-  const canModify = data != null && !isLegacy && (user.data?.permissions.includes("item_in") ?? false);
+  // Any invoice can be edited or voided by someone with the invoice right — a legacy one is adopted into
+  // the new model on the first change. The server re-checks; this only decides whether to draw the buttons.
+  const canModify = data != null && (user.data?.permissions.includes("item_in") ?? false);
 
   return (
     <FadeIn className="space-y-6">

@@ -647,6 +647,9 @@ public partial class SmartnetLegacyDbContext : DbContext
 
             // A non-key scalar: the surrogate id the Phase 5 adoption added, used only as a stable handle.
             entity.Property(e => e.Id).HasColumnName("id");
+            // The concurrency token, so the edit screen can load a legacy invoice's row_version and send it
+            // back — the edit adopts it and the version guard fires on the value the screen held.
+            entity.Property(e => e.RowVersion).HasColumnName("row_version");
             entity.Property(e => e.Balance)
                 .HasMaxLength(100)
                 .HasColumnName("balance");
@@ -716,6 +719,9 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .HasCharSet("utf8mb4")
                 .UseCollation("utf8mb4_unicode_ci");
 
+            // The surrogate id the Phase 5 adoption added — so the edit screen can round-trip a legacy
+            // line's id and the reconcile can update it in place rather than replace it.
+            entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.Desc)
                 .HasColumnType("text")
                 .HasColumnName("desc")

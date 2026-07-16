@@ -10,7 +10,7 @@
  * are the invoice's identity and are not editable here.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -50,7 +50,6 @@ const seedLines = (invoice: InvoiceDetail): DraftLine[] =>
 export default function EditInvoicePage() {
   const { id } = useParams<{ id: string }>();
   const invoiceId = Number(id);
-  const router = useRouter();
 
   const invoice = useQuery({
     queryKey: ["invoice", invoiceId],
@@ -59,11 +58,6 @@ export default function EditInvoicePage() {
   });
   const data = invoice.data;
   const error = invoice.error as ApiError | null;
-
-  // A legacy invoice is read-only — nothing to edit through the new editor. Bounce back to the view.
-  useEffect(() => {
-    if (data && data.origin === "legacy") router.replace(`/invoices/${invoiceId}`);
-  }, [data, invoiceId, router]);
 
   return (
     <FadeIn className="space-y-6">
@@ -83,8 +77,15 @@ export default function EditInvoicePage() {
       {invoice.isPending && <Skeleton className="h-40" />}
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
 
+      {data && data.origin === "legacy" && (
+        <p className="rounded-lg border border-subtle bg-surface-sunken p-3 text-sm text-muted">
+          This is a legacy invoice. Saving adopts it into the new system — its figures are recomputed and it
+          gains a change history from this point.
+        </p>
+      )}
+
       {/* Mount the form only once the invoice is loaded, so its state seeds from real data exactly once. */}
-      {data && data.origin === "new" && <EditForm invoice={data} invoiceId={invoiceId} />}
+      {data && <EditForm invoice={data} invoiceId={invoiceId} />}
     </FadeIn>
   );
 }

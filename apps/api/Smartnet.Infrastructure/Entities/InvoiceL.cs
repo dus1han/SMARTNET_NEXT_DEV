@@ -5,6 +5,9 @@ namespace Smartnet.Infrastructure.Entities;
 
 public partial class InvoiceL
 {
+    /// <summary>The surrogate key the Phase 5 invoice adoption added to <c>invoice_l</c>.</summary>
+    public long Id { get; set; }
+
     public string? Inno { get; set; }
 
     public long? Itemno { get; set; }

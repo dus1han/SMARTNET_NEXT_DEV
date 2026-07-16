@@ -12,11 +12,13 @@ namespace Smartnet.Infrastructure.Documents;
 public sealed class InvoiceDeleter : IInvoiceDeleter
 {
     private readonly SmartnetDbContext _db;
+    private readonly ILegacyInvoiceAdopter _adopter;
     private readonly TimeProvider _time;
 
-    public InvoiceDeleter(SmartnetDbContext db, TimeProvider time)
+    public InvoiceDeleter(SmartnetDbContext db, ILegacyInvoiceAdopter adopter, TimeProvider time)
     {
         _db = db;
+        _adopter = adopter;
         _time = time;
     }
 
@@ -27,14 +29,21 @@ public sealed class InvoiceDeleter : IInvoiceDeleter
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // IgnoreQueryFilters so a *legacy* invoice loads too — voiding one adopts it first (below).
         var invoice = await _db.Invoices
+            .IgnoreQueryFilters()
             .Include(i => i.Lines)
-            .FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken)
+            .FirstOrDefaultAsync(i => i.Id == invoiceId && i.DeletedAt == null, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Invoice {invoiceId} does not exist.");
 
         // Void a stale copy → concurrency conflict, same as the editor.
         _db.Entry(invoice).Property(i => i.RowVersion).OriginalValue = expectedRowVersion;
+
+        // A legacy invoice is adopted into the new model first — its lines are materialised (so the stock
+        // return below has item lines to work from) and a version-1 snapshot written, inside this
+        // transaction. The concurrency check above fires on that first save. A no-op for a new invoice.
+        await _adopter.MaterialiseInCurrentTransactionAsync(invoice, cancellationToken).ConfigureAwait(false);
 
         await ReverseLedgerAsync(invoice, cancellationToken).ConfigureAwait(false);
         ReverseStock(invoice);

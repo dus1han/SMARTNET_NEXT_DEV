@@ -14,23 +14,29 @@ namespace Smartnet.Infrastructure.Documents;
 public sealed class InvoiceEditor : IInvoiceEditor
 {
     private readonly SmartnetDbContext _db;
+    private readonly SmartnetLegacyDbContext _legacy;
     private readonly ITaxEngine _tax;
     private readonly IDocumentVersionWriter _versions;
+    private readonly ILegacyInvoiceAdopter _adopter;
     private readonly IBusinessRuleReader _rules;
     private readonly IChangeContext _change;
     private readonly TimeProvider _time;
 
     public InvoiceEditor(
         SmartnetDbContext db,
+        SmartnetLegacyDbContext legacy,
         ITaxEngine tax,
         IDocumentVersionWriter versions,
+        ILegacyInvoiceAdopter adopter,
         IBusinessRuleReader rules,
         IChangeContext change,
         TimeProvider time)
     {
         _db = db;
+        _legacy = legacy;
         _tax = tax;
         _versions = versions;
+        _adopter = adopter;
         _rules = rules;
         _change = change;
         _time = time;
@@ -44,17 +50,24 @@ public sealed class InvoiceEditor : IInvoiceEditor
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // IgnoreQueryFilters so a *legacy* invoice loads too — the new app edits documents it did not raise
+        // by adopting them first (below). A legacy row's lines are not linked yet, so Include is deferred.
         var invoice = await _db.Invoices
+            .IgnoreQueryFilters()
             .Include(i => i.Lines)
-            .FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken)
+            .FirstOrDefaultAsync(i => i.Id == invoiceId && i.DeletedAt == null, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Invoice {invoiceId} does not exist.");
 
         // A paid invoice is not editable — the figures the money was taken against must not change under a
         // payment already made. A cash invoice's settlement is a payment too, so a cash invoice is never
-        // edited; it is voided and re-issued. The payment must be deleted first (a Phase 7 action).
+        // edited; it is voided and re-issued. The payment must be deleted first (a Phase 7 action). A new
+        // invoice's payments are in the ledger; a legacy invoice's are in the old `payments` table.
         var hasPayment = await _db.ReceivablesLedger
             .AnyAsync(e => e.InvoiceId == invoice.Id && e.Type == LedgerEntryType.Payment, cancellationToken)
+            .ConfigureAwait(false)
+            || await _legacy.Payments
+            .AnyAsync(p => p.Invoiceno == invoice.Number, cancellationToken)
             .ConfigureAwait(false);
         if (hasPayment)
         {
@@ -64,6 +77,12 @@ public sealed class InvoiceEditor : IInvoiceEditor
         // The load's row_version is replaced by the one the caller edited against, so the UPDATE's WHERE
         // clause checks *their* expectation: if the row moved under them, no row matches and EF throws.
         _db.Entry(invoice).Property(i => i.RowVersion).OriginalValue = request.ExpectedRowVersion;
+
+        // A legacy invoice is adopted into the new model before it can be edited — its typed columns and
+        // lines are materialised from the legacy data and a version-1 "as imported" snapshot is written, all
+        // inside this transaction (the concurrency check above fires on that first save). After this it is a
+        // normal new-side invoice and the edit below proceeds unchanged.
+        await _adopter.MaterialiseInCurrentTransactionAsync(invoice, cancellationToken).ConfigureAwait(false);
 
         var company = await _db.Companies
             .FirstOrDefaultAsync(c => c.Id == invoice.CompanyId, cancellationToken)

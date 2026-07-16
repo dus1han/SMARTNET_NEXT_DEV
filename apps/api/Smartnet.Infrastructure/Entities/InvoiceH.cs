@@ -11,6 +11,9 @@ public partial class InvoiceH
     /// </summary>
     public long Id { get; set; }
 
+    /// <summary>The concurrency token, so the edit screen can load a legacy invoice's version and echo it back.</summary>
+    public int RowVersion { get; set; }
+
     public string? It { get; set; }
 
     public string? Invoiceno { get; set; }

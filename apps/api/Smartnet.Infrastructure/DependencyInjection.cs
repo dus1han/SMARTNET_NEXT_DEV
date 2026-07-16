@@ -47,6 +47,10 @@ public static class DependencyInjection
         // (opposite sign) and, where goods are returned, a stock receipt, at the parent invoice's rate.
         services.AddScoped<ICreditNoteCreator, CreditNoteCreator>();
 
+        // Legacy invoice adoption (Phase 5, slice 5b, legacy parity): materialise a legacy invoice into the
+        // new model on first edit/void — reused by the go-live bulk migration.
+        services.AddScoped<ILegacyInvoiceAdopter, LegacyInvoiceAdopter>();
+
         // The versioned, reason-gated, concurrency-guarded invoice edit (Phase 5, slice 5): re-tax at the
         // snapshot rate, reconcile lines in place, write a new version, adjust the ledger by a delta.
         services.AddScoped<IInvoiceEditor, InvoiceEditor>();

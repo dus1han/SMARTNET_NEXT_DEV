@@ -235,6 +235,17 @@ public sealed class InvoicesController : ControllerBase
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // Resolve the line item codes to ids, so a legacy invoice edited in the new app keeps its item
+        // linkage (the edit sends these ids back, and the adoption/reconcile keep the stock link).
+        var lineCodes = lines.Select(l => l.Itemcode).Where(c => c != null).Distinct().ToList();
+        var itemIdsByCode = (await _db.Items
+            .Where(i => i.Code != null && lineCodes.Contains(i.Code))
+            .Select(i => new { i.Id, i.Code })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false))
+            .ToDictionary(i => i.Code!, i => i.Id, StringComparer.Ordinal);
+        long? ItemIdFor(string? code) => code is not null && itemIdsByCode.TryGetValue(code, out var iid) ? iid : null;
+
         var customer = h.Customer is null
             ? null
             : await _db.Customers.FirstOrDefaultAsync(c => c.Code == h.Customer, cancellationToken).ConfigureAwait(false);
@@ -270,11 +281,11 @@ public sealed class InvoicesController : ControllerBase
             total - net, // tax = grand total less the pre-VAT net
             total,
             LegacyValue.Money(h.Balance),
-            0, // a legacy invoice has no new-side row_version; it is not edited through the new editor
+            h.RowVersion, // the legacy row's version, so an edit adopts it under a real concurrency guard
             "legacy",
             [.. lines.Select(l => new InvoiceLineDetail(
-                null,
-                null,
+                l.Id,
+                ItemIdFor(l.Itemcode),
                 l.Itemcode,
                 l.Desc,
                 LegacyValue.Money(l.Qty),

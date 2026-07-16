@@ -8,6 +8,7 @@ using Smartnet.Infrastructure.Auditing;
 using Smartnet.Infrastructure.Documents;
 using Smartnet.Infrastructure.Ledger;
 using Smartnet.Infrastructure.Numbering;
+using Smartnet.Infrastructure.Persistence;
 using Smartnet.Infrastructure.Settings;
 using Smartnet.Tests.Auditing;
 
@@ -276,13 +277,24 @@ public sealed class InvoiceEditTests
                 ]));
     }
 
-    private static InvoiceEditor EditorFor(TestDbContext db, FakeChangeContext change) => new(
+    private InvoiceEditor EditorFor(TestDbContext db, FakeChangeContext change) => new(
         db,
+        LegacyContext(),
         new TaxEngine(),
         new DocumentVersionWriter(db, change, Clock),
+        AdopterFor(db, change),
         new BusinessRuleReader(db),
         change,
         Clock);
+
+    private static LegacyInvoiceAdopter AdopterFor(TestDbContext db, FakeChangeContext change) => new(
+        db, new TaxEngine(), new DocumentVersionWriter(db, change, Clock), new BusinessRuleReader(db));
+
+    /// <summary>A legacy read-model context on the same throwaway database — the editor's legacy-payment check.</summary>
+    private SmartnetLegacyDbContext LegacyContext() => new(
+        new DbContextOptionsBuilder<SmartnetLegacyDbContext>()
+            .UseMySql(_fixture.ConnectionString, SmartnetServerVersion.Value)
+            .Options);
 
     private async Task<(long CompanyId, long CustomerId, long ItemId)> SeedCompanyCustomerItemAndSeries()
     {

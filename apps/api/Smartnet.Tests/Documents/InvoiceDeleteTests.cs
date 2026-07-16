@@ -10,6 +10,7 @@ using Smartnet.Infrastructure.Auditing;
 using Smartnet.Infrastructure.Documents;
 using Smartnet.Infrastructure.Ledger;
 using Smartnet.Infrastructure.Numbering;
+using Smartnet.Infrastructure.Persistence;
 using Smartnet.Infrastructure.Settings;
 using Smartnet.Tests.Auditing;
 
@@ -44,7 +45,7 @@ public sealed class InvoiceDeleteTests
 
         await using (var db = _fixture.CreateContext(change))
         {
-            await new InvoiceDeleter(db, Clock).DeleteAsync(created.Id, rowVersion);
+            await new InvoiceDeleter(db, AdopterFor(db, change), Clock).DeleteAsync(created.Id, rowVersion);
         }
 
         await using (var db = _fixture.CreateContext(change))
@@ -88,7 +89,7 @@ public sealed class InvoiceDeleteTests
         await using (var db = _fixture.CreateContext(change))
         {
             var rv = (await db.Invoices.FirstAsync(i => i.Id == created.Id)).RowVersion;
-            await new InvoiceDeleter(db, Clock).DeleteAsync(created.Id, rv);
+            await new InvoiceDeleter(db, AdopterFor(db, change), Clock).DeleteAsync(created.Id, rv);
         }
 
         // Restore is the interceptor's Restore path: clear DeletedAt and save. Nothing was erased, so it
@@ -124,8 +125,8 @@ public sealed class InvoiceDeleteTests
         }
         await using (var db = _fixture.CreateContext(change))
         {
-            await new InvoiceEditor(db, new TaxEngine(), new DocumentVersionWriter(db, change, Clock),
-                new BusinessRuleReader(db), change, Clock)
+            await new InvoiceEditor(db, LegacyContext(), new TaxEngine(), new DocumentVersionWriter(db, change, Clock),
+                AdopterFor(db, change), new BusinessRuleReader(db), change, Clock)
                 .EditAsync(created.Id, new EditInvoice(1, "PO-99", null, 0m,
                     [new EditInvoiceLine(lineId, itemId, "I-1", "Widget", 3m, 100m, 0m, 180m)]));
         }
@@ -133,10 +134,18 @@ public sealed class InvoiceDeleteTests
         // A delete still holding row_version 1 is refused — it cannot void what it has not seen.
         await using (var db = _fixture.CreateContext(change))
         {
-            var act = () => new InvoiceDeleter(db, Clock).DeleteAsync(created.Id, expectedRowVersion: 1);
+            var act = () => new InvoiceDeleter(db, AdopterFor(db, change), Clock).DeleteAsync(created.Id, expectedRowVersion: 1);
             await act.Should().ThrowAsync<DbUpdateConcurrencyException>();
         }
     }
+
+    private static LegacyInvoiceAdopter AdopterFor(TestDbContext db, FakeChangeContext change) => new(
+        db, new TaxEngine(), new DocumentVersionWriter(db, change, Clock), new BusinessRuleReader(db));
+
+    private SmartnetLegacyDbContext LegacyContext() => new(
+        new DbContextOptionsBuilder<SmartnetLegacyDbContext>()
+            .UseMySql(_fixture.ConnectionString, SmartnetServerVersion.Value)
+            .Options);
 
     // --- Seeding ---------------------------------------------------------------------------------
 
