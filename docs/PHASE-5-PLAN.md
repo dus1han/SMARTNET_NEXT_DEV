@@ -321,6 +321,23 @@ defensible.
 **Exit:** an issued invoice is edited with a reason, the change is a new version with a diff, the prior
 version still prints as it was, a concurrent edit is rejected, and a delete is recoverable and audited.
 
+*(Built and tested. **Edit** (`IInvoiceEditor`): re-runs the tax engine at the invoice's **snapshotted**
+rate — via the same `TaxRateOverride` credit notes use, so an edit corrects figures without re-rating —
+reconciles lines **in place** by id (update / add / soft-delete, never delete-and-reinsert), writes a new
+`document_versions` snapshot with the reason, and is `row_version`-guarded (a concurrent edit → 409). A
+changed total adjusts the ledger by a single compensating `CHARGE` delta — the balance is never reset.
+**Two business rules confirmed 2026-07-16:** a **paid** invoice cannot be edited — any `PAYMENT` entry (a
+cash invoice's settlement included) refuses the edit until the payment is deleted; and an **item invoice's
+stock is adjusted automatically** — the reconcile nets each item's issued quantity, so an increased line
+issues the extra units and a reduced or removed line returns them. **Delete/void** (`IInvoiceDeleter`):
+reason-gated, `row_version`-guarded, soft (nothing hard-deleted — `deleted_at` set directly so the
+FK-nulling cascade of `Remove()` cannot wipe the reversal entries); the ledger is reversed to zero through
+one compensating entry and stock returned via a receipt. The deleted-invoice register
+(`GET /api/invoices/deleted`, reason from the audit trail) replaces `DeletedInvoicesController`. Web: Edit
+and Void on the invoice view, the edit screen on the shared `LineDraftEditor` (line ids round-tripped
+through the draft key), the History tab live, and the deleted register. Nine integration tests green; full
+suite 378.)*
+
 ---
 
 ## Slice 6 — The non-negotiable test & reconciliation · ~0.5 week
