@@ -110,6 +110,7 @@ export default function ItemsPage() {
     {
       id: "price",
       header: "Price",
+      meta: { align: "right" },
       accessorFn: (row) => row.sellingPrice ?? -1,
       cell: ({ row }) => (
         <span className="tabular text-text">
@@ -122,6 +123,7 @@ export default function ItemsPage() {
     {
       id: "stock",
       header: "In stock",
+      meta: { align: "center" },
       accessorFn: (row) => row.stockBalance,
       cell: ({ row }) => {
         const item = row.original;

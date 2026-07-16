@@ -275,30 +275,35 @@ const baseColumns: ColumnDef<OutstandingRow, unknown>[] = [
     id: "outstanding",
     header: "Outstanding",
     accessorFn: (row) => row.outstanding,
+    meta: { align: "right" },
     cell: ({ row }) => <span className="tabular font-medium text-text">{formatMoney(row.original.outstanding)}</span>,
   },
   {
     id: "current",
     header: "Current",
     accessorFn: (row) => row.current,
+    meta: { align: "right" },
     cell: ({ row }) => mutedMoney(row.original.current),
   },
   {
     id: "d30",
     header: "31–60",
     accessorFn: (row) => row.days30,
+    meta: { align: "right" },
     cell: ({ row }) => mutedMoney(row.original.days30),
   },
   {
     id: "d60",
     header: "61–90",
     accessorFn: (row) => row.days60,
+    meta: { align: "right" },
     cell: ({ row }) => mutedMoney(row.original.days60),
   },
   {
     id: "d90",
     header: "90+",
     accessorFn: (row) => row.days90,
+    meta: { align: "right" },
     cell: ({ row }) =>
       row.original.days90 > 0 ? (
         <span className="tabular font-medium text-warning-text">{formatMoney(row.original.days90)}</span>

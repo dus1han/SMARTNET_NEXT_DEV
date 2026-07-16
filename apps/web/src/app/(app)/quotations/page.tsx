@@ -82,6 +82,7 @@ const columns: ColumnDef<QuotationSummary, unknown>[] = [
     id: "total",
     accessorFn: (row) => row.total,
     header: "Total",
+    meta: { align: "right" },
     cell: ({ row }) => <span className="tabular font-medium text-text">{formatMoney(row.original.total)}</span>,
   },
   {

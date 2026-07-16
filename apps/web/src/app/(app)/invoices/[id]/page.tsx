@@ -245,12 +245,14 @@ const lineColumns: ColumnDef<InvoiceLineDetail, unknown>[] = [
     id: "quantity",
     accessorFn: (row) => row.quantity,
     header: "Qty",
+    meta: { align: "center" },
     cell: ({ row }) => <span className="tabular text-text">{row.original.quantity}</span>,
   },
   {
     id: "unitPrice",
     accessorFn: (row) => row.unitPrice,
     header: "Unit price",
+    meta: { align: "right" },
     cell: ({ row }) => <span className="tabular text-text">{formatMoney(row.original.unitPrice)}</span>,
   },
   {
@@ -263,6 +265,7 @@ const lineColumns: ColumnDef<InvoiceLineDetail, unknown>[] = [
     id: "net",
     accessorFn: (row) => row.net,
     header: "Net",
+    meta: { align: "right" },
     cell: ({ row }) => <span className="tabular font-medium text-text">{formatMoney(row.original.net)}</span>,
   },
 ];

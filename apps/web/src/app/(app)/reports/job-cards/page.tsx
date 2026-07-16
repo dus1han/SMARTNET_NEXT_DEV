@@ -133,12 +133,14 @@ const columns: ColumnDef<JobCardRow, unknown>[] = [
   {
     id: "sell",
     header: "Sell",
+    meta: { align: "right" },
     accessorFn: (row) => row.sell,
     cell: ({ row }) => <span className="tabular text-text">{formatMoney(row.original.sell)}</span>,
   },
   {
     id: "profit",
     header: "Profit",
+    meta: { align: "right" },
     accessorFn: (row) => row.profit ?? -Infinity,
     cell: ({ row }) =>
       row.original.profit != null ? (

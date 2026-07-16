@@ -64,6 +64,7 @@ const columns: ColumnDef<DeletedInvoiceSummary, unknown>[] = [
     id: "total",
     accessorFn: (row) => row.total,
     header: "Total",
+    meta: { align: "right" },
     cell: ({ row }) => <span className="tabular text-muted">{formatMoney(row.original.total)}</span>,
   },
   {

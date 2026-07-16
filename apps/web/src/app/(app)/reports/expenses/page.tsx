@@ -152,6 +152,7 @@ const columns: ColumnDef<ExpenseReportRow, unknown>[] = [
   {
     id: "amount",
     header: "Amount",
+    meta: { align: "right" },
     accessorFn: (row) => row.amount,
     cell: ({ row }) => <span className="tabular text-text">{formatMoney(row.original.amount)}</span>,
   },

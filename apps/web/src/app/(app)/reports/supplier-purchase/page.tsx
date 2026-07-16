@@ -115,12 +115,14 @@ const columns: ColumnDef<SupplierPurchaseRow, unknown>[] = [
     id: "total",
     header: "Total purchases",
     accessorFn: (row) => row.totalPurchase,
+    meta: { align: "right" },
     cell: ({ row }) => <span className="tabular text-text">{formatMoney(row.original.totalPurchase)}</span>,
   },
   {
     id: "pending",
     header: "Pending",
     accessorFn: (row) => row.pendingBalance,
+    meta: { align: "right" },
     cell: ({ row }) => {
       const p = row.original.pendingBalance;
       return (

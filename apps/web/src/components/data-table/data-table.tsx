@@ -8,6 +8,7 @@ import {
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type RowData,
   type SortingState,
 } from "@tanstack/react-table";
 import {
@@ -23,6 +24,22 @@ import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { Button, Input, Skeleton, toast } from "@/components/ui";
 import { downloadExcel } from "./export";
+
+/**
+ * Per-column horizontal alignment of the cell *data*, set on a column's `meta`. The house convention:
+ * **money values right, quantities centred, everything else left**. Only the cells follow it — every
+ * column header stays left-aligned (uniform across the whole table) — so a value column reads as aligned
+ * figures under an ordinary left heading. Declared once here so every list gets it for free.
+ */
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- augmentation must match the library's generics
+  interface ColumnMeta<TData extends RowData, TValue> {
+    align?: "left" | "center" | "right";
+  }
+}
+
+const alignClass = (align?: "left" | "center" | "right") =>
+  align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
 
 /**
  * The list, for every list in the application.
@@ -206,6 +223,8 @@ export function DataTable<T>({
                               ? "descending"
                               : undefined
                         }
+                        // Every header is left-aligned across the whole table; only the cell *data* follows
+                        // meta.align (money right, quantity centred, everything else left).
                         className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted"
                       >
                         {sortable ? (
@@ -244,7 +263,10 @@ export function DataTable<T>({
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 text-text">
+                    <td
+                      key={cell.id}
+                      className={cn("px-4 py-3 text-text", alignClass(cell.column.columnDef.meta?.align))}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}

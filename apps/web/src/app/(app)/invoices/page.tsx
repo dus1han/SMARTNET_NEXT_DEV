@@ -92,13 +92,15 @@ const columns: ColumnDef<InvoiceSummary, unknown>[] = [
     id: "total",
     accessorFn: (row) => row.total,
     header: "Total",
+    meta: { align: "right" },
     // Right-aligned like Outstanding — it is a money value in the same column band.
-    cell: ({ row }) => <span className="block text-right tabular font-medium text-text">{formatMoney(row.original.total)}</span>,
+    cell: ({ row }) => <span className="tabular font-medium text-text">{formatMoney(row.original.total)}</span>,
   },
   {
     id: "outstanding",
     accessorFn: (row) => row.outstanding,
     header: "Outstanding",
+    meta: { align: "right" },
     cell: ({ row }) => {
       // Derived: zero means the ledger says it is settled (a paid credit invoice, or any cash one). An
       // unpaid invoice shows how long it has been due, in the badge itself ("2 days due").

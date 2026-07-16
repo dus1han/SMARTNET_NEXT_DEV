@@ -121,12 +121,14 @@ const columns: ColumnDef<CustomerVatRow, unknown>[] = [
     id: "value",
     header: "Value",
     accessorFn: (row) => row.value,
+    meta: { align: "right" },
     cell: ({ row }) => <span className="tabular text-muted">{formatMoney(row.original.value)}</span>,
   },
   {
     id: "vat",
     header: "VAT",
     accessorFn: (row) => row.vat,
+    meta: { align: "right" },
     cell: ({ row }) => <span className="tabular text-text">{formatMoney(row.original.vat)}</span>,
   },
 ];

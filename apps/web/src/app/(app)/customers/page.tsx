@@ -142,6 +142,7 @@ export default function CustomersPage() {
     {
       id: "creditLimit",
       header: "Credit limit",
+      meta: { align: "right" },
       accessorFn: (row) => row.creditLimit,
       cell: ({ row }) => (
         <span className="tabular text-text">

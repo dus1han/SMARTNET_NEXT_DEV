@@ -88,6 +88,7 @@ const columns: ColumnDef<CreditNoteSummary, unknown>[] = [
     id: "total",
     accessorFn: (row) => row.total,
     header: "Amount",
+    meta: { align: "right" },
     cell: ({ row }) => <span className="tabular font-medium text-text">{formatMoney(row.original.total)}</span>,
   },
 ];

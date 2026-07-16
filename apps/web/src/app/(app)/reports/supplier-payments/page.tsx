@@ -137,6 +137,7 @@ const columns: ColumnDef<SupplierPaymentRow, unknown>[] = [
     id: "amount",
     header: "Amount",
     accessorFn: (row) => row.amount,
+    meta: { align: "right" },
     cell: ({ row }) => <span className="tabular text-text">{formatMoney(row.original.amount)}</span>,
   },
   {

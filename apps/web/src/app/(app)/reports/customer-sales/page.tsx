@@ -114,24 +114,28 @@ const columns: ColumnDef<CustomerSalesRow, unknown>[] = [
   {
     id: "invoices",
     header: "Invoices",
+    meta: { align: "center" },
     accessorFn: (row) => row.invoiceCount,
     cell: ({ row }) => <span className="tabular text-muted">{row.original.invoiceCount}</span>,
   },
   {
     id: "total",
     header: "Total",
+    meta: { align: "right" },
     accessorFn: (row) => row.total,
     cell: ({ row }) => <span className="tabular text-text">{formatMoney(row.original.total)}</span>,
   },
   {
     id: "profit",
     header: "Profit",
+    meta: { align: "right" },
     accessorFn: (row) => row.profit,
     cell: ({ row }) => <span className="tabular text-text">{formatMoney(row.original.profit)}</span>,
   },
   {
     id: "balance",
     header: "Balance",
+    meta: { align: "right" },
     accessorFn: (row) => row.balance,
     cell: ({ row }) => <span className="tabular text-muted">{formatMoney(row.original.balance)}</span>,
   },
