@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.MySql" Version="4.13.0" />
+  </ItemGroup>
+
+  <!-- Reuses the real persistence, migrations, entities and password hasher — the E2E database is the
+       production schema, bootstrapped exactly as the API test-suite bootstraps its throwaway one. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\apps\api\Smartnet.Infrastructure\Smartnet.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

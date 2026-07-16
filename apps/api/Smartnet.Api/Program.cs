@@ -225,6 +225,35 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    // E2E-only affordance: record a payment against a new invoice, so the Playwright flow can exercise
+    // the ledger-derived balance without the Phase 7 payments UI (PHASE-5-PLAN slice 6). Deliberately
+    // Development-only — this endpoint does not exist in Staging or Production — and anonymous, so the
+    // test harness can seed a payment without a session. It never touches a legacy invoice.
+    app.MapPost("/api/dev/seed-payment", async (
+        DevSeedPaymentRequest body,
+        Smartnet.Infrastructure.Persistence.SmartnetDbContext db,
+        CancellationToken cancellationToken) =>
+    {
+        var invoice = await db.Invoices
+            .FirstOrDefaultAsync(i => i.Number == body.InvoiceNumber, cancellationToken)
+            .ConfigureAwait(false);
+        if (invoice is null)
+        {
+            return Results.NotFound();
+        }
+
+        db.ReceivablesLedger.Add(new LedgerEntry
+        {
+            CustomerId = invoice.CustomerId,
+            Type = LedgerEntryType.Payment,
+            Amount = -body.Amount, // a payment reduces the receivable
+            InvoiceId = invoice.Id,
+            OccurredAt = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return Results.Ok();
+    }).AllowAnonymous();
 }
 
 app.UseCors();
@@ -253,3 +282,6 @@ app.MapGet("/health", async (SmartnetLegacyDbContext db) =>
 // asked, and Phase 1 has real endpoints to prove the mapping instead.
 
 app.Run();
+
+/// <summary>The body of the Development-only E2E payment-seed endpoint (PHASE-5-PLAN slice 6).</summary>
+internal sealed record DevSeedPaymentRequest(string InvoiceNumber, decimal Amount);

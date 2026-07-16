@@ -1,4 +1,4 @@
-namespace Smartnet.Tests;
+namespace Smartnet.Infrastructure.Persistence;
 
 /// <summary>
 /// The legacy tables, in the shape they are in <i>before</i> any of our migrations touch them.

@@ -354,6 +354,24 @@ suite 378.)*
 **Exit (the phase exit):** the company-rate/discount/partial-payment case passes end to end, and a
 sample reconciliation is signed off.
 
+*(Built and green. **Acceptance test** — the non-negotiable case (company rate + discount + partial payment
+→ correct `decimal` total, ledger charge − partial = outstanding, audit row, version-1 snapshot) is the
+existing `InvoiceCreationTests.An_invoice_totals_correctly_…` integration test against a throwaway
+MariaDB, backed by the unit legs (`TaxEngineTests` ×9, `DocumentNumberingTests` ×9, the credit-limit
+cases). **Reconciliation** — `tools/DbReconcile` recomputes every legacy invoice through the **same**
+`Smartnet.Domain.TaxEngine` and diffs the stored total: over **2,482** invoices, **99.7% reproduce
+exactly and 99.8% are within a penny** (the residue is binary `double` vs `decimal`, as the parent plan
+predicted), and it surfaced **3 genuine legacy defects** whose stored total disagrees with its own lines
+(STI-869 −700, STI-60 −240, STI-717 −60) — Data-Exceptions candidates, left as-is per decision 7.
+Findings + proposed policy in [legacy-analysis/RECONCILIATION.md](legacy-analysis/RECONCILIATION.md),
+pending business sign-off. **Playwright E2E** — an ephemeral throwaway-MariaDB harness (decided
+2026-07-16): `tools/E2EHost` stands up a disposable MariaDB, applies the real schema + migrations and
+seeds a user/company/rate/series/customer/item; the real API runs against it and `next dev` against the
+API; the spec drives **login → raise an invoice through the create form → seed a partial payment → the
+ledger-derived balance shows 118 − 50 = 68** in a real browser. Run with `npm run e2e` (needs Docker);
+`LegacySchema` was lifted into Infrastructure so the E2E host and the test fixture share one baseline. A
+Development-only `POST /api/dev/seed-payment` stands in for the Phase 7 payments UI. **Green — 1 passed.**)*
+
 ---
 
 ## What Phase 5 does NOT do

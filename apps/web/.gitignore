@@ -15,6 +15,12 @@
 
 # next.js
 /.next/
+/.next-e2e/
+
+# playwright e2e artifacts
+/test-results/
+/playwright-report/
+/e2e/.e2e-state.json
 /out/
 
 # production
