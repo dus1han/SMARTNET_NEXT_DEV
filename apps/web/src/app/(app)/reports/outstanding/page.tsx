@@ -115,24 +115,23 @@ export default function OutstandingReportPage() {
         description="What customers owe, aged from the invoice date, for the company you are working in."
       />
 
-      <div className="flex flex-wrap items-end gap-4">
-        <ReportFilterBar company={company} onCompany={changeCompany} showDates={false} />
-        <div className="w-44">
-          <Input
-            label="As at"
-            type="date"
-            value={asAt}
-            max={todayStr}
-            onChange={(e) => setAsAt(e.target.value || todayStr)}
-          />
-        </div>
-        {isHistorical && (
-          <p className="pb-2 text-sm text-muted">
-            Showing what was owed on {data ? formatReportDate(data.asAt) : formatReportDate(asAt)} — later
-            payments added back, invoices raised after excluded.
-          </p>
-        )}
-      </div>
+      <ReportFilterBar company={company} onCompany={changeCompany} showDates={false}>
+        <Input
+          label="As at"
+          type="date"
+          value={asAt}
+          max={todayStr}
+          onChange={(e) => setAsAt(e.target.value || todayStr)}
+          className="w-44"
+        />
+      </ReportFilterBar>
+
+      {isHistorical && (
+        <p className="-mt-2 text-sm text-muted">
+          Showing what was owed on {data ? formatReportDate(data.asAt) : formatReportDate(asAt)} — later
+          payments added back, invoices raised after excluded.
+        </p>
+      )}
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
