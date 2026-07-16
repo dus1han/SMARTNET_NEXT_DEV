@@ -122,6 +122,10 @@ builder.Services.AddSingleton<ITaxEngine, TaxEngine>();
 // reads through the request's DbContext.
 builder.Services.AddScoped<IReceivablesLedger, ReceivablesLedger>();
 
+// Resolves a business rule (rounding mode, credit-limit enforcement) for a company — override, global,
+// then default.
+builder.Services.AddScoped<IBusinessRuleReader, BusinessRuleReader>();
+
 // Encrypts the SMTP password at rest (A2). The keys live outside the image; in production they
 // must be persisted to a shared, backed-up location, or a redeploy silently invalidates every
 // ciphertext already in the database.

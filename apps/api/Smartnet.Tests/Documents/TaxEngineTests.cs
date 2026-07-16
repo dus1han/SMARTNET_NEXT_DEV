@@ -43,8 +43,9 @@ public sealed class TaxEngineTests
         bool vatRegistered = true,
         TaxRounding rounding = TaxRounding.PerLine,
         DateOnly? date = null,
-        IReadOnlyList<TaxRate>? rates = null) =>
-        new(date ?? Today, vatRegistered, rounding, lines, rates ?? [Vat18]);
+        IReadOnlyList<TaxRate>? rates = null,
+        decimal documentDiscountPercent = 0m) =>
+        new(date ?? Today, vatRegistered, rounding, lines, rates ?? [Vat18], documentDiscountPercent);
 
     // --- The non-negotiable case: one rate across the lines, with a discount -------------------
 
@@ -85,6 +86,43 @@ public sealed class TaxEngineTests
         result.Lines[0].Net.Should().Be(900m);
         result.Lines[0].Tax.Should().Be(162m);
         result.Totals.Total.Should().Be(1062m);
+    }
+
+    [Fact]
+    public void A_document_discount_is_taken_after_line_discounts_and_before_vat()
+    {
+        var result = Engine.Calculate(Request(
+        [
+            // 2 × 100, 10% off: line net 180.
+            new TaxLineInput(2m, 100m, 10m),
+            // 1 × 50, no line discount: line net 50.
+            new TaxLineInput(1m, 50m, 0m),
+        ],
+        // A further 5% off the whole document.
+        documentDiscountPercent: 5m));
+
+        // Lines net to 230; 5% of that is 11.50 off, leaving 218.50 taxable. VAT 18% = 39.33, total 257.83.
+        result.Totals.Subtotal.Should().Be(250m);
+        result.Totals.Discount.Should().Be(31.50m); // 20 line + 11.50 document
+        result.Totals.Net.Should().Be(218.50m);
+        result.Totals.Tax.Should().Be(39.33m);
+        result.Totals.Total.Should().Be(257.83m);
+
+        // The line figures are unchanged — the document discount lives on the foot, not on a line.
+        result.Lines[0].Net.Should().Be(180m);
+        result.Lines[1].Net.Should().Be(50m);
+    }
+
+    [Fact]
+    public void With_no_document_discount_the_foot_is_unchanged()
+    {
+        var lines = new[] { new TaxLineInput(2m, 100m, 10m), new TaxLineInput(1m, 50m, 0m) };
+
+        var withZero = Engine.Calculate(Request(lines, documentDiscountPercent: 0m));
+        var without = Engine.Calculate(Request(lines));
+
+        withZero.Totals.Should().BeEquivalentTo(without.Totals);
+        withZero.Totals.Discount.Should().Be(20m); // line discounts only
     }
 
     // --- Rules ---------------------------------------------------------------------------------

@@ -38,6 +38,18 @@ internal static class InvoiceLegacyShadow
     ];
 }
 
+/// <summary>The <c>invoice_l</c> legacy varchar columns written beside a new line's typed ones.</summary>
+internal static class InvoiceLineLegacyShadow
+{
+    public const string Inno = "inno";
+    public const string Qty = "qty";
+    public const string Rate = "rate";
+    public const string Tot = "tot";
+
+    public static readonly (string Name, string Column)[] All =
+        [(Inno, "inno"), (Qty, "qty"), (Rate, "rate"), (Tot, "tot")];
+}
+
 /// <summary>
 /// Invoices, mapped onto the adopted legacy <c>invoice_h</c> / <c>invoice_l</c> tables.
 /// </summary>
@@ -139,6 +151,14 @@ public class InvoiceLineConfiguration : IEntityTypeConfiguration<InvoiceLine>
         // it and truncate an existing value.
         builder.Property(l => l.Description).HasColumnName("desc").HasColumnType("text");
         builder.Property(l => l.ItemCode).HasColumnName("itemcode").HasMaxLength(100);
+
+        // The legacy line shadow columns (inno, qty, rate, tot), written beside the typed ones so the
+        // outstanding-detail report — which reads invoice_l — sees a new invoice's lines. All nullable,
+        // so unlike the header these do not gate the insert; they are for the reader.
+        foreach (var (name, column) in InvoiceLineLegacyShadow.All)
+        {
+            builder.Property<string>(name).HasColumnName(column).HasMaxLength(100);
+        }
 
         // New, typed money/quantity columns beside the legacy qty/rate/tot varchars.
         builder.Property(l => l.Quantity).HasColumnName("quantity").HasColumnType("decimal(18,4)");

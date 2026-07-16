@@ -228,9 +228,10 @@ The engine, given a real skin — item and service collapsed (slice 0-B).
   picker (carrying the customer surrogate id, not a code string), the hardcoded catalogue becomes the
   `/api/items` picker (carrying `ItemId`, cost and `SellingPrice`), and Save POSTs the whole draft.
 - **Credit limit, enforced server-side.** The legacy check is a client-side advisory that a direct POST
-  bypasses; here `Customer.CreditLimit` is enforced **in the save transaction** (outstanding ledger
-  balance + this invoice vs the limit; 0 = no limit), per the credit-limit **setting**
-  (enforcement on/off). Invoices only, as today.
+  bypasses; here `Customer.CreditLimit` is enforced **before the save** (outstanding ledger balance +
+  this invoice vs the limit; 0 = no limit), per the credit-limit **setting** (enforcement on/off).
+  **Applies to both cash and credit invoices** (confirmed 2026-07-15) — the limit gates the sale, not
+  just the credit terms; the legacy check ran on service invoices only.
 - **Cash vs credit.** Credit → a `CHARGE` for the full amount. Cash → a `CHARGE` and the cash-at-issue
   `PAYMENT` (slice 0-C), so the invoice is settled with a real ledger entry, not a magic `balance = 0`.
 - **Stock issue.** Each item line posts a `StockMovement.Issue` (signed, immutable) inside the

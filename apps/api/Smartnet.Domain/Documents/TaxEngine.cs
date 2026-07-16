@@ -65,7 +65,7 @@ public sealed class TaxEngine : ITaxEngine
                 Total: net + tax));
         }
 
-        var totals = Total(lines, rate.Percentage, request.Rounding);
+        var totals = Total(lines, rate.Percentage, request.Rounding, request.DocumentDiscountPercent);
 
         return new TaxCalculationResult(rate.Id, rate.Name, rate.Percentage, lines, totals);
     }
@@ -92,16 +92,26 @@ public sealed class TaxEngine : ITaxEngine
         return new ResolvedRate(rate.Id, rate.Name, rate.Percentage);
     }
 
-    private static TaxTotals Total(IReadOnlyList<TaxLineResult> lines, decimal ratePercentage, TaxRounding rounding)
+    private static TaxTotals Total(
+        IReadOnlyList<TaxLineResult> lines,
+        decimal ratePercentage,
+        TaxRounding rounding,
+        decimal documentDiscountPercent)
     {
         var subtotal = lines.Sum(l => l.Gross);
-        var discount = lines.Sum(l => l.Discount);
-        var net = lines.Sum(l => l.Net);
+        var lineDiscount = lines.Sum(l => l.Discount);
+        var linesNet = lines.Sum(l => l.Net);
+
+        // A whole-document discount is taken after the per-line discounts and before VAT. It is rounded
+        // once, at the foot, because it is a figure on the document, not on any line.
+        var documentDiscount = Round(linesNet * (documentDiscountPercent / 100m));
+        var net = linesNet - documentDiscount;
+        var discount = lineDiscount + documentDiscount;
 
         // Per line, the document tax is the sum of the already-rounded line taxes, so the printed lines
-        // re-add to the foot. Per document, it is the once-rounded tax on the summed net — a hair
-        // different, and the figure the foot then prints.
-        var tax = rounding == TaxRounding.PerLine
+        // re-add to the foot. Per document — and always once a document discount is in play, since the
+        // discounted net cannot be attributed back to a line — it is the once-rounded tax on the net.
+        var tax = rounding == TaxRounding.PerLine && documentDiscount == 0m
             ? lines.Sum(l => l.Tax)
             : Round(net * (ratePercentage / 100m));
 

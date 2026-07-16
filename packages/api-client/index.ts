@@ -104,6 +104,16 @@ export type OutstandingResponse = Schemas["OutstandingResponse"];
 export type OutstandingRow = Schemas["OutstandingRow"];
 export type DunningResponse = Schemas["DunningResponse"];
 
+// --- Documents (Phase 5) ---------------------------------------------------------------------
+
+export type CreateInvoiceRequest = Schemas["CreateInvoiceRequest"];
+export type CreateInvoiceLineRequest = Schemas["CreateInvoiceLineRequest"];
+export type InvoiceCreatedResponse = Schemas["InvoiceCreatedResponse"];
+export type InvoiceTaxRate = Schemas["InvoiceTaxRate"];
+export type InvoiceSummary = Schemas["InvoiceSummary"];
+export type InvoiceDetail = Schemas["InvoiceDetail"];
+export type InvoiceLineDetail = Schemas["InvoiceLineDetail"];
+
 // --- History ---------------------------------------------------------------------------------
 
 export type AuditEntry = Schemas["AuditEntry"];

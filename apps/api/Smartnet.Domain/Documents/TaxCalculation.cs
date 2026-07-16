@@ -42,12 +42,19 @@ public sealed record TaxLineInput(
 /// The company's configured rates. The engine picks the single one effective on
 /// <see cref="DocumentDate"/> (the default); it does not read the database.
 /// </param>
+/// <param name="DocumentDiscountPercent">
+/// A discount on the <b>whole document</b>, taken after any per-line discounts and before VAT — a
+/// discount can be given per line, on the document, or both. 0 means none. Its presence forces the tax
+/// to be computed on the discounted document net (it cannot be attributed back to a line), so the foot
+/// is the authority when it is set.
+/// </param>
 public sealed record TaxCalculationRequest(
     DateOnly DocumentDate,
     bool IsVatRegistered,
     TaxRounding Rounding,
     IReadOnlyList<TaxLineInput> Lines,
-    IReadOnlyList<TaxRate> AvailableRates);
+    IReadOnlyList<TaxRate> AvailableRates,
+    decimal DocumentDiscountPercent = 0m);
 
 /// <summary>One line, computed. The rate that produced <see cref="Tax"/> is on the document, not here.</summary>
 public sealed record TaxLineResult(

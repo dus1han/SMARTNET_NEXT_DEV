@@ -9,6 +9,7 @@ using Smartnet.Infrastructure.Auditing;
 using Smartnet.Infrastructure.Documents;
 using Smartnet.Infrastructure.Ledger;
 using Smartnet.Infrastructure.Numbering;
+using Smartnet.Infrastructure.Settings;
 using Smartnet.Tests.Auditing;
 
 namespace Smartnet.Tests.Documents;
@@ -93,6 +94,13 @@ public sealed class InvoiceCreationTests
                 .SqlQuery<string>($"SELECT totamount AS Value FROM invoice_h WHERE id = {created.Id}")
                 .SingleAsync();
             legacyTotal.Should().Be("271.40");
+
+            // The line shadow too — the item line's quantity, so outstanding-detail (which reads
+            // invoice_l) sees it.
+            var legacyLineQty = await db.Database
+                .SqlQuery<string>($"SELECT qty AS Value FROM invoice_l WHERE inno = {created.Number} ORDER BY id")
+                .FirstAsync();
+            legacyLineQty.Should().Be("2");
         }
 
         // A partial payment arrives — what Phase 7's payments module will record. The derived balance
@@ -136,6 +144,60 @@ public sealed class InvoiceCreationTests
         (await new ReceivablesLedger(db).BalanceForCustomerAsync(customerId)).Should().Be(0m);
     }
 
+    [Theory]
+    [InlineData(InvoiceType.Cash)]
+    [InlineData(InvoiceType.Credit)]
+    public async Task An_invoice_over_the_limit_is_refused_for_both_types_when_enforcement_is_on(InvoiceType type)
+    {
+        long companyId, customerId;
+        await using (var setup = _fixture.CreateContext(new FakeChangeContext { UserId = 1 }))
+        {
+            var company = new Company { Name = "Ltd", VatCode = "1", IsVatRegistered = true };
+            setup.Companies.Add(company);
+            await setup.SaveChangesAsync();
+            companyId = company.Id;
+
+            setup.TaxRates.Add(new TaxRate
+            {
+                CompanyId = companyId, Name = "VAT 18%", Percentage = 18m,
+                EffectiveFrom = new DateOnly(2024, 1, 1), IsDefault = true,
+            });
+
+            var customer = new Customer { Code = $"CL-{companyId}", Name = "At the ceiling", CreditLimit = 500m };
+            setup.Customers.Add(customer);
+
+            setup.DocumentSeries.Add(new DocumentSeries
+            {
+                CompanyId = companyId, DocType = DocumentTypes.Invoice,
+                Prefix = $"CL{companyId}-", NextNumber = 1, Padding = 0,
+            });
+
+            // Enforcement ON for this company (it is off by default).
+            setup.AppSettings.Add(new AppSetting
+            {
+                CompanyId = companyId, Key = BusinessRules.CreditLimitEnforced, Value = "true",
+            });
+
+            await setup.SaveChangesAsync();
+            customerId = customer.Id;
+        }
+
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
+        await using var db = _fixture.CreateContext(change);
+
+        // An invoice of 1,000 + 18% = 1,180 — well past the 500 limit. Refused whether cash or credit:
+        // the limit gates the sale, not just the credit terms.
+        var act = () => CreatorFor(db, change).CreateAsync(new NewInvoice(
+            companyId, customerId, type, new DateOnly(2026, 7, 15), null, null,
+            [new NewInvoiceLine(null, null, "Big job", 1m, 1000m, 0m, null)]));
+
+        await act.Should().ThrowAsync<CreditLimitExceededException>();
+
+        // The check runs before the transaction, so nothing was written — not the invoice, not a
+        // burned number.
+        (await db.Invoices.CountAsync(i => i.CustomerId == customerId)).Should().Be(0);
+    }
+
     // --- Seeding ---------------------------------------------------------------------------------
 
     private static InvoiceCreator CreatorFor(TestDbContext db, FakeChangeContext change) => new(
@@ -143,6 +205,8 @@ public sealed class InvoiceCreationTests
         new TaxEngine(),
         new DocumentNumberAllocator(db),
         new DocumentVersionWriter(db, change, Clock),
+        new ReceivablesLedger(db),
+        new BusinessRuleReader(db),
         change,
         Clock);
 

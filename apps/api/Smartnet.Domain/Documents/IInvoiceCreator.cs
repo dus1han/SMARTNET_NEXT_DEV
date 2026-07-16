@@ -13,6 +13,10 @@ public sealed record NewInvoiceLine(
     decimal? Cost);
 
 /// <summary>A whole invoice, posted at once — the cart is gone (D4).</summary>
+/// <param name="DocumentDiscountPercent">
+/// A discount on the whole document, after any per-line discounts and before VAT. 0 for none — a
+/// discount may be given per line, on the document, or both.
+/// </param>
 public sealed record NewInvoice(
     long CompanyId,
     long CustomerId,
@@ -20,7 +24,8 @@ public sealed record NewInvoice(
     DateOnly Date,
     string? PurchaseOrderNo,
     string? ContactPerson,
-    IReadOnlyList<NewInvoiceLine> Lines);
+    IReadOnlyList<NewInvoiceLine> Lines,
+    decimal DocumentDiscountPercent = 0m);
 
 /// <summary>What the caller gets back — enough to show a toast and route to the new invoice.</summary>
 public sealed record InvoiceCreated(long Id, string Number, decimal Total, decimal Outstanding);

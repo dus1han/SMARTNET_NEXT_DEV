@@ -13,14 +13,12 @@ namespace Smartnet.Infrastructure.Documents;
 /// <inheritdoc cref="IInvoiceCreator"/>
 public sealed class InvoiceCreator : IInvoiceCreator
 {
-    // The app_settings rounding toggle, settled to per-line (PHASE-5-PLAN §slice 0-D). Read from
-    // settings once that surface is wired in slice 2; the default is the decision, not a placeholder.
-    private const TaxRounding Rounding = TaxRounding.PerLine;
-
     private readonly SmartnetDbContext _db;
     private readonly ITaxEngine _tax;
     private readonly IDocumentNumberAllocator _numbers;
     private readonly IDocumentVersionWriter _versions;
+    private readonly IReceivablesLedger _ledger;
+    private readonly IBusinessRuleReader _rules;
     private readonly IChangeContext _change;
     private readonly TimeProvider _time;
 
@@ -29,6 +27,8 @@ public sealed class InvoiceCreator : IInvoiceCreator
         ITaxEngine tax,
         IDocumentNumberAllocator numbers,
         IDocumentVersionWriter versions,
+        IReceivablesLedger ledger,
+        IBusinessRuleReader rules,
         IChangeContext change,
         TimeProvider time)
     {
@@ -36,6 +36,8 @@ public sealed class InvoiceCreator : IInvoiceCreator
         _tax = tax;
         _numbers = numbers;
         _versions = versions;
+        _ledger = ledger;
+        _rules = rules;
         _change = change;
         _time = time;
     }
@@ -57,13 +59,22 @@ public sealed class InvoiceCreator : IInvoiceCreator
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        var rounding = BusinessRules.RoundPerDocument.Equals(
+            await _rules.ResolveAsync(request.CompanyId, BusinessRules.VatRoundingMode, cancellationToken).ConfigureAwait(false),
+            StringComparison.Ordinal)
+            ? TaxRounding.PerDocument
+            : TaxRounding.PerLine;
+
         // Value the lines: the server is the authority, and this is the one place tax is computed.
         var calc = _tax.Calculate(new TaxCalculationRequest(
             request.Date,
             company.IsVatRegistered,
-            Rounding,
+            rounding,
             [.. request.Lines.Select(l => new TaxLineInput(l.Quantity, l.UnitPrice, l.DiscountPercent))],
-            rates));
+            rates,
+            request.DocumentDiscountPercent));
+
+        await EnforceCreditLimit(request, customer, calc.Totals.Total, cancellationToken).ConfigureAwait(false);
 
         // One transaction: the number, the document, the ledger, the stock and the snapshot commit
         // together or not at all (B2). The number is reserved under a row lock inside it (B4).
@@ -91,7 +102,9 @@ public sealed class InvoiceCreator : IInvoiceCreator
             PreparedBy = _change.UserId,
 
             Subtotal = calc.Totals.Subtotal,
-            DiscountPercent = 0m, // discounts are per line (the prototype model), not one document rate
+            // The whole-document discount rate; per-line discounts are on the lines. DiscountAmount is the
+            // total of both, as the engine computed it.
+            DiscountPercent = request.DocumentDiscountPercent,
             DiscountAmount = calc.Totals.Discount,
             NetTotal = calc.Totals.Net,
             TaxRateId = calc.TaxRateId,
@@ -136,6 +149,36 @@ public sealed class InvoiceCreator : IInvoiceCreator
     }
 
     /// <summary>
+    /// Rejects an invoice — cash or credit — that would take the customer past their limit, server-side,
+    /// against the derived balance, and only when enforcement is switched on (off by default).
+    /// </summary>
+    /// <remarks>
+    /// The limit gates the <b>sale</b>, not just credit terms: it applies to cash and credit invoices
+    /// alike (confirmed 2026-07-15), unlike the legacy check, which ran on service invoices only.
+    /// </remarks>
+    private async Task EnforceCreditLimit(NewInvoice request, Customer customer, decimal total, CancellationToken cancellationToken)
+    {
+        // A zero limit means "no limit".
+        if (customer.CreditLimit <= 0m)
+        {
+            return;
+        }
+
+        var enforced = BusinessRules.AsBool(
+            await _rules.ResolveAsync(request.CompanyId, BusinessRules.CreditLimitEnforced, cancellationToken).ConfigureAwait(false));
+        if (!enforced)
+        {
+            return;
+        }
+
+        var balance = await _ledger.BalanceForCustomerAsync(customer.Id, cancellationToken).ConfigureAwait(false);
+        if (balance + total > customer.CreditLimit)
+        {
+            throw new CreditLimitExceededException(customer.CreditLimit, balance, total);
+        }
+    }
+
+    /// <summary>
     /// Writes the legacy varchar columns beside the typed ones, so a legacy reader and the Phase 4
     /// reports see a complete row (slice 0-A). The three NOT NULL columns are among them, so this is not
     /// optional decoration — the insert fails without it.
@@ -159,9 +202,18 @@ public sealed class InvoiceCreator : IInvoiceCreator
         Set(InvoiceLegacyShadow.NoVatTotal, Money(invoice.NetTotal));
         Set(InvoiceLegacyShadow.VType, company.VatCode);
         Set(InvoiceLegacyShadow.VPer, Money(invoice.TaxRatePercentage));
-        Set(InvoiceLegacyShadow.DiscountPer, "0"); // discounts are per line; there is no document discount
+        Set(InvoiceLegacyShadow.DiscountPer, Money(invoice.DiscountPercent)); // the whole-document discount rate
         Set(InvoiceLegacyShadow.BeforeDiscTot, Money(invoice.Subtotal));
         Set(InvoiceLegacyShadow.Company, invoice.CompanyId?.ToString(CultureInfo.InvariantCulture));
+
+        foreach (var line in invoice.Lines)
+        {
+            var lineEntry = _db.Entry(line);
+            lineEntry.Property(InvoiceLineLegacyShadow.Inno).CurrentValue = invoice.Number;
+            lineEntry.Property(InvoiceLineLegacyShadow.Qty).CurrentValue = Money(line.Quantity);
+            lineEntry.Property(InvoiceLineLegacyShadow.Rate).CurrentValue = Money(line.UnitPrice);
+            lineEntry.Property(InvoiceLineLegacyShadow.Tot).CurrentValue = Money(line.Gross);
+        }
     }
 
     /// <summary>The signed-in user's name, for the legacy <c>preparedby</c> — null if none is set.</summary>

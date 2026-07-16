@@ -681,6 +681,149 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceSummary"][];
+                        "application/json": components["schemas"]["InvoiceSummary"][];
+                        "text/json": components["schemas"]["InvoiceSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateInvoiceRequest"];
+                    "text/json": components["schemas"]["CreateInvoiceRequest"];
+                    "application/*+json": components["schemas"]["CreateInvoiceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceCreatedResponse"];
+                        "application/json": components["schemas"]["InvoiceCreatedResponse"];
+                        "text/json": components["schemas"]["InvoiceCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceDetail"];
+                        "application/json": components["schemas"]["InvoiceDetail"];
+                        "text/json": components["schemas"]["InvoiceDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/tax-rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    companyId?: number;
+                    date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceTaxRate"];
+                        "application/json": components["schemas"]["InvoiceTaxRate"];
+                        "text/json": components["schemas"]["InvoiceTaxRate"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/items": {
         parameters: {
             query?: never;
@@ -3250,6 +3393,34 @@ export interface components {
             id: number;
             code: string;
         };
+        CreateInvoiceLineRequest: {
+            /** Format: int64 */
+            itemId?: number | null;
+            itemCode?: string | null;
+            description?: string | null;
+            /** Format: double */
+            quantity: number;
+            /** Format: double */
+            unitPrice: number;
+            /** Format: double */
+            discountPercent: number;
+            /** Format: double */
+            cost?: number | null;
+        };
+        CreateInvoiceRequest: {
+            /** Format: int64 */
+            companyId: number;
+            /** Format: int64 */
+            customerId: number;
+            type: string;
+            /** Format: date */
+            date: string;
+            purchaseOrderNo?: string | null;
+            contactPerson?: string | null;
+            lines: components["schemas"]["CreateInvoiceLineRequest"][];
+            /** Format: double */
+            documentDiscountPercent: number;
+        };
         CreateItemResponse: {
             /** Format: int64 */
             id: number;
@@ -3469,6 +3640,80 @@ export interface components {
             reference?: string | null;
             addedBy?: string | null;
             hasDataIssue: boolean;
+        };
+        InvoiceCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: double */
+            total: number;
+            /** Format: double */
+            outstanding: number;
+        };
+        InvoiceDetail: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            type: string;
+            customerName?: string | null;
+            customerCode?: string | null;
+            purchaseOrderNo?: string | null;
+            contactPerson?: string | null;
+            /** Format: double */
+            subtotal: number;
+            /** Format: double */
+            discountAmount: number;
+            /** Format: double */
+            netTotal: number;
+            /** Format: double */
+            taxRatePercentage: number;
+            /** Format: double */
+            taxAmount: number;
+            /** Format: double */
+            total: number;
+            /** Format: double */
+            outstanding: number;
+            lines: components["schemas"]["InvoiceLineDetail"][];
+        };
+        InvoiceLineDetail: {
+            /** Format: int64 */
+            itemId?: number | null;
+            itemCode?: string | null;
+            description?: string | null;
+            /** Format: double */
+            quantity: number;
+            /** Format: double */
+            unitPrice: number;
+            /** Format: double */
+            discountPercent: number;
+            /** Format: double */
+            gross: number;
+            /** Format: double */
+            net: number;
+            /** Format: double */
+            cost?: number | null;
+        };
+        InvoiceSummary: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            customerName?: string | null;
+            type: string;
+            /** Format: double */
+            total: number;
+            /** Format: double */
+            outstanding: number;
+        };
+        InvoiceTaxRate: {
+            /** Format: int64 */
+            taxRateId?: number | null;
+            name: string;
+            /** Format: double */
+            percentage: number;
         };
         ItemStockResponse: {
             /** Format: int64 */
