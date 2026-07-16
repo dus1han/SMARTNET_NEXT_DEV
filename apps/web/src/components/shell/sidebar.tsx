@@ -20,6 +20,17 @@ export function Sidebar({ permissions, onNavigate }: {
   const pathname = usePathname();
   const sections = visibleSections(permissions);
 
+  // Exactly one item is active: the one whose href is the *longest* segment-prefix of the current path.
+  // Without the "longest" rule, `/invoices` would also light up on `/invoices/deleted` (a startsWith
+  // match on the parent), so both the Invoices and Deleted-invoices items would highlight at once.
+  const matchesPath = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  const activeHref = sections
+    .flatMap((section) => section.items)
+    .filter((item) => !item.phase && matchesPath(item.href))
+    .map((item) => item.href)
+    .sort((a, b) => b.length - a.length)[0];
+
   return (
     <nav
       aria-label="Main"
@@ -42,8 +53,7 @@ export function Sidebar({ permissions, onNavigate }: {
 
             <ul className="space-y-0.5">
               {section.items.map((item) => {
-                const active =
-                  item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+                const active = item.href === activeHref;
 
                 // Not built yet. Shown, but plainly not clickable — so the shape of the finished
                 // app is visible from day one, and nobody clicks a link that goes nowhere.

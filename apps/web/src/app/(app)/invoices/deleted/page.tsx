@@ -4,12 +4,13 @@
  * The deleted-invoice register (deleted_in) — the new-side replacement for the legacy
  * DeletedInvoicesController.
  *
- * Voided invoices, newest first, with who voided each, when and why (the reason from the audit trail).
- * Nothing here was erased — a void is a soft delete, so every one of these rows still exists in full and
- * could be restored from its History tab.
+ * Two sources, newest deletion first: invoices this app voided (a void is a soft delete — nothing is
+ * erased, and each can be restored from its History tab) and the legacy `del_invoice_h` deletions the
+ * old app recorded before cutover (read-only history). Both carry who deleted each, when and why.
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/api";
 import { getDeletedInvoices, type DeletedInvoiceSummary } from "@/lib/invoices";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -18,6 +19,7 @@ import { formatMoney, formatReportDate } from "@/components/reports";
 import { ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function DeletedInvoicesPage() {
+  const router = useRouter();
   const deleted = useQuery({ queryKey: ["deleted-invoices"], queryFn: getDeletedInvoices });
   const error = deleted.error as ApiError | null;
 
@@ -25,7 +27,7 @@ export default function DeletedInvoicesPage() {
     <FadeIn className="space-y-6">
       <PageHeader
         title="Deleted invoices"
-        description="Voided invoices, with who voided each, when and why. A void is a soft delete — nothing is erased, and every one can be restored."
+        description="Voided invoices with who deleted each, when and why — this app's voids (soft-deleted, restorable) alongside the legacy deletions recorded before cutover."
       />
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
@@ -37,6 +39,8 @@ export default function DeletedInvoicesPage() {
         searchable={(row) => `${row.number} ${row.customerName ?? ""} ${row.reason ?? ""}`}
         searchPlaceholder="Search by number, customer or reason…"
         defaultSort={{ id: "deletedAt", desc: true }}
+        // Keyed by number, not id — a legacy deletion has no surrogate id (it lives in del_invoice_h).
+        onRowClick={(row) => router.push(`/invoices/deleted/${encodeURIComponent(row.number)}`)}
         empty={{ title: "Nothing voided", description: "Invoices that are voided appear here." }}
       />
     </FadeIn>

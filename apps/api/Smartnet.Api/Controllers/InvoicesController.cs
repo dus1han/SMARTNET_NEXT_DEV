@@ -544,9 +544,17 @@ public sealed class InvoicesController : ControllerBase
     /// The deleted-invoice register — the new-side replacement for the legacy DeletedInvoicesController.
     /// </summary>
     /// <remarks>
-    /// Soft-deleted invoices, newest deletion first, with who voided each, when and why (the reason from the
-    /// audit trail). Gated by <see cref="Permissions.DeletedInvoices"/> — seeing voided documents is its own
-    /// right, as it was in the legacy app.
+    /// Two sources, merged and newest-deletion-first (as the legacy screen ordered by <c>deldate</c>):
+    /// <list type="bullet">
+    /// <item><b>New-app voids</b> — invoices this app soft-deleted (slice 5). Who voided each, when, and
+    /// the reason from the audit trail; every one can be restored from its History tab.</item>
+    /// <item><b>Legacy deletions</b> — the historical <c>del_invoice_h</c> register the legacy app moved
+    /// deleted invoices into (its <c>DeletedInvoicesController</c> read exactly this table). Shown
+    /// read-only, since the new app never wrote them and they carry no surrogate key. Without these the
+    /// register looks empty on a database whose only deletions predate the new app.</item>
+    /// </list>
+    /// Gated by <see cref="Permissions.DeletedInvoices"/> — seeing voided documents is its own right, as
+    /// it was in the legacy app.
     /// </remarks>
     [HttpGet("deleted")]
     [RequirePermission(Permissions.DeletedInvoices)]
@@ -554,6 +562,7 @@ public sealed class InvoicesController : ControllerBase
     {
         var accessible = _company.Accessible.ToList();
 
+        // --- New-app voids (soft-deleted) -----------------------------------------------------------
         // IgnoreQueryFilters drops the "not deleted" clause too, so re-assert data_origin and pick the
         // soft-deleted ones.
         var deleted = await _db.Invoices
@@ -587,8 +596,7 @@ public sealed class InvoicesController : ControllerBase
             .GroupBy(a => a.EntityId)
             .ToDictionary(g => g.Key, g => g.First().Reason);
 
-        return Ok(deleted
-            .OrderByDescending(d => d.DeletedAt)
+        var rows = deleted
             .Select(d => new DeletedInvoiceSummary(
                 d.Id,
                 d.Number,
@@ -598,6 +606,224 @@ public sealed class InvoicesController : ControllerBase
                 d.DeletedAt!.Value,
                 d.DeletedBy is { } uid ? userNames.GetValueOrDefault(uid) : null,
                 reasons.GetValueOrDefault(d.Id.ToString(CultureInfo.InvariantCulture))))
-            .ToList());
+            .ToList();
+
+        // --- Legacy deletions (del_invoice_h) -------------------------------------------------------
+        // The historical register the legacy app kept — every invoice its DeletedInvoicesController ever
+        // listed lives here, and none of it is in invoice_h. The legacy `company` column holds the id as a
+        // varchar (copied verbatim from invoice_h at delete), so it is matched against the accessible ids
+        // as strings — exactly as the invoice List does for adopted legacy rows.
+        var accessibleText = accessible.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToHashSet();
+
+        var legacyDeleted = await _legacy.DelInvoiceHs
+            .Select(d => new
+            {
+                d.Invoiceno, d.Indate, d.Customer, d.Totamount, d.Company, d.Deldate, d.Deluser, d.Delreason,
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        legacyDeleted = legacyDeleted.Where(d => d.Company != null && accessibleText.Contains(d.Company)).ToList();
+
+        // Resolve customer names by code from the adopted customer master, in one pass (the legacy row
+        // stores the customer code, as the old INNER JOIN cus_m ON customer = cuscode did).
+        var legacyCodes = legacyDeleted.Select(d => d.Customer).Where(c => c != null).Distinct().ToList();
+        var namesByCode = (await _db.Customers
+            .Where(c => c.Code != null && legacyCodes.Contains(c.Code))
+            .Select(c => new { c.Code, c.Name })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false))
+            .ToDictionary(c => c.Code!, c => c.Name);
+
+        rows.AddRange(legacyDeleted.Select(d => new DeletedInvoiceSummary(
+            0, // del_invoice_h is keyless — these are history, with no new-side detail view to link to.
+            d.Invoiceno ?? "—",
+            LegacyValue.Date(d.Indate) ?? DateOnly.MinValue,
+            d.Customer is not null ? namesByCode.GetValueOrDefault(d.Customer) : null,
+            LegacyValue.Money(d.Totamount),
+            ParseLegacyTimestamp(d.Deldate),
+            string.IsNullOrWhiteSpace(d.Deluser) ? null : d.Deluser,
+            string.IsNullOrWhiteSpace(d.Delreason) ? null : d.Delreason)));
+
+        return Ok(rows.OrderByDescending(r => r.DeletedAt).ToList());
+    }
+
+    /// <summary>
+    /// One deleted invoice in full — the detail behind a register row, keyed by document number. Resolves a
+    /// <c>legacy</c> deletion (<c>del_invoice_h</c>/<c>del_invoice_l</c>) or a <c>new</c>-app void (the
+    /// soft-deleted invoice), and carries <b>who deleted it, when and why for both</b> — a legacy deletion's
+    /// <c>deluser</c>/<c>deldate</c>/<c>delreason</c> as much as a new void's audit trail.
+    /// </summary>
+    [HttpGet("deleted/{number}")]
+    [RequirePermission(Permissions.DeletedInvoices)]
+    public async Task<ActionResult<DeletedInvoiceDetail>> DeletedDetail(string number, CancellationToken cancellationToken)
+    {
+        var accessible = _company.Accessible.ToList();
+        var accessibleText = accessible.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToHashSet();
+
+        // --- Legacy deletion (del_invoice_h) — the register the old app kept. If a number was ever deleted
+        // more than once, the most recent deletion is the one shown. ---
+        var legacyHeaders = await _legacy.DelInvoiceHs
+            .Where(d => d.Invoiceno == number)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var h = legacyHeaders
+            .Where(d => d.Company != null && accessibleText.Contains(d.Company))
+            .OrderByDescending(d => ParseLegacyTimestamp(d.Deldate))
+            .FirstOrDefault();
+
+        if (h is not null)
+        {
+            var lines = await _legacy.DelInvoiceLs
+                .Where(l => l.Inno == number)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var lineCodes = lines.Select(l => l.Itemcode).Where(c => c != null).Distinct().ToList();
+            var itemIdsByCode = (await _db.Items
+                .Where(i => i.Code != null && lineCodes.Contains(i.Code))
+                .Select(i => new { i.Id, i.Code })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+                .ToDictionary(i => i.Code!, i => i.Id, StringComparer.Ordinal);
+            long? ItemIdFor(string? code) => code is not null && itemIdsByCode.TryGetValue(code, out var iid) ? iid : null;
+
+            var customer = h.Customer is null
+                ? null
+                : await _db.Customers.FirstOrDefaultAsync(c => c.Code == h.Customer, cancellationToken).ConfigureAwait(false);
+
+            var companyName = long.TryParse(h.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cid)
+                ? await _db.Companies.Where(c => c.Id == cid).Select(c => c.Name).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+                : null;
+
+            var subtotal = LegacyValue.Money(h.Beforedisctot);
+            var net = LegacyValue.Money(h.Novattotal);
+            var total = LegacyValue.Money(h.Totamount);
+            var kind = string.Equals(h.It, "ITEM", StringComparison.OrdinalIgnoreCase) ? "Item" : "Service";
+
+            return Ok(new DeletedInvoiceDetail(
+                h.Invoiceno ?? number,
+                LegacyValue.Date(h.Indate) ?? DateOnly.MinValue,
+                h.Invtype ?? "—",
+                companyName,
+                kind,
+                customer?.Name,
+                h.Customer,
+                h.Pono,
+                h.Contactperson,
+                subtotal,
+                subtotal - net,
+                LegacyValue.Money(h.Discountper),
+                net,
+                LegacyValue.Money(h.Vper),
+                total - net,
+                total,
+                "legacy",
+                ParseLegacyTimestamp(h.Deldate),
+                string.IsNullOrWhiteSpace(h.Deluser) ? null : h.Deluser,
+                string.IsNullOrWhiteSpace(h.Delreason) ? null : h.Delreason,
+                [.. lines.Select(l => new InvoiceLineDetail(
+                    null,
+                    ItemIdFor(l.Itemcode),
+                    l.Itemcode,
+                    l.Desc,
+                    LegacyValue.Money(l.Qty),
+                    LegacyValue.Money(l.Rate),
+                    0m,
+                    LegacyValue.Money(l.Tot),
+                    LegacyValue.Money(l.Tot),
+                    null))]));
+        }
+
+        // --- New-app void (a soft-deleted invoice this app raised) ---------------------------------
+        var invoice = await _db.Invoices
+            .IgnoreQueryFilters()
+            .Include(i => i.Lines)
+            .FirstOrDefaultAsync(
+                i => i.Number == number && i.DataOrigin == "new" && i.DeletedAt != null
+                    && i.CompanyId != null && accessible.Contains(i.CompanyId.Value),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (invoice is null)
+        {
+            return NotFound();
+        }
+
+        var newCustomer = await _db.Customers
+            .FirstOrDefaultAsync(c => c.Id == invoice.CustomerId, cancellationToken)
+            .ConfigureAwait(false);
+
+        var newCompanyName = invoice.CompanyId is { } newCid
+            ? await _db.Companies.Where(c => c.Id == newCid).Select(c => c.Name).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+            : null;
+
+        var deletedByName = invoice.DeletedBy is { } uid
+            ? await _db.Users.Where(u => u.Id == uid).Select(u => u.Name ?? u.Username).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+            : null;
+
+        var invoiceKey = invoice.Id.ToString(CultureInfo.InvariantCulture);
+        var newReason = await _db.AuditLog
+            .Where(a => a.EntityType == "Invoice" && a.Action == AuditAction.Delete && a.EntityId == invoiceKey)
+            .OrderByDescending(a => a.ChangedAt)
+            .Select(a => a.Reason)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var newKind = invoice.Lines.Any(l => l.ItemId is not null) ? "Item" : "Service";
+
+        // Show the lines as they stood at void; if the header and lines were soft-deleted together, fall
+        // back to all of them rather than an empty list.
+        var voidLines = invoice.Lines.Where(l => l.DeletedAt == null).ToList();
+        if (voidLines.Count == 0)
+        {
+            voidLines = invoice.Lines.ToList();
+        }
+
+        return Ok(new DeletedInvoiceDetail(
+            invoice.Number,
+            invoice.Date,
+            invoice.Type.ToString(),
+            newCompanyName,
+            newKind,
+            newCustomer?.Name,
+            newCustomer?.Code,
+            invoice.PurchaseOrderNo,
+            invoice.ContactPerson,
+            invoice.Subtotal,
+            invoice.DiscountAmount,
+            invoice.DiscountPercent,
+            invoice.NetTotal,
+            invoice.TaxRatePercentage,
+            invoice.TaxAmount,
+            invoice.Total,
+            "new",
+            invoice.DeletedAt!.Value,
+            deletedByName,
+            newReason,
+            [.. voidLines.Select(l => new InvoiceLineDetail(
+                l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
+    }
+
+    /// <summary>
+    /// Parses a legacy <c>deldate</c> — written by the old app as <c>yyyy-MM-dd HH:mm:ss</c>
+    /// (SearchInvoiceController) — defensively. A blank or unreadable value sorts last as
+    /// <see cref="DateTime.MinValue"/> rather than throwing, the same posture as <see cref="LegacyValue"/>.
+    /// </summary>
+    private static DateTime ParseLegacyTimestamp(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return DateTime.MinValue;
+        }
+
+        var text = raw.Trim();
+        return DateTime.TryParseExact(text, "yyyy-MM-dd HH:mm:ss",
+                   CultureInfo.InvariantCulture, DateTimeStyles.None, out var exact)
+            ? exact
+            : DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out var loose)
+                ? loose
+                : DateTime.MinValue;
     }
 }

@@ -1,6 +1,7 @@
 import type {
   CreateInvoiceRequest,
   CreditStatus,
+  DeletedInvoiceDetail,
   DeletedInvoiceSummary,
   EditInvoiceRequest,
   InvoiceCreatedResponse,
@@ -17,6 +18,7 @@ export type {
   CreateInvoiceRequest,
   CreateInvoiceLineRequest,
   CreditStatus,
+  DeletedInvoiceDetail,
   DeletedInvoiceSummary,
   EditInvoiceRequest,
   EditInvoiceLineRequest,
@@ -67,3 +69,11 @@ export const deleteInvoice = (id: number, expectedRowVersion: number, reason: st
 
 /** The deleted-invoice register — voided invoices, with who, when and why. */
 export const getDeletedInvoices = () => api<DeletedInvoiceSummary[]>("/api/invoices/deleted");
+
+/**
+ * One deleted invoice in full — the detail behind a register row. Works for both a legacy deletion
+ * (from del_invoice_h/l) and a new-app void, keyed by document number; carries who deleted it, when and
+ * why for both.
+ */
+export const getDeletedInvoice = (number: string) =>
+  api<DeletedInvoiceDetail>(`/api/invoices/deleted/${encodeURIComponent(number)}`);

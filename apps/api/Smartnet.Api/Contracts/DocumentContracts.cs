@@ -76,6 +76,36 @@ public sealed record DeletedInvoiceSummary(
     string? Reason);
 
 /// <summary>
+/// One deleted invoice in full — the read view behind a row of the deleted register. The document as it
+/// stood when it was voided (header, lines, totals) plus who deleted it, when and why. Serves both a
+/// <c>legacy</c> deletion (from <c>del_invoice_h</c>/<c>del_invoice_l</c>, the register the old app kept)
+/// and a <c>new</c>-app void (the soft-deleted invoice). Read-only — nothing here can be edited.
+/// </summary>
+public sealed record DeletedInvoiceDetail(
+    string Number,
+    DateOnly Date,
+    string Type,
+    string? CompanyName,
+    string Kind,
+    string? CustomerName,
+    string? CustomerCode,
+    string? PurchaseOrderNo,
+    string? ContactPerson,
+    decimal Subtotal,
+    decimal DiscountAmount,
+    decimal DocumentDiscountPercent,
+    decimal NetTotal,
+    decimal TaxRatePercentage,
+    decimal TaxAmount,
+    decimal Total,
+    // "legacy" for a deletion the old app recorded in del_invoice_h; "new" for an invoice this app voided.
+    string Origin,
+    DateTime DeletedAt,
+    string? DeletedByName,
+    string? Reason,
+    IReadOnlyList<InvoiceLineDetail> Lines);
+
+/// <summary>
 /// A customer's credit standing, for the New Invoice screen's advisory. <see cref="Outstanding"/> is the
 /// derived ledger balance (the same figure the server-side gate measures against); <see cref="Enforced"/>
 /// is whether the company hard-blocks a breach at save. <see cref="CreditLimit"/> of 0 means "no limit".

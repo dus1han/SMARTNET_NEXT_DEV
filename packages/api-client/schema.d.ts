@@ -1058,6 +1058,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invoices/deleted/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    number: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DeletedInvoiceDetail"];
+                        "application/json": components["schemas"]["DeletedInvoiceDetail"];
+                        "text/json": components["schemas"]["DeletedInvoiceDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/items": {
         parameters: {
             query?: never;
@@ -4115,6 +4154,38 @@ export interface components {
             /** Format: int64 */
             selectedCompanyId?: number | null;
             companies: components["schemas"]["DashboardCompanyOption"][];
+        };
+        DeletedInvoiceDetail: {
+            number: string;
+            /** Format: date */
+            date: string;
+            type: string;
+            companyName?: string | null;
+            kind: string;
+            customerName?: string | null;
+            customerCode?: string | null;
+            purchaseOrderNo?: string | null;
+            contactPerson?: string | null;
+            /** Format: double */
+            subtotal: number;
+            /** Format: double */
+            discountAmount: number;
+            /** Format: double */
+            documentDiscountPercent: number;
+            /** Format: double */
+            netTotal: number;
+            /** Format: double */
+            taxRatePercentage: number;
+            /** Format: double */
+            taxAmount: number;
+            /** Format: double */
+            total: number;
+            origin: string;
+            /** Format: date-time */
+            deletedAt: string;
+            deletedByName?: string | null;
+            reason?: string | null;
+            lines: components["schemas"]["InvoiceLineDetail"][];
         };
         DeletedInvoiceSummary: {
             /** Format: int64 */
