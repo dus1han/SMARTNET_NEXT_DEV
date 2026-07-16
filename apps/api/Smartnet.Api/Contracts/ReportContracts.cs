@@ -268,6 +268,9 @@ public sealed record OutstandingResponse(
     int CustomerCount,
     int FlaggedCount,
     int DefectCount,
+    // The date the outstanding is reconstructed as of — today by default, or a past date to see what was
+    // owed then (later payments added back, invoices issued after it excluded). Aging is relative to it.
+    DateOnly AsAt,
     IReadOnlyList<OutstandingRow> Rows);
 
 /// <summary>One outstanding invoice — the per-invoice drill-down behind the "export selected" list,

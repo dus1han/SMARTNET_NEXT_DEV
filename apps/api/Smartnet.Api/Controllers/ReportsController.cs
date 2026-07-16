@@ -11,6 +11,7 @@ using Smartnet.Domain.Identity;
 using Smartnet.Domain.Reporting;
 using Smartnet.Infrastructure.Entities;
 using Smartnet.Infrastructure.Persistence;
+using Smartnet.Infrastructure.Reporting;
 
 namespace Smartnet.Api.Controllers;
 
@@ -443,19 +444,23 @@ public sealed class ReportsController : ControllerBase
     [RequirePermission(Permissions.CustomerOutstanding)]
     public async Task<ActionResult<OutstandingResponse>> Outstanding(
         [FromQuery] string? company,
+        [FromQuery] DateOnly? asAt,
         CancellationToken cancellationToken) =>
-        Ok(await BuildOutstanding(company, cancellationToken).ConfigureAwait(false));
+        Ok(await BuildOutstanding(company, asAt, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("outstanding/export")]
     [RequirePermission(Permissions.CustomerOutstanding)]
     public async Task<IActionResult> OutstandingExport(
         [FromQuery] string? company,
+        [FromQuery] DateOnly? asAt,
         CancellationToken cancellationToken)
     {
-        var report = await BuildOutstanding(company, cancellationToken).ConfigureAwait(false);
+        var report = await BuildOutstanding(company, asAt, cancellationToken).ConfigureAwait(false);
 
+        // The as-of date rides along in the sheet name, so a historical export says on its face what date
+        // it is the outstanding for.
         var workbook = _excel.Export<OutstandingRow>(
-            "Outstanding",
+            $"Outstanding as at {report.AsAt:yyyy-MM-dd}",
             [
                 new("Customer Code", r => r.CustomerCode),
                 new("Customer", r => r.CustomerName),
@@ -471,7 +476,7 @@ public sealed class ReportsController : ControllerBase
             ],
             report.Rows);
 
-        return await Download(workbook, "outstanding", report.Rows.Count, cancellationToken).ConfigureAwait(false);
+        return await Download(workbook, $"outstanding-{report.AsAt:yyyy-MM-dd}", report.Rows.Count, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>The outstanding invoice list for a chosen set of customers — the "export selected" sheet.</summary>
@@ -480,8 +485,10 @@ public sealed class ReportsController : ControllerBase
     public async Task<IActionResult> OutstandingDetailExport(
         [FromQuery] string? company,
         [FromQuery] string? customers,
+        [FromQuery] DateOnly? asAt,
         CancellationToken cancellationToken)
     {
+        var asOf = asAt ?? DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
         var scope = CompanyScope(company);
         var codes = (customers ?? string.Empty)
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -498,8 +505,8 @@ public sealed class ReportsController : ControllerBase
                 .ConfigureAwait(false);
 
             var names = await CustomerNames(cancellationToken).ConfigureAwait(false);
-            var asOf = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
-            rows = OutstandingReport.Detail(invoices, names, asOf);
+            var paidAfter = await PaidAfterAsync(invoices, asOf, cancellationToken).ConfigureAwait(false);
+            rows = OutstandingReport.Detail(invoices, names, asOf, paidAfter);
         }
 
         var workbook = _excel.Export<OutstandingDetailRow>(
@@ -762,25 +769,63 @@ public sealed class ReportsController : ControllerBase
         return SupplierPaymentReport.Build(joined, names, period);
     }
 
-    private async Task<OutstandingResponse> BuildOutstanding(string? company, CancellationToken cancellationToken)
+    private async Task<OutstandingResponse> BuildOutstanding(string? company, DateOnly? asAt, CancellationToken cancellationToken)
     {
+        var asOf = asAt ?? DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+
         var scope = CompanyScope(company);
         if (scope.Count == 0)
         {
-            return new OutstandingResponse(0m, 0m, 0m, 0m, 0m, 0, 0, 0, []);
+            return new OutstandingResponse(0m, 0m, 0m, 0m, 0m, 0, 0, 0, asOf, []);
         }
 
-        // Outstanding is point-in-time, not a period: every unpaid invoice for the company, aged from
-        // its date to today. There is no from/to filter — the report bar shows only the company.
+        // Outstanding is point-in-time: every unpaid invoice for the company, aged from its date to the
+        // as-of date. Today (the default) is the live figure; a past date rolls each invoice back to what it
+        // owed then, by adding back the payments recorded after it and dropping invoices issued after it.
         var invoices = await _legacy.InvoiceHs
             .Where(h => scope.Contains(h.Company!))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var customerNames = await CustomerNames(cancellationToken).ConfigureAwait(false);
-        var asOf = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+        var paidAfter = await PaidAfterAsync(invoices, asOf, cancellationToken).ConfigureAwait(false);
 
-        return OutstandingReport.Build(invoices, customerNames, asOf);
+        return OutstandingReport.Build(invoices, customerNames, asOf, paidAfter);
+    }
+
+    /// <summary>
+    /// Per invoice number, the sum of payments recorded <b>after</b> the as-of date — what the outstanding
+    /// report adds back to roll a balance to an earlier date. Empty for an as-of of today (nothing is paid
+    /// after today), so the live report is untouched. Payment dates and amounts are legacy <c>varchar</c>,
+    /// parsed defensively (a bad value contributes nothing rather than throwing).
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, decimal>> PaidAfterAsync(
+        IReadOnlyList<Smartnet.Infrastructure.Entities.InvoiceH> invoices,
+        DateOnly asOf,
+        CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+        if (asOf >= today)
+        {
+            return new Dictionary<string, decimal>(StringComparer.Ordinal); // nothing paid after today
+        }
+
+        var invoiceNos = invoices
+            .Select(h => h.Invoiceno)
+            .Where(n => !string.IsNullOrEmpty(n))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        var payments = await _legacy.Payments
+            .Where(p => p.Invoiceno != null && invoiceNos.Contains(p.Invoiceno))
+            .Select(p => new { p.Invoiceno, p.Amount, p.Paymentrecdate })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return payments
+            .Where(p => LegacyValue.Date(p.Paymentrecdate) is { } d && d > asOf)
+            .GroupBy(p => p.Invoiceno!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Sum(p => LegacyValue.Money(p.Amount)), StringComparer.Ordinal);
     }
 
     /// <summary>Customer code → (name, VAT number), for the customer-VAT report.</summary>

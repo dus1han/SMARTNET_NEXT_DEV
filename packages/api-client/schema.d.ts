@@ -879,9 +879,63 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["EditInvoiceRequest"];
+                    "text/json": components["schemas"]["EditInvoiceRequest"];
+                    "application/*+json": components["schemas"]["EditInvoiceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceEditedResponse"];
+                        "application/json": components["schemas"]["InvoiceEditedResponse"];
+                        "text/json": components["schemas"]["InvoiceEditedResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
-        delete?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceDeleted"];
+                        "application/json": components["schemas"]["InvoiceDeleted"];
+                        "text/json": components["schemas"]["InvoiceDeleted"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -955,6 +1009,43 @@ export interface paths {
                         "text/plain": components["schemas"]["CreditStatus"];
                         "application/json": components["schemas"]["CreditStatus"];
                         "text/json": components["schemas"]["CreditStatus"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/deleted": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DeletedInvoiceSummary"][];
+                        "application/json": components["schemas"]["DeletedInvoiceSummary"][];
+                        "text/json": components["schemas"]["DeletedInvoiceSummary"][];
                     };
                 };
             };
@@ -2366,6 +2457,7 @@ export interface paths {
             parameters: {
                 query?: {
                     company?: string;
+                    asAt?: string;
                 };
                 header?: never;
                 path?: never;
@@ -2405,6 +2497,7 @@ export interface paths {
             parameters: {
                 query?: {
                     company?: string;
+                    asAt?: string;
                 };
                 header?: never;
                 path?: never;
@@ -2441,6 +2534,7 @@ export interface paths {
                 query?: {
                     company?: string;
                     customers?: string;
+                    asAt?: string;
                 };
                 header?: never;
                 path?: never;
@@ -3968,6 +4062,20 @@ export interface components {
             selectedCompanyId?: number | null;
             companies: components["schemas"]["DashboardCompanyOption"][];
         };
+        DeletedInvoiceSummary: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            customerName?: string | null;
+            /** Format: double */
+            total: number;
+            /** Format: date-time */
+            deletedAt: string;
+            deletedByName?: string | null;
+            reason?: string | null;
+        };
         DocumentSeriesDto: {
             /** Format: int64 */
             id: number;
@@ -4021,6 +4129,31 @@ export interface components {
             sendEnabled: boolean;
             message: string;
         };
+        EditInvoiceLineRequest: {
+            /** Format: int64 */
+            id?: number | null;
+            /** Format: int64 */
+            itemId?: number | null;
+            itemCode?: string | null;
+            description?: string | null;
+            /** Format: double */
+            quantity: number;
+            /** Format: double */
+            unitPrice: number;
+            /** Format: double */
+            discountPercent: number;
+            /** Format: double */
+            cost?: number | null;
+        };
+        EditInvoiceRequest: {
+            /** Format: int32 */
+            expectedRowVersion: number;
+            purchaseOrderNo?: string | null;
+            contactPerson?: string | null;
+            lines: components["schemas"]["EditInvoiceLineRequest"][];
+            /** Format: double */
+            documentDiscountPercent: number;
+        };
         EmailTemplateDto: {
             /** Format: int64 */
             id: number;
@@ -4065,6 +4198,11 @@ export interface components {
             /** Format: double */
             outstanding: number;
         };
+        InvoiceDeleted: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+        };
         InvoiceDetail: {
             /** Format: int64 */
             id: number;
@@ -4092,10 +4230,25 @@ export interface components {
             total: number;
             /** Format: double */
             outstanding: number;
+            /** Format: int32 */
+            rowVersion: number;
             origin: string;
             lines: components["schemas"]["InvoiceLineDetail"][];
         };
+        InvoiceEditedResponse: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: double */
+            total: number;
+            /** Format: double */
+            outstanding: number;
+            /** Format: int32 */
+            versionNo: number;
+        };
         InvoiceLineDetail: {
+            /** Format: int64 */
+            id?: number | null;
             /** Format: int64 */
             itemId?: number | null;
             itemCode?: string | null;
@@ -4248,6 +4401,8 @@ export interface components {
             flaggedCount: number;
             /** Format: int32 */
             defectCount: number;
+            /** Format: date */
+            asAt: string;
             rows: components["schemas"]["OutstandingRow"][];
         };
         OutstandingRow: {

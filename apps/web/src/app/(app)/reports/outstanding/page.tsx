@@ -26,20 +26,26 @@ import {
   type CompanyFilter,
   type OutstandingRow,
 } from "@/lib/reports";
+import { today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, downloadExcel, type ColumnDef } from "@/components/data-table";
-import { ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
-import { AnimatedNumber, Badge, Button, Dialog, ErrorBanner, FadeIn, toast } from "@/components/ui";
+import { ReportFilterBar, StatTile, formatMoney, formatReportDate } from "@/components/reports";
+import { AnimatedNumber, Badge, Button, Dialog, ErrorBanner, FadeIn, Input, toast } from "@/components/ui";
 
 export default function OutstandingReportPage() {
   const [company, setCompany] = useState<CompanyFilter>("all");
+  const [asAt, setAsAt] = useState(today);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [exportingSelected, setExportingSelected] = useState(false);
 
+  // Today is the live figure; a past date rolls the balances back to what was owed then.
+  const todayStr = today();
+  const isHistorical = asAt < todayStr;
+
   const report = useQuery({
-    queryKey: ["outstanding-report", company],
-    queryFn: () => getOutstandingReport(company),
+    queryKey: ["outstanding-report", company, asAt],
+    queryFn: () => getOutstandingReport(company, asAt),
   });
 
   // Changing company changes which customers exist, so a carried-over selection would be stale —
@@ -109,7 +115,24 @@ export default function OutstandingReportPage() {
         description="What customers owe, aged from the invoice date, for the company you are working in."
       />
 
-      <ReportFilterBar company={company} onCompany={changeCompany} showDates={false} />
+      <div className="flex flex-wrap items-end gap-4">
+        <ReportFilterBar company={company} onCompany={changeCompany} showDates={false} />
+        <div className="w-44">
+          <Input
+            label="As at"
+            type="date"
+            value={asAt}
+            max={todayStr}
+            onChange={(e) => setAsAt(e.target.value || todayStr)}
+          />
+        </div>
+        {isHistorical && (
+          <p className="pb-2 text-sm text-muted">
+            Showing what was owed on {data ? formatReportDate(data.asAt) : formatReportDate(asAt)} — later
+            payments added back, invoices raised after excluded.
+          </p>
+        )}
+      </div>
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
@@ -153,8 +176,8 @@ export default function OutstandingReportPage() {
         defaultSort={{ id: "outstanding", desc: true }}
         searchable={(r) => `${r.customerName} ${r.customerCode}`}
         searchPlaceholder="Search customers…"
-        exportUrl={outstandingReportExportUrl(company)}
-        exportFilename="outstanding.xlsx"
+        exportUrl={outstandingReportExportUrl(company, asAt)}
+        exportFilename={`outstanding-${asAt}.xlsx`}
         actions={
           <>
             <Button size="sm" disabled={selected.size === 0} onClick={() => setConfirming(true)}>
@@ -170,7 +193,7 @@ export default function OutstandingReportPage() {
               onClick={async () => {
                 setExportingSelected(true);
                 try {
-                  await downloadExcel(outstandingDetailExportUrl(company, [...selected]), "outstanding-detail.xlsx");
+                  await downloadExcel(outstandingDetailExportUrl(company, [...selected], asAt), `outstanding-detail-${asAt}.xlsx`);
                 } catch {
                   toast.error("The export failed.");
                 } finally {

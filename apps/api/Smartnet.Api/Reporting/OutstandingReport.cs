@@ -19,14 +19,24 @@ namespace Smartnet.Api.Reporting;
 /// </remarks>
 public static class OutstandingReport
 {
+    /// <param name="asOf">
+    /// The date the outstanding is reconstructed as of. Today gives the live figure (the stored balance,
+    /// nothing added back); a past date rolls each invoice back to what it owed then — see <paramref name="paidAfter"/>.
+    /// </param>
+    /// <param name="paidAfter">
+    /// Per invoice number, the sum of payments recorded <b>after</b> <paramref name="asOf"/>. Added back to
+    /// the stored balance so the figure is what was owed on that date, before those later payments. Empty for
+    /// an as-of of today (nothing is paid after today), which keeps the live report exactly as it was.
+    /// </param>
     public static OutstandingResponse Build(
         IReadOnlyList<InvoiceH> invoices,
         IReadOnlyDictionary<string, string> customerNames,
-        DateOnly asOf)
+        DateOnly asOf,
+        IReadOnlyDictionary<string, decimal> paidAfter)
     {
         var rows = invoices
             .GroupBy(h => h.Customer ?? string.Empty, StringComparer.Ordinal)
-            .Select(g => Row(g.Key, g.ToList(), customerNames, asOf))
+            .Select(g => Row(g.Key, g.ToList(), customerNames, asOf, paidAfter))
             // A customer belongs on an outstanding report if they owe something — or if a defect is
             // distorting their figure (a negative-balance invoice), which is worth surfacing even at 0.
             .Where(r => r.Outstanding > 0m || r.HasDefect)
@@ -43,7 +53,28 @@ public static class OutstandingReport
             CustomerCount: rows.Count,
             FlaggedCount: rows.Count(r => r.HasDataIssue),
             DefectCount: rows.Count(r => r.HasDefect),
+            AsAt: asOf,
             Rows: rows);
+    }
+
+    /// <summary>
+    /// An invoice's balance as of <paramref name="asOf"/>: the stored balance plus any payment recorded after
+    /// that date (rolled back), or null when the invoice had not been issued yet (it does not belong on the
+    /// as-of report at all). Aging is relative to <paramref name="asOf"/>.
+    /// </summary>
+    private static decimal? BalanceAsOf(InvoiceH h, DateOnly asOf, IReadOnlyDictionary<string, decimal> paidAfter, out bool balanceOk)
+    {
+        var stored = LegacyValue.Money(h.Balance, out balanceOk);
+
+        // Not yet issued as of the date → not on the report.
+        var date = LegacyValue.Date(h.Indate);
+        if (date is { } d && d > asOf)
+        {
+            return null;
+        }
+
+        var addBack = h.Invoiceno is { } no ? paidAfter.GetValueOrDefault(no) : 0m;
+        return stored + addBack;
     }
 
     /// <summary>
@@ -54,21 +85,29 @@ public static class OutstandingReport
     public static IReadOnlyList<OutstandingDetailRow> Detail(
         IReadOnlyList<InvoiceH> invoices,
         IReadOnlyDictionary<string, string> names,
-        DateOnly asOf) =>
+        DateOnly asOf,
+        IReadOnlyDictionary<string, decimal> paidAfter) =>
         invoices
-            .Select(h => DetailRow(h, names, asOf))
-            .Where(r => r.Balance > 0m)
+            .Select(h => DetailRow(h, names, asOf, paidAfter))
+            .Where(r => r is not null && r.Balance > 0m)
+            .Select(r => r!)
             .OrderBy(r => r.CustomerName, StringComparer.OrdinalIgnoreCase)
             .ThenByDescending(r => r.Days)
             .ToList();
 
-    private static OutstandingDetailRow DetailRow(
+    private static OutstandingDetailRow? DetailRow(
         InvoiceH h,
         IReadOnlyDictionary<string, string> names,
-        DateOnly asOf)
+        DateOnly asOf,
+        IReadOnlyDictionary<string, decimal> paidAfter)
     {
         var total = LegacyValue.Money(h.Totamount, out var totalOk);
-        var balance = LegacyValue.Money(h.Balance, out var balanceOk);
+
+        // The balance as of the date; null means the invoice had not been issued yet — drop it.
+        if (BalanceAsOf(h, asOf, paidAfter, out var balanceOk) is not { } balance)
+        {
+            return null;
+        }
 
         var date = LegacyValue.Date(h.Indate);
         var dateOk = string.IsNullOrWhiteSpace(h.Indate) || date is not null;
@@ -93,7 +132,8 @@ public static class OutstandingReport
         string code,
         List<InvoiceH> invoices,
         IReadOnlyDictionary<string, string> names,
-        DateOnly asOf)
+        DateOnly asOf,
+        IReadOnlyDictionary<string, decimal> paidAfter)
     {
         decimal outstanding = 0m, current = 0m, days30 = 0m, days60 = 0m, days90 = 0m;
         var oldest = 0;
@@ -103,7 +143,12 @@ public static class OutstandingReport
 
         foreach (var h in invoices)
         {
-            var balance = LegacyValue.Money(h.Balance, out var balanceOk);
+            // The balance as of the date; null means it had not been issued yet — it is not on this report.
+            if (BalanceAsOf(h, asOf, paidAfter, out var balanceOk) is not { } balance)
+            {
+                continue;
+            }
+
             if (!balanceOk)
             {
                 issue = true;

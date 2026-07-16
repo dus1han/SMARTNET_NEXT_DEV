@@ -161,19 +161,23 @@ export const supplierPaymentReportExportUrl = (period: ReportPeriod, company: Co
 export const getReportSuppliers = () => api<SupplierOption[]>("/api/reports/suppliers");
 
 // --- Customer outstanding (customer_outstanding) ---------------------------------------------
-// Point-in-time (no date window) — only the company filter applies.
+// Point-in-time — the company filter and an "as at" date. The date defaults to today (the live figure);
+// a past date rolls the balances back to what was owed then. `asAt` is a YYYY-MM-DD string, or undefined
+// for today.
 
-export const getOutstandingReport = (company: CompanyFilter) =>
-  api<OutstandingResponse>(`/api/reports/outstanding${periodQuery({}, { company: companyParam(company) })}`);
+export const getOutstandingReport = (company: CompanyFilter, asAt?: string) =>
+  api<OutstandingResponse>(
+    `/api/reports/outstanding${periodQuery({}, { company: companyParam(company), asAt })}`,
+  );
 
-export const outstandingReportExportUrl = (company: CompanyFilter) =>
-  `/api/reports/outstanding/export${periodQuery({}, { company: companyParam(company) })}`;
+export const outstandingReportExportUrl = (company: CompanyFilter, asAt?: string) =>
+  `/api/reports/outstanding/export${periodQuery({}, { company: companyParam(company), asAt })}`;
 
 /** The per-invoice outstanding list for the selected customers — the "export selected" sheet. */
-export const outstandingDetailExportUrl = (company: CompanyFilter, customers: string[]) =>
+export const outstandingDetailExportUrl = (company: CompanyFilter, customers: string[], asAt?: string) =>
   `/api/reports/outstanding/detail/export${periodQuery(
     {},
-    { company: companyParam(company), customers: customers.join(",") || undefined },
+    { company: companyParam(company), customers: customers.join(",") || undefined, asAt },
   )}`;
 
 // --- Bulk dunning (the one write) ------------------------------------------------------------

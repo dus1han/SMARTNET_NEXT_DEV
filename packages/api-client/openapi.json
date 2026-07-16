@@ -1093,6 +1093,121 @@
             }
           }
         }
+      },
+      "put": {
+        "tags": [
+          "Invoices"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EditInvoiceRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EditInvoiceRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EditInvoiceRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceEditedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceEditedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceEditedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Invoices"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "expectedRowVersion",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDeleted"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDeleted"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDeleted"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/invoices/tax-rate": {
@@ -1182,6 +1297,44 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreditStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/invoices/deleted": {
+      "get": {
+        "tags": [
+          "Invoices"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeletedInvoiceSummary"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeletedInvoiceSummary"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeletedInvoiceSummary"
+                  }
                 }
               }
             }
@@ -2894,6 +3047,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
           }
         ],
         "responses": {
@@ -2932,6 +3093,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
           }
         ],
         "responses": {
@@ -2959,6 +3128,14 @@
             "in": "query",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "asAt",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
             }
           }
         ],
@@ -5535,6 +5712,50 @@
         },
         "additionalProperties": false
       },
+      "DeletedInvoiceSummary": {
+        "required": [
+          "date",
+          "deletedAt",
+          "id",
+          "number",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "customerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deletedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "DocumentSeriesDto": {
         "required": [
           "docType",
@@ -5705,6 +5926,85 @@
         },
         "additionalProperties": false
       },
+      "EditInvoiceLineRequest": {
+        "required": [
+          "discountPercent",
+          "quantity",
+          "unitPrice"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "itemId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "itemCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "unitPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "discountPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "cost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EditInvoiceRequest": {
+        "required": [
+          "documentDiscountPercent",
+          "expectedRowVersion",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRowVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "purchaseOrderNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "contactPerson": {
+            "type": "string",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EditInvoiceLineRequest"
+            }
+          },
+          "documentDiscountPercent": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
       "EmailTemplateDto": {
         "required": [
           "body",
@@ -5851,6 +6151,23 @@
         },
         "additionalProperties": false
       },
+      "InvoiceDeleted": {
+        "required": [
+          "id",
+          "number"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "InvoiceDetail": {
         "required": [
           "date",
@@ -5862,6 +6179,7 @@
           "number",
           "origin",
           "outstanding",
+          "rowVersion",
           "subtotal",
           "taxAmount",
           "taxRatePercentage",
@@ -5935,6 +6253,10 @@
             "type": "number",
             "format": "double"
           },
+          "rowVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
           "origin": {
             "type": "string"
           },
@@ -5943,6 +6265,38 @@
             "items": {
               "$ref": "#/components/schemas/InvoiceLineDetail"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvoiceEditedResponse": {
+        "required": [
+          "id",
+          "number",
+          "outstanding",
+          "total",
+          "versionNo"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "outstanding": {
+            "type": "number",
+            "format": "double"
+          },
+          "versionNo": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -5957,6 +6311,11 @@
         ],
         "type": "object",
         "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
           "itemId": {
             "type": "integer",
             "format": "int64",
@@ -6403,6 +6762,7 @@
       },
       "OutstandingResponse": {
         "required": [
+          "asAt",
           "customerCount",
           "defectCount",
           "flaggedCount",
@@ -6446,6 +6806,10 @@
           "defectCount": {
             "type": "integer",
             "format": "int32"
+          },
+          "asAt": {
+            "type": "string",
+            "format": "date"
           },
           "rows": {
             "type": "array",
