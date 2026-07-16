@@ -142,6 +142,14 @@ export type PurchaseOrderCreatedResponse = Schemas["PurchaseOrderCreatedResponse
 export type PurchaseOrderSummary = Schemas["PurchaseOrderSummary"];
 export type PurchaseOrderDetail = Schemas["PurchaseOrderDetail"];
 
+export type CreateSupplierInvoiceRequest = Schemas["CreateSupplierInvoiceRequest"];
+export type SupplierInvoiceCreatedResponse = Schemas["SupplierInvoiceCreatedResponse"];
+export type SupplierInvoiceSummary = Schemas["SupplierInvoiceSummary"];
+export type SupplierInvoiceDetail = Schemas["SupplierInvoiceDetail"];
+export type SupplierInvoicePaymentLine = Schemas["SupplierInvoicePaymentLine"];
+export type RecordSupplierPaymentRequest = Schemas["RecordSupplierPaymentRequest"];
+export type SupplierPaymentRecordedResponse = Schemas["SupplierPaymentRecordedResponse"];
+
 // --- History ---------------------------------------------------------------------------------
 
 export type AuditEntry = Schemas["AuditEntry"];

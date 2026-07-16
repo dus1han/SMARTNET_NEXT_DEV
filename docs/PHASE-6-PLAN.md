@@ -280,6 +280,25 @@ full API suite **401 passed**; web `tsc --noEmit` and `eslint` clean.)*
 **derived** balance to zero and the invoice shows Paid; a legacy pending invoice appears as an opening
 balance; delete reverses the payable and is recoverable. Proven by tests.
 
+*(Built and tested. **Payables ledger** — `PayablesLedgerEntry` (`SupplierId`, `Type ∈ {OpeningBalance,
+Purchase, Payment}`, signed `decimal`), `IPayablesLedger.BalanceForSupplierAsync`/`OutstandingForInvoiceAsync`
+(Σ entries), `payables_ledger` via `CreateTable` — the exact mirror of the receivables ledger; a
+`Phase6SeedSupplierOpeningBalances` migration imports the legacy pending amounts verbatim. **Adoption** —
+`supplier_invoice` already had an `int id` under a non-unique KEY (Finding 6), so the hand-written
+`Phase6SupplierInvoicesAndPayables` migration **promotes it to a `bigint` primary key** rather than adding
+one, and adds the typed columns beside the legacy varchars; `LegacySchema` gained the full `supplier_invoice`
++ `supplier_inv_pay` shapes, and the legacy `SupplierInvoice` read-model `id`/`data_origin`. **Service**
+(`SupplierInvoiceService`, both `ISupplierInvoiceCreator` + `ISupplierInvoicePayments`): create posts a
+`Purchase` + v1 snapshot; a payment posts a `Payment` (dual-writing a `supplier_inv_pay` row + flipping
+`paymentstat` to Paid at `Σ=0`) and refuses an over-payment; a void reverses the payable to zero through a
+compensating entry and soft-deletes — not the legacy orphaning hard-delete. **API** — `SupplierInvoicesController`
+(list & read, new + legacy with derived outstanding/status; create; record-payment; reason-gated void),
+contracts + validators. **Web** — a `SupplierInvoices` lib + the list (Amount/Outstanding right-aligned,
+Pending/Paid badge), a header-only new form (net/VAT/amount with a suggested gross), and a read view with a
+**record-payment** dialog and a reason-gated **void**; the nav item added. Four integration tests green
+(payable, two partial payments → derived zero + Paid + dual-written rows, over-payment refused, void
+reversal); full API suite **407**; web `tsc`/`eslint` clean.)*
+
 ---
 
 ## Slice 3 — Job cards · ~0.75 week · *structured serial lines + a guarded workflow*

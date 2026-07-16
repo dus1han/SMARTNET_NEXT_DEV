@@ -489,6 +489,80 @@ public sealed record PurchaseOrderDetail(
     string Origin,
     IReadOnlyList<InvoiceLineDetail> Lines);
 
+// --- Supplier invoices (Phase 6, slice 2) -------------------------------------------------------
+
+/// <summary>
+/// A new supplier invoice — a header-only accounts-payable record. The user enters the supplier's own
+/// reference and the figures they billed (no line items, no tax engine — the supplier's numbers).
+/// </summary>
+public sealed record CreateSupplierInvoiceRequest(
+    long CompanyId,
+    long SupplierId,
+    string? SupplierReference,
+    DateOnly Date,
+    decimal NetTotal,
+    decimal TaxRatePercentage,
+    decimal Amount);
+
+public sealed record SupplierInvoiceCreatedResponse(long Id, string? SupplierReference, decimal Amount);
+
+/// <summary>One row of the supplier-invoice list. <see cref="Outstanding"/> and <see cref="Status"/> are derived from the ledger.</summary>
+/// <param name="Origin"><c>new</c> for one this app raised; <c>legacy</c> for one adopted from the old system.</param>
+public sealed record SupplierInvoiceSummary(
+    long Id,
+    string? SupplierReference,
+    DateOnly Date,
+    string? SupplierName,
+    decimal Amount,
+    decimal Outstanding,
+    string Status,
+    string Origin);
+
+/// <summary>A payment made against a supplier invoice — the derived payment history.</summary>
+public sealed record SupplierInvoicePaymentLine(DateOnly Date, decimal Amount, string? Method, string? Reference);
+
+/// <summary>One supplier invoice, in full — the read view, with its derived outstanding and payments.</summary>
+public sealed record SupplierInvoiceDetail(
+    long Id,
+    string? SupplierReference,
+    DateOnly Date,
+    string? CompanyName,
+    string? SupplierName,
+    string? SupplierCode,
+    decimal NetTotal,
+    decimal TaxRatePercentage,
+    decimal TaxAmount,
+    decimal Amount,
+    decimal Outstanding,
+    string Status,
+    int RowVersion,
+    string Origin,
+    IReadOnlyList<SupplierInvoicePaymentLine> Payments);
+
+/// <summary>A payment against a supplier invoice — part or all of what is outstanding.</summary>
+public sealed record RecordSupplierPaymentRequest(decimal Amount, DateOnly Date, string? Method, string? Reference);
+
+public sealed record SupplierPaymentRecordedResponse(long SupplierInvoiceId, decimal AmountPaid, decimal Outstanding);
+
+/// <summary>Server-side validation for a new supplier invoice — supplier/company required, money non-negative.</summary>
+public sealed class CreateSupplierInvoiceRequestValidator : AbstractValidator<CreateSupplierInvoiceRequest>
+{
+    public CreateSupplierInvoiceRequestValidator()
+    {
+        RuleFor(r => r.CompanyId).GreaterThan(0);
+        RuleFor(r => r.SupplierId).GreaterThan(0);
+        RuleFor(r => r.Amount).GreaterThan(0m).WithMessage("A supplier invoice needs an amount.");
+        RuleFor(r => r.NetTotal).GreaterThanOrEqualTo(0m);
+        RuleFor(r => r.TaxRatePercentage).InclusiveBetween(0m, 100m);
+    }
+}
+
+/// <summary>Server-side validation for a supplier payment — a positive amount.</summary>
+public sealed class RecordSupplierPaymentRequestValidator : AbstractValidator<RecordSupplierPaymentRequest>
+{
+    public RecordSupplierPaymentRequestValidator() => RuleFor(r => r.Amount).GreaterThan(0m);
+}
+
 /// <summary>Server-side validation for a new purchase order — the same line rules as an invoice.</summary>
 public sealed class CreatePurchaseOrderRequestValidator : AbstractValidator<CreatePurchaseOrderRequest>
 {

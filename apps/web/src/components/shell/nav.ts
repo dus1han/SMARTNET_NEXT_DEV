@@ -3,6 +3,7 @@ import {
   BarChart3,
   Building2,
   FileMinus,
+  FileStack,
   FileText,
   FlaskConical,
   HandCoins,
@@ -68,6 +69,7 @@ export const NAVIGATION: NavSection[] = [
     title: "Purchasing",
     items: [
       { href: "/purchase-orders", label: "Purchase orders", icon: ShoppingCart, permission: "purchaseorder" },
+      { href: "/supplier-invoices", label: "Supplier invoices", icon: FileStack, permission: "supplier_in" },
     ],
   },
   {

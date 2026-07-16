@@ -3469,6 +3469,175 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/supplier-invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SupplierInvoiceSummary"][];
+                        "application/json": components["schemas"]["SupplierInvoiceSummary"][];
+                        "text/json": components["schemas"]["SupplierInvoiceSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateSupplierInvoiceRequest"];
+                    "text/json": components["schemas"]["CreateSupplierInvoiceRequest"];
+                    "application/*+json": components["schemas"]["CreateSupplierInvoiceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SupplierInvoiceCreatedResponse"];
+                        "application/json": components["schemas"]["SupplierInvoiceCreatedResponse"];
+                        "text/json": components["schemas"]["SupplierInvoiceCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/supplier-invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SupplierInvoiceDetail"];
+                        "application/json": components["schemas"]["SupplierInvoiceDetail"];
+                        "text/json": components["schemas"]["SupplierInvoiceDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/supplier-invoices/{id}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["RecordSupplierPaymentRequest"];
+                    "text/json": components["schemas"]["RecordSupplierPaymentRequest"];
+                    "application/*+json": components["schemas"]["RecordSupplierPaymentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SupplierPaymentRecordedResponse"];
+                        "application/json": components["schemas"]["SupplierPaymentRecordedResponse"];
+                        "text/json": components["schemas"]["SupplierPaymentRecordedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/suppliers": {
         parameters: {
             query?: never;
@@ -4137,6 +4306,21 @@ export interface components {
             reason: string;
             /** Format: date-time */
             occurredAt?: string | null;
+        };
+        CreateSupplierInvoiceRequest: {
+            /** Format: int64 */
+            companyId: number;
+            /** Format: int64 */
+            supplierId: number;
+            supplierReference?: string | null;
+            /** Format: date */
+            date: string;
+            /** Format: double */
+            netTotal: number;
+            /** Format: double */
+            taxRatePercentage: number;
+            /** Format: double */
+            amount: number;
         };
         CreateSupplierResponse: {
             /** Format: int64 */
@@ -4873,6 +5057,14 @@ export interface components {
             /** Format: int32 */
             total: number;
         };
+        RecordSupplierPaymentRequest: {
+            /** Format: double */
+            amount: number;
+            /** Format: date */
+            date: string;
+            method?: string | null;
+            reference?: string | null;
+        };
         ResetPasswordResponse: {
             temporaryPassword: string;
         };
@@ -5055,9 +5247,71 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        SupplierInvoiceCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            supplierReference?: string | null;
+            /** Format: double */
+            amount: number;
+        };
+        SupplierInvoiceDetail: {
+            /** Format: int64 */
+            id: number;
+            supplierReference?: string | null;
+            /** Format: date */
+            date: string;
+            companyName?: string | null;
+            supplierName?: string | null;
+            supplierCode?: string | null;
+            /** Format: double */
+            netTotal: number;
+            /** Format: double */
+            taxRatePercentage: number;
+            /** Format: double */
+            taxAmount: number;
+            /** Format: double */
+            amount: number;
+            /** Format: double */
+            outstanding: number;
+            status: string;
+            /** Format: int32 */
+            rowVersion: number;
+            origin: string;
+            payments: components["schemas"]["SupplierInvoicePaymentLine"][];
+        };
+        SupplierInvoicePaymentLine: {
+            /** Format: date */
+            date: string;
+            /** Format: double */
+            amount: number;
+            method?: string | null;
+            reference?: string | null;
+        };
+        SupplierInvoiceSummary: {
+            /** Format: int64 */
+            id: number;
+            supplierReference?: string | null;
+            /** Format: date */
+            date: string;
+            supplierName?: string | null;
+            /** Format: double */
+            amount: number;
+            /** Format: double */
+            outstanding: number;
+            status: string;
+            origin: string;
+        };
         SupplierOption: {
             code: string;
             name: string;
+        };
+        SupplierPaymentRecordedResponse: {
+            /** Format: int64 */
+            supplierInvoiceId: number;
+            /** Format: double */
+            amountPaid: number;
+            /** Format: double */
+            outstanding: number;
         };
         SupplierPaymentResponse: {
             /** Format: double */
