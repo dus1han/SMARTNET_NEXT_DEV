@@ -47,6 +47,14 @@ public static class DependencyInjection
         // (opposite sign) and, where goods are returned, a stock receipt, at the parent invoice's rate.
         services.AddScoped<ICreditNoteCreator, CreditNoteCreator>();
 
+        // The versioned, reason-gated, concurrency-guarded invoice edit (Phase 5, slice 5): re-tax at the
+        // snapshot rate, reconcile lines in place, write a new version, adjust the ledger by a delta.
+        services.AddScoped<IInvoiceEditor, InvoiceEditor>();
+
+        // The soft, recoverable, attributable invoice delete (Phase 5, slice 5): reverse the ledger and
+        // stock through new entries, then soft-delete — never erase.
+        services.AddScoped<IInvoiceDeleter, InvoiceDeleter>();
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));

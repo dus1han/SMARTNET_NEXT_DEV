@@ -35,6 +35,47 @@ public sealed record CreateInvoiceLineRequest(
 public sealed record InvoiceCreatedResponse(long Id, string Number, decimal Total, decimal Outstanding);
 
 /// <summary>
+/// An edit to an issued invoice. The lines carry an <see cref="EditInvoiceLineRequest.Id"/> so the change
+/// is reconciled in place, not by deleting and re-inserting. Company, customer, type and date are not
+/// editable — those are the invoice's identity. A reason (<c>X-Change-Reason</c>) is required by the endpoint.
+/// </summary>
+public sealed record EditInvoiceRequest(
+    // The row_version loaded with the invoice, echoed back so a concurrent edit is rejected (409).
+    int ExpectedRowVersion,
+    string? PurchaseOrderNo,
+    string? ContactPerson,
+    IReadOnlyList<EditInvoiceLineRequest> Lines,
+    decimal DocumentDiscountPercent = 0m);
+
+/// <param name="Id">The existing line this maps to, or null for a line the edit adds.</param>
+public sealed record EditInvoiceLineRequest(
+    long? Id,
+    long? ItemId,
+    string? ItemCode,
+    string? Description,
+    decimal Quantity,
+    decimal UnitPrice,
+    decimal DiscountPercent,
+    decimal? Cost);
+
+/// <summary>What an edit returns — the new figures, the derived outstanding, and the version it wrote.</summary>
+public sealed record InvoiceEditedResponse(long Id, string Number, decimal Total, decimal Outstanding, int VersionNo);
+
+/// <summary>
+/// One row of the deleted-invoice register — the new-side replacement for the legacy
+/// <c>DeletedInvoicesController</c>. A soft-deleted invoice, with who voided it, when, and why.
+/// </summary>
+public sealed record DeletedInvoiceSummary(
+    long Id,
+    string Number,
+    DateOnly Date,
+    string? CustomerName,
+    decimal Total,
+    DateTime DeletedAt,
+    string? DeletedByName,
+    string? Reason);
+
+/// <summary>
 /// A customer's credit standing, for the New Invoice screen's advisory. <see cref="Outstanding"/> is the
 /// derived ledger balance (the same figure the server-side gate measures against); <see cref="Enforced"/>
 /// is whether the company hard-blocks a breach at save. <see cref="CreditLimit"/> of 0 means "no limit".
@@ -64,7 +105,12 @@ public sealed record InvoiceSummary(
     decimal Outstanding,
     string Origin);
 
+/// <param name="Id">
+/// The line's surrogate id, for an edit to reconcile against (new invoice lines only). Null for a legacy
+/// line or a quotation/credit-note line, which are not edited through the invoice editor.
+/// </param>
 public sealed record InvoiceLineDetail(
+    long? Id,
     long? ItemId,
     string? ItemCode,
     string? Description,
@@ -105,6 +151,9 @@ public sealed record InvoiceDetail(
     decimal TaxAmount,
     decimal Total,
     decimal Outstanding,
+    // The row_version the edit screen loads and sends back, so a concurrent edit is rejected rather than
+    // silently overwritten. 0 for a legacy invoice (which the new editor does not touch).
+    int RowVersion,
     string Origin,
     IReadOnlyList<InvoiceLineDetail> Lines);
 
@@ -194,6 +243,27 @@ public sealed class CreateInvoiceRequestValidator : AbstractValidator<CreateInvo
 
             // A line is either an item line (carries an item) or a service line (carries a description).
             // The legacy bug was an item invoice that kept neither — see InvoiceLine.
+            line.RuleFor(l => l)
+                .Must(l => l.ItemId is not null || !string.IsNullOrWhiteSpace(l.Description))
+                .WithMessage("A line must reference an item or carry a description.");
+        });
+    }
+}
+
+/// <summary>Server-side validation for an invoice edit — the same line rules as a create.</summary>
+public sealed class EditInvoiceRequestValidator : AbstractValidator<EditInvoiceRequest>
+{
+    public EditInvoiceRequestValidator()
+    {
+        RuleFor(r => r.DocumentDiscountPercent).InclusiveBetween(0m, 100m);
+        RuleFor(r => r.Lines).NotEmpty().WithMessage("An invoice needs at least one line.");
+
+        RuleForEach(r => r.Lines).ChildRules(line =>
+        {
+            line.RuleFor(l => l.Quantity).GreaterThan(0);
+            line.RuleFor(l => l.UnitPrice).GreaterThanOrEqualTo(0);
+            line.RuleFor(l => l.DiscountPercent).InclusiveBetween(0m, 100m);
+
             line.RuleFor(l => l)
                 .Must(l => l.ItemId is not null || !string.IsNullOrWhiteSpace(l.Description))
                 .WithMessage("A line must reference an item or carry a description.");

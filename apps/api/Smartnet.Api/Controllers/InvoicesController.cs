@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Smartnet.Api.Auditing;
 using Smartnet.Api.Auth;
 using Smartnet.Api.Contracts;
+using Smartnet.Domain.Auditing;
 using System.Globalization;
 using Smartnet.Domain.Documents;
 using Smartnet.Domain.Identity;
@@ -26,6 +28,8 @@ namespace Smartnet.Api.Controllers;
 public sealed class InvoicesController : ControllerBase
 {
     private readonly IInvoiceCreator _creator;
+    private readonly IInvoiceEditor _editor;
+    private readonly IInvoiceDeleter _deleter;
     private readonly ICompanyContext _company;
     private readonly SmartnetDbContext _db;
     private readonly SmartnetLegacyDbContext _legacy;
@@ -35,6 +39,8 @@ public sealed class InvoicesController : ControllerBase
 
     public InvoicesController(
         IInvoiceCreator creator,
+        IInvoiceEditor editor,
+        IInvoiceDeleter deleter,
         ICompanyContext company,
         SmartnetDbContext db,
         SmartnetLegacyDbContext legacy,
@@ -43,6 +49,8 @@ public sealed class InvoicesController : ControllerBase
         IBusinessRuleReader rules)
     {
         _creator = creator;
+        _editor = editor;
+        _deleter = deleter;
         _company = company;
         _db = db;
         _legacy = legacy;
@@ -192,9 +200,10 @@ public sealed class InvoicesController : ControllerBase
             invoice.TaxAmount,
             invoice.Total,
             outstanding,
+            invoice.RowVersion,
             "new",
             [.. invoice.Lines.Select(l => new InvoiceLineDetail(
-                l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
+                l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
     }
 
     /// <summary>
@@ -259,8 +268,10 @@ public sealed class InvoicesController : ControllerBase
             total - net, // tax = grand total less the pre-VAT net
             total,
             LegacyValue.Money(h.Balance),
+            0, // a legacy invoice has no new-side row_version; it is not edited through the new editor
             "legacy",
             [.. lines.Select(l => new InvoiceLineDetail(
+                null,
                 null,
                 l.Itemcode,
                 l.Desc,
@@ -411,5 +422,169 @@ public sealed class InvoicesController : ControllerBase
         }
 
         return Ok(new InvoiceCreatedResponse(created.Id, created.Number, created.Total, created.Outstanding));
+    }
+
+    /// <summary>
+    /// Edit an issued invoice — versioned, reason-gated, concurrency-guarded (Phase 5, slice 5).
+    /// </summary>
+    /// <remarks>
+    /// A reason is mandatory (<see cref="RequireChangeReasonAttribute"/>, AUDIT.md §5) — editing money is
+    /// exactly the change the audit trail exists to explain. Only a <c>new</c> invoice this app owns is
+    /// editable; a legacy row is read-only. A stale <c>ExpectedRowVersion</c> — someone else edited it since
+    /// the screen loaded — is a 409, not a silent overwrite (the legacy last-write-wins bug).
+    /// </remarks>
+    [HttpPut("{id:long}")]
+    [RequirePermission(Permissions.ItemInvoice)]
+    [RequireChangeReason]
+    public async Task<ActionResult<InvoiceEditedResponse>> Edit(
+        long id,
+        EditInvoiceRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Only this app's own invoices are editable, and only in a company the caller may act in.
+        var companyId = await _db.Invoices
+            .Where(i => i.Id == id)
+            .Select(i => i.CompanyId)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (companyId is null || !_company.Accessible.Contains(companyId.Value))
+        {
+            return NotFound();
+        }
+
+        InvoiceEdited edited;
+        try
+        {
+            edited = await _editor.EditAsync(
+                id,
+                new EditInvoice(
+                    request.ExpectedRowVersion,
+                    request.PurchaseOrderNo,
+                    request.ContactPerson,
+                    request.DocumentDiscountPercent,
+                    [.. request.Lines.Select(l => new EditInvoiceLine(
+                        l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))]),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The invoice moved under the editor since the screen loaded it. Tell them to reload rather than
+            // clobber the other change.
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "This invoice was changed by someone else while you were editing it. Reload and try again.");
+        }
+        catch (InvoiceHasPaymentsException paid)
+        {
+            // A paid invoice cannot be edited — the payment must be deleted first (a Phase 7 action). A code
+            // lets the screen tell this refusal from a concurrency conflict.
+            var problem = new ProblemDetails { Status = StatusCodes.Status409Conflict, Title = paid.Message };
+            problem.Extensions["code"] = "invoice_has_payments";
+            return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
+        }
+
+        return Ok(new InvoiceEditedResponse(edited.Id, edited.Number, edited.Total, edited.Outstanding, edited.VersionNo));
+    }
+
+    /// <summary>
+    /// Void an issued invoice — soft, recoverable, attributable (Phase 5, slice 5).
+    /// </summary>
+    /// <remarks>
+    /// Reason-gated (AUDIT.md §5) and <c>row_version</c>-guarded. Nothing is hard-deleted: the invoice and
+    /// its lines are soft-deleted, its ledger and stock effects reversed through <b>new</b> entries. The
+    /// broken legacy <c>delCN</c> is not ported — this is its correct replacement.
+    /// </remarks>
+    [HttpDelete("{id:long}")]
+    [RequirePermission(Permissions.ItemInvoice)]
+    [RequireChangeReason]
+    public async Task<ActionResult<InvoiceDeleted>> Delete(
+        long id,
+        [FromQuery] int expectedRowVersion,
+        CancellationToken cancellationToken)
+    {
+        var companyId = await _db.Invoices
+            .Where(i => i.Id == id)
+            .Select(i => i.CompanyId)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (companyId is null || !_company.Accessible.Contains(companyId.Value))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var deleted = await _deleter.DeleteAsync(id, expectedRowVersion, cancellationToken).ConfigureAwait(false);
+            return Ok(deleted);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "This invoice was changed by someone else. Reload and try again.");
+        }
+    }
+
+    /// <summary>
+    /// The deleted-invoice register — the new-side replacement for the legacy DeletedInvoicesController.
+    /// </summary>
+    /// <remarks>
+    /// Soft-deleted invoices, newest deletion first, with who voided each, when and why (the reason from the
+    /// audit trail). Gated by <see cref="Permissions.DeletedInvoices"/> — seeing voided documents is its own
+    /// right, as it was in the legacy app.
+    /// </remarks>
+    [HttpGet("deleted")]
+    [RequirePermission(Permissions.DeletedInvoices)]
+    public async Task<ActionResult<IReadOnlyList<DeletedInvoiceSummary>>> Deleted(CancellationToken cancellationToken)
+    {
+        var accessible = _company.Accessible.ToList();
+
+        // IgnoreQueryFilters drops the "not deleted" clause too, so re-assert data_origin and pick the
+        // soft-deleted ones.
+        var deleted = await _db.Invoices
+            .IgnoreQueryFilters()
+            .Where(i => i.DataOrigin == "new" && i.DeletedAt != null
+                && i.CompanyId != null && accessible.Contains(i.CompanyId.Value))
+            .Select(i => new { i.Id, i.Number, i.Date, i.CustomerId, i.Total, i.DeletedAt, i.DeletedBy })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var customerIds = deleted.Select(d => d.CustomerId).Distinct().ToList();
+        var customerNames = await _db.Customers
+            .Where(c => customerIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken)
+            .ConfigureAwait(false);
+
+        var userIds = deleted.Where(d => d.DeletedBy != null).Select(d => d.DeletedBy!.Value).Distinct().ToList();
+        var userNames = await _db.Users
+            .Where(u => userIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.Name ?? u.Username, cancellationToken)
+            .ConfigureAwait(false);
+
+        // The reason lives on the audit row the soft delete wrote — the latest Delete on each invoice.
+        var ids = deleted.Select(d => d.Id.ToString(CultureInfo.InvariantCulture)).ToList();
+        var reasons = (await _db.AuditLog
+            .Where(a => a.EntityType == "Invoice" && a.Action == AuditAction.Delete && ids.Contains(a.EntityId))
+            .OrderByDescending(a => a.ChangedAt)
+            .Select(a => new { a.EntityId, a.Reason })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false))
+            .GroupBy(a => a.EntityId)
+            .ToDictionary(g => g.Key, g => g.First().Reason);
+
+        return Ok(deleted
+            .OrderByDescending(d => d.DeletedAt)
+            .Select(d => new DeletedInvoiceSummary(
+                d.Id,
+                d.Number,
+                d.Date,
+                customerNames.GetValueOrDefault(d.CustomerId),
+                d.Total,
+                d.DeletedAt!.Value,
+                d.DeletedBy is { } uid ? userNames.GetValueOrDefault(uid) : null,
+                reasons.GetValueOrDefault(d.Id.ToString(CultureInfo.InvariantCulture))))
+            .ToList());
     }
 }

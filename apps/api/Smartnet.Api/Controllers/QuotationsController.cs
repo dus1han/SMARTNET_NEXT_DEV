@@ -174,7 +174,7 @@ public sealed class QuotationsController : ControllerBase
             convertedInvoiceNumber,
             "new",
             [.. quotation.Lines.Select(l => new InvoiceLineDetail(
-                l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
+                null, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
     }
 
     /// <summary>
@@ -246,6 +246,7 @@ public sealed class QuotationsController : ControllerBase
             convertedInvoiceNumber,
             "legacy",
             [.. lines.Select(l => new InvoiceLineDetail(
+                null,
                 null,
                 l.Itemcode,
                 l.Desc,
