@@ -1363,18 +1363,16 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .HasNoKey()
                 .ToTable("supplier_invoice");
 
-            entity.HasIndex(e => e.Id, "id");
-
             entity.Property(e => e.Amount)
                 .HasMaxLength(100)
                 .HasColumnName("amount");
             entity.Property(e => e.Company)
                 .HasMaxLength(100)
                 .HasColumnName("company");
-            entity.Property(e => e.Id)
-                .ValueGeneratedOnAdd()
-                .HasColumnType("int(100)")
-                .HasColumnName("id");
+            // Promoted to a bigint primary key by the Phase 6 adoption; the legacy/new discriminator added
+            // alongside so a legacy reader can exclude the new app's rows that share this table.
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.DataOrigin).HasMaxLength(16).HasColumnName("data_origin");
             entity.Property(e => e.Invdate)
                 .HasMaxLength(100)
                 .HasColumnName("invdate");

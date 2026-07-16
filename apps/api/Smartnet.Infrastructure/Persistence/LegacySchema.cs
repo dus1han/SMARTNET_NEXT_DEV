@@ -128,10 +128,15 @@ public static class LegacySchema
         // Already company-aware in the legacy schema, and numbers its own documents.
         Numbered("jobs_m", "jobno", company: true),
 
+        // supplier_invoice is now ADOPTED (Phase 6, slice 2). Like item_stock it already has an
+        // AUTO_INCREMENT `id` — but under a non-unique KEY, not a primary key (Finding 6) — which the
+        // adoption promotes; supplier_inv_pay (its payments) is retained for the dual-write.
+        SupplierInvoiceTable,
+        SupplierInvPayTable,
+
         // Company-aware but unnumbered by the legacy app.
         Document("cheques"),
         Document("expense_tr"),
-        Document("supplier_invoice"),
         Document("del_invoice_h"),
 
         // NOT company-aware: these hang off an invoice and inherit its company through invoiceno.
@@ -297,6 +302,45 @@ public static class LegacySchema
           `qty` varchar(100) DEFAULT NULL,
           `rate` varchar(100) DEFAULT NULL,
           `total` varchar(100) DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>supplier_invoice</c> in its full pre-adoption shape, faithful to the live scaffold. Like
+    /// <c>item_stock</c>, it has an <c>int</c> <c>id</c> that is AUTO_INCREMENT under a plain non-unique
+    /// <c>KEY</c> rather than a primary key (Finding 6) — which the Phase 6 adoption promotes to a
+    /// <c>bigint</c> primary key. Everything else is <c>varchar(100) DEFAULT NULL</c>.
+    /// </summary>
+    public const string SupplierInvoiceTable = """
+        CREATE TABLE `supplier_invoice` (
+          `id` int(100) NOT NULL AUTO_INCREMENT,
+          `invno` varchar(100) DEFAULT NULL,
+          `supcode` varchar(100) DEFAULT NULL,
+          `amount` varchar(100) DEFAULT NULL,
+          `paymentstat` varchar(100) DEFAULT NULL,
+          `invdate` varchar(100) DEFAULT NULL,
+          `company` varchar(100) DEFAULT NULL,
+          `novattotal` varchar(100) DEFAULT NULL,
+          `vtype` varchar(100) DEFAULT NULL,
+          `vper` varchar(100) DEFAULT NULL,
+          KEY `id` (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>supplier_inv_pay</c> — a supplier invoice's payments, retained for the dual-write. The same
+    /// AUTO_INCREMENT-under-a-KEY <c>id</c> pattern; <c>pay_method</c> is NOT NULL (per the live scaffold).
+    /// Not adopted as a new entity — the new app's payments live in the payables ledger and a row is
+    /// dual-written here for the surviving legacy readers.
+    /// </summary>
+    public const string SupplierInvPayTable = """
+        CREATE TABLE `supplier_inv_pay` (
+          `id` int(100) NOT NULL AUTO_INCREMENT,
+          `supinvid` varchar(100) DEFAULT NULL,
+          `paiddate` varchar(100) DEFAULT NULL,
+          `referenceno` varchar(100) DEFAULT NULL,
+          `pay_method` varchar(100) NOT NULL,
+          KEY `id` (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """;
 

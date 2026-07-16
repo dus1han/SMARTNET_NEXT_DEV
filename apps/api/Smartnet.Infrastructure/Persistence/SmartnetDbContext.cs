@@ -112,6 +112,12 @@ public class SmartnetDbContext : DbContext
     /// <summary>Purchase-order lines, on the adopted legacy <c>po_l</c>.</summary>
     public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
 
+    /// <summary>Supplier invoices, on the adopted legacy <c>supplier_invoice</c>. Header-only; the payable is the ledger.</summary>
+    public DbSet<SupplierInvoice> SupplierInvoices => Set<SupplierInvoice>();
+
+    /// <summary>The payables ledger. A supplier's balance is the sum of these — see <see cref="PayablesLedgerEntry"/>.</summary>
+    public DbSet<PayablesLedgerEntry> PayablesLedger => Set<PayablesLedgerEntry>();
+
     /// <summary>
     /// Wraps the save in a transaction so that the business change and the audit rows the
     /// interceptor writes for it commit together — or not at all.

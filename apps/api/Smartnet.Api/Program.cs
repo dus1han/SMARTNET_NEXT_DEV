@@ -122,6 +122,10 @@ builder.Services.AddSingleton<ITaxEngine, TaxEngine>();
 // reads through the request's DbContext.
 builder.Services.AddScoped<IReceivablesLedger, ReceivablesLedger>();
 
+// The payables ledger read side — a supplier's balance and a supplier invoice's outstanding, derived
+// (never stored). Phase 6, slice 2.
+builder.Services.AddScoped<IPayablesLedger, PayablesLedger>();
+
 // Resolves a business rule (rounding mode, credit-limit enforcement) for a company — override, global,
 // then default.
 builder.Services.AddScoped<IBusinessRuleReader, BusinessRuleReader>();

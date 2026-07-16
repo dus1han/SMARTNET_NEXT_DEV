@@ -70,6 +70,13 @@ public static class DependencyInjection
         // receipt; the payable is the supplier invoice, the receipt the deferred GRN).
         services.AddScoped<IPurchaseOrderCreator, PurchaseOrderCreator>();
 
+        // Supplier invoices (Phase 6, slice 2): the accounts-payable record — a Purchase payable entry on
+        // create, Payment entries for (partial) payments, a soft, reason-gated void that reverses the
+        // payable. One service behind both interfaces, so the create and payment paths share a scope.
+        services.AddScoped<SupplierInvoiceService>();
+        services.AddScoped<ISupplierInvoiceCreator>(sp => sp.GetRequiredService<SupplierInvoiceService>());
+        services.AddScoped<ISupplierInvoicePayments>(sp => sp.GetRequiredService<SupplierInvoiceService>());
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));

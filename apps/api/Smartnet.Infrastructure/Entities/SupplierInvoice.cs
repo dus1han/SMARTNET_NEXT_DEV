@@ -5,7 +5,11 @@ namespace Smartnet.Infrastructure.Entities;
 
 public partial class SupplierInvoice
 {
-    public int Id { get; set; }
+    /// <summary>Promoted to a <c>bigint</c> primary key by the Phase 6 supplier-invoice adoption.</summary>
+    public long Id { get; set; }
+
+    /// <summary>The legacy/new discriminator added by the Phase 6 adoption; legacy rows are <c>legacy</c>.</summary>
+    public string? DataOrigin { get; set; }
 
     public string? Invno { get; set; }
 
