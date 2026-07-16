@@ -116,8 +116,16 @@ public static class LegacySchema
         CnH,
         CnL,
 
-        // Already company-aware in the legacy schema, and each numbers its own documents.
-        Numbered("po_h", "po_no", company: true),
+        // po_h and po_l are now ADOPTED (Phase 6, slice 1), like invoices and quotations, so they need
+        // their full legacy shape — every column the new entity maps or shadows. Unlike invoice_h/
+        // quotation_h, po_h has NO NOT NULL columns (all varchar DEFAULT NULL, per the live scaffold), so
+        // the dual-write keeps the legacy reader whole rather than gating the insert. The header is
+        // thinner than an invoice's: no it/contactperson/discountper/beforedisctot, and its VAT columns
+        // are vatty/vatpercent/nonvattotal.
+        PoH,
+        PoL,
+
+        // Already company-aware in the legacy schema, and numbers its own documents.
         Numbered("jobs_m", "jobno", company: true),
 
         // Company-aware but unnumbered by the legacy app.
@@ -252,6 +260,43 @@ public static class LegacySchema
           `rate` varchar(100) DEFAULT NULL,
           `tot` varchar(100) DEFAULT NULL,
           `itemcode` varchar(100) DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>po_h</c> in its full pre-adoption shape, faithful to the live scaffold (every column is
+    /// <c>varchar(100) DEFAULT NULL</c> — the legacy PO header has no NOT NULL columns). Its VAT columns
+    /// are <c>vatty</c>/<c>vatpercent</c>/<c>nonvattotal</c>, and there is no <c>it</c>, <c>contactperson</c>,
+    /// <c>discountper</c> or <c>beforedisctot</c> — the header is thinner than an invoice's.
+    /// </summary>
+    public const string PoH = """
+        CREATE TABLE `po_h` (
+          `po_no` varchar(100) DEFAULT NULL,
+          `podate` varchar(100) DEFAULT NULL,
+          `supplier` varchar(100) DEFAULT NULL,
+          `totamount` varchar(100) DEFAULT NULL,
+          `preparedby` varchar(100) DEFAULT NULL,
+          `cdatetime` varchar(100) DEFAULT NULL,
+          `company` varchar(100) DEFAULT NULL,
+          `nonvattotal` varchar(100) DEFAULT NULL,
+          `vatty` varchar(100) DEFAULT NULL,
+          `vatpercent` varchar(100) DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>po_l</c> — the PO's lines, all nullable, keyless. The line total column is <c>total</c> (as on
+    /// <c>quotation_l</c>); <c>desc</c> is text; <c>itemno</c> is a legacy varchar (a cart sequence number,
+    /// not a real item), and there is no legacy <c>itemcode</c> column.
+    /// </summary>
+    public const string PoL = """
+        CREATE TABLE `po_l` (
+          `pono` varchar(100) DEFAULT NULL,
+          `itemno` varchar(100) DEFAULT NULL,
+          `desc` text DEFAULT NULL,
+          `qty` varchar(100) DEFAULT NULL,
+          `rate` varchar(100) DEFAULT NULL,
+          `total` varchar(100) DEFAULT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """;
 

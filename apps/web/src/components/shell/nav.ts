@@ -67,7 +67,7 @@ export const NAVIGATION: NavSection[] = [
   {
     title: "Purchasing",
     items: [
-      { href: "/purchase-orders", label: "Purchase orders", icon: ShoppingCart, permission: "purchaseorder", phase: "Phase 6" },
+      { href: "/purchase-orders", label: "Purchase orders", icon: ShoppingCart, permission: "purchaseorder" },
     ],
   },
   {

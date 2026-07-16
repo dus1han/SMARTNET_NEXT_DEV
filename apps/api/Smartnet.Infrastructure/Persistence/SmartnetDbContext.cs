@@ -104,6 +104,14 @@ public class SmartnetDbContext : DbContext
     /// <summary>The receivables ledger. A customer's balance is the sum of these — see <see cref="LedgerEntry"/>.</summary>
     public DbSet<LedgerEntry> ReceivablesLedger => Set<LedgerEntry>();
 
+    // --- Purchasing (Phase 6) ----------------------------------------------------------------
+
+    /// <summary>Purchase orders, on the adopted legacy <c>po_h</c>. An order — no ledger, no stock.</summary>
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+
+    /// <summary>Purchase-order lines, on the adopted legacy <c>po_l</c>.</summary>
+    public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
+
     /// <summary>
     /// Wraps the save in a transaction so that the business change and the audit rows the
     /// interceptor writes for it commit together — or not at all.

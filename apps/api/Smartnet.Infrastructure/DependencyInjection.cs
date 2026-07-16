@@ -65,6 +65,11 @@ public static class DependencyInjection
         // stock through new entries, then soft-delete — never erase.
         services.AddScoped<IInvoiceDeleter, InvoiceDeleter>();
 
+        // Purchase orders (Phase 6, slice 1): the quotation pipeline addressed to a supplier — tax engine
+        // + number + snapshot, one transaction, no ledger and no stock (an order, not a payable or a
+        // receipt; the payable is the supplier invoice, the receipt the deferred GRN).
+        services.AddScoped<IPurchaseOrderCreator, PurchaseOrderCreator>();
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));

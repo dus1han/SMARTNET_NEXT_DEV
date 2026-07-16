@@ -1045,6 +1045,11 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .HasNoKey()
                 .ToTable("po_h");
 
+            // Non-key scalars added by the Phase 6 PO adoption — a stable handle and the legacy/new
+            // discriminator, so a legacy reader can exclude the new app's rows that share this table.
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.DataOrigin).HasMaxLength(16).HasColumnName("data_origin");
+
             entity.Property(e => e.Cdatetime)
                 .HasMaxLength(100)
                 .HasColumnName("cdatetime");

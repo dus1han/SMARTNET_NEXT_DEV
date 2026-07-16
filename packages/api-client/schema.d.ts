@@ -1517,6 +1517,149 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/purchase-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PurchaseOrderSummary"][];
+                        "application/json": components["schemas"]["PurchaseOrderSummary"][];
+                        "text/json": components["schemas"]["PurchaseOrderSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreatePurchaseOrderRequest"];
+                    "text/json": components["schemas"]["CreatePurchaseOrderRequest"];
+                    "application/*+json": components["schemas"]["CreatePurchaseOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PurchaseOrderCreatedResponse"];
+                        "application/json": components["schemas"]["PurchaseOrderCreatedResponse"];
+                        "text/json": components["schemas"]["PurchaseOrderCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/purchase-orders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PurchaseOrderDetail"];
+                        "application/json": components["schemas"]["PurchaseOrderDetail"];
+                        "text/json": components["schemas"]["PurchaseOrderDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/purchase-orders/tax-rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    companyId?: number;
+                    date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceTaxRate"];
+                        "application/json": components["schemas"]["InvoiceTaxRate"];
+                        "text/json": components["schemas"]["InvoiceTaxRate"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/quotations": {
         parameters: {
             query?: never;
@@ -3960,6 +4103,17 @@ export interface components {
             id: number;
             code: string;
         };
+        CreatePurchaseOrderRequest: {
+            /** Format: int64 */
+            companyId: number;
+            /** Format: int64 */
+            supplierId: number;
+            /** Format: date */
+            date: string;
+            lines: components["schemas"]["CreateInvoiceLineRequest"][];
+            /** Format: double */
+            documentDiscountPercent: number;
+        };
         CreateQuotationRequest: {
             /** Format: int64 */
             companyId: number;
@@ -4586,6 +4740,53 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
+        };
+        PurchaseOrderCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: double */
+            total: number;
+        };
+        PurchaseOrderDetail: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            companyName?: string | null;
+            kind: string;
+            supplierName?: string | null;
+            supplierCode?: string | null;
+            /** Format: double */
+            subtotal: number;
+            /** Format: double */
+            discountAmount: number;
+            /** Format: double */
+            documentDiscountPercent: number;
+            /** Format: double */
+            netTotal: number;
+            /** Format: double */
+            taxRatePercentage: number;
+            /** Format: double */
+            taxAmount: number;
+            /** Format: double */
+            total: number;
+            /** Format: int32 */
+            rowVersion: number;
+            origin: string;
+            lines: components["schemas"]["InvoiceLineDetail"][];
+        };
+        PurchaseOrderSummary: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            supplierName?: string | null;
+            /** Format: double */
+            total: number;
+            origin: string;
         };
         QuotationCreatedResponse: {
             /** Format: int64 */

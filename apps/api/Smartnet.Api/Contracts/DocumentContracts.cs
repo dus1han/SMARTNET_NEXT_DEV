@@ -422,3 +422,77 @@ public sealed class CreateCreditNoteRequestValidator : AbstractValidator<CreateC
         });
     }
 }
+
+// --- Purchase orders (Phase 6, slice 1) ---------------------------------------------------------
+
+/// <summary>
+/// A new purchase order, posted whole — the supply-side counterpart of an invoice, addressed to a
+/// supplier. It has no cash/credit <c>Type</c> and no contact (a PO orders from a supplier); its item
+/// lines carry an <see cref="CreateInvoiceLineRequest.ItemId"/> so the future goods receipt can receive
+/// against them. Its lines are the same <see cref="CreateInvoiceLineRequest"/> draft an invoice uses.
+/// </summary>
+public sealed record CreatePurchaseOrderRequest(
+    long CompanyId,
+    long SupplierId,
+    DateOnly Date,
+    IReadOnlyList<CreateInvoiceLineRequest> Lines,
+    decimal DocumentDiscountPercent = 0m);
+
+public sealed record PurchaseOrderCreatedResponse(long Id, string Number, decimal Total);
+
+/// <summary>One row of the purchase-order list.</summary>
+/// <param name="Origin"><c>new</c> for one this app raised; <c>legacy</c> for one adopted from the old system.</param>
+public sealed record PurchaseOrderSummary(
+    long Id,
+    string Number,
+    DateOnly Date,
+    string? SupplierName,
+    decimal Total,
+    string Origin);
+
+/// <summary>One purchase order, in full — the read view.</summary>
+/// <param name="Origin"><c>new</c> (typed figures, a change history) or <c>legacy</c> (the old system's stored figures).</param>
+public sealed record PurchaseOrderDetail(
+    long Id,
+    string Number,
+    DateOnly Date,
+    string? CompanyName,
+    // "Item" when any line references a stock item, "Service" when every line is free-typed — derived from
+    // the lines, the same way an invoice's kind is.
+    string Kind,
+    string? SupplierName,
+    string? SupplierCode,
+    decimal Subtotal,
+    decimal DiscountAmount,
+    decimal DocumentDiscountPercent,
+    decimal NetTotal,
+    decimal TaxRatePercentage,
+    decimal TaxAmount,
+    decimal Total,
+    int RowVersion,
+    string Origin,
+    IReadOnlyList<InvoiceLineDetail> Lines);
+
+/// <summary>Server-side validation for a new purchase order — the same line rules as an invoice.</summary>
+public sealed class CreatePurchaseOrderRequestValidator : AbstractValidator<CreatePurchaseOrderRequest>
+{
+    public CreatePurchaseOrderRequestValidator()
+    {
+        RuleFor(r => r.CompanyId).GreaterThan(0);
+        RuleFor(r => r.SupplierId).GreaterThan(0);
+        RuleFor(r => r.DocumentDiscountPercent).InclusiveBetween(0m, 100m);
+
+        RuleFor(r => r.Lines).NotEmpty().WithMessage("A purchase order needs at least one line.");
+
+        RuleForEach(r => r.Lines).ChildRules(line =>
+        {
+            line.RuleFor(l => l.Quantity).GreaterThan(0);
+            line.RuleFor(l => l.UnitPrice).GreaterThanOrEqualTo(0);
+            line.RuleFor(l => l.DiscountPercent).InclusiveBetween(0m, 100m);
+
+            line.RuleFor(l => l)
+                .Must(l => l.ItemId is not null || !string.IsNullOrWhiteSpace(l.Description))
+                .WithMessage("A line must reference an item or carry a description.");
+        });
+    }
+}

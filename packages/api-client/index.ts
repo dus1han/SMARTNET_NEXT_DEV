@@ -135,6 +135,13 @@ export type CreditNoteCreatedResponse = Schemas["CreditNoteCreatedResponse"];
 export type CreditNoteSummary = Schemas["CreditNoteSummary"];
 export type CreditNoteDetail = Schemas["CreditNoteDetail"];
 
+// --- Purchase orders (Phase 6) ---------------------------------------------------------------
+
+export type CreatePurchaseOrderRequest = Schemas["CreatePurchaseOrderRequest"];
+export type PurchaseOrderCreatedResponse = Schemas["PurchaseOrderCreatedResponse"];
+export type PurchaseOrderSummary = Schemas["PurchaseOrderSummary"];
+export type PurchaseOrderDetail = Schemas["PurchaseOrderDetail"];
+
 // --- History ---------------------------------------------------------------------------------
 
 export type AuditEntry = Schemas["AuditEntry"];
