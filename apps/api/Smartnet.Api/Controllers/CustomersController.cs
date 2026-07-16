@@ -140,6 +140,7 @@ public sealed class CustomersController : ControllerBase
 
         var customer = new Customer { Code = code };
         Apply(customer, request);
+        ReconcileContacts(customer, request.Contacts);
 
         _db.Customers.Add(customer);
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -163,6 +164,7 @@ public sealed class CustomersController : ControllerBase
         }
 
         Apply(customer, request);
+        ReconcileContacts(customer, request.Contacts);
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return NoContent();
@@ -207,9 +209,83 @@ public sealed class CustomersController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// One-off backfill: splits the legacy <c>;</c>-separated <c>contactp</c>/<c>email</c> strings into
+    /// structured <c>customer_contacts</c> rows (Phase 6, slice 4).
+    /// </summary>
+    /// <remarks>
+    /// Idempotent — a customer that already has contacts is skipped, so it is safe to run more than once
+    /// (and safe to run at cutover after some customers have been edited into the new shape). Because the
+    /// two legacy lists are <b>independent</b> (the Nth name does not correspond to the Nth email), it only
+    /// pairs a name with an email when the customer has exactly as many of each; otherwise names become
+    /// name-only contacts and the surplus emails become email-only rows, flagged for Data Exceptions rather
+    /// than guessed at. The legacy columns are re-joined from the rows, so nothing is lost.
+    /// </remarks>
+    [HttpPost("backfill-contacts")]
+    public async Task<ActionResult<ContactsBackfillResult>> BackfillContacts(CancellationToken cancellationToken)
+    {
+        var customers = await _db.Customers
+            .Include(c => c.Contacts)
+            .Where(c => c.Contacts.Count == 0 && (c.ContactPerson != null || c.Email != null))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        int backfilled = 0, contactsCreated = 0, emailOnly = 0;
+
+        foreach (var customer in customers)
+        {
+            var names = SplitList(customer.ContactPerson);
+            var emails = SplitList(customer.Email);
+            if (names.Count == 0 && emails.Count == 0)
+            {
+                continue;
+            }
+
+            var rows = new List<CustomerContact>();
+            var pair = names.Count > 0 && names.Count == emails.Count; // only pair when the counts line up
+
+            for (var i = 0; i < names.Count; i++)
+            {
+                rows.Add(new CustomerContact { CustomerId = customer.Id, Name = names[i], Email = pair ? emails[i] : null });
+            }
+
+            for (var i = pair ? emails.Count : 0; i < emails.Count; i++)
+            {
+                rows.Add(new CustomerContact { CustomerId = customer.Id, Email = emails[i] }); // unpaired email
+                emailOnly++;
+            }
+
+            if (rows.Count == 0)
+            {
+                continue;
+            }
+
+            rows[0].IsPrimary = true;
+            foreach (var row in rows)
+            {
+                customer.Contacts.Add(row);
+            }
+
+            // Re-join from the rows, so the legacy strings stay consistent with the structured data.
+            customer.ContactPerson = string.Join(";", customer.Contacts.Select(c => c.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
+            customer.Email = string.Join(";", customer.Contacts.Select(c => c.Email).Where(e => !string.IsNullOrWhiteSpace(e)));
+
+            contactsCreated += rows.Count;
+            backfilled++;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return Ok(new ContactsBackfillResult(backfilled, contactsCreated, emailOnly));
+    }
+
+    private static List<string> SplitList(string? value) =>
+        [.. (value ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+
     // --- helpers -----------------------------------------------------------------------------
 
     private Task<Customer?> Find(long id, CancellationToken cancellationToken) => _db.Customers
+        .Include(c => c.Contacts)
         .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
     /// <summary>
@@ -280,5 +356,42 @@ public sealed class CustomersController : ControllerBase
             c.VatNumber,
             c.AssignedCompanyId,
             c.ProfitPercentId,
-            c.CreditLimit);
+            c.CreditLimit,
+            c.Contacts
+                .OrderByDescending(ct => ct.IsPrimary)
+                .ThenBy(ct => ct.Id)
+                .Select(ct => new CustomerContactDto(ct.Id, ct.Name, ct.Role, ct.Phone, ct.Email, ct.IsPrimary))
+                .ToList());
+
+    /// <summary>
+    /// Reconciles the customer's contact rows to the request's list, and dual-writes the legacy
+    /// <c>contactp</c> / <c>email</c> columns (<c>;</c>-joined) so the still-live legacy app keeps reading.
+    /// A null list leaves contacts (and the legacy strings) untouched.
+    /// </summary>
+    private static void ReconcileContacts(Customer customer, IReadOnlyList<CustomerContactDto>? contacts)
+    {
+        if (contacts is null)
+        {
+            return;
+        }
+
+        // Replace-all: clearing the loaded collection deletes the removed rows (cascade), the new ones insert.
+        customer.Contacts.Clear();
+        foreach (var contact in contacts)
+        {
+            customer.Contacts.Add(new CustomerContact
+            {
+                Name = contact.Name,
+                Role = contact.Role,
+                Phone = contact.Phone,
+                Email = contact.Email,
+                IsPrimary = contact.IsPrimary,
+            });
+        }
+
+        customer.ContactPerson = string.Join(";", customer.Contacts
+            .Select(c => c.Name).Where(n => !string.IsNullOrWhiteSpace(n)));
+        customer.Email = string.Join(";", customer.Contacts
+            .Select(c => c.Email).Where(e => !string.IsNullOrWhiteSpace(e)));
+    }
 }

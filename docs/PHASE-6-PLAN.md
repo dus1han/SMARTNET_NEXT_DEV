@@ -360,6 +360,21 @@ clean. The contact picker still splits the `;`-separated string — slice 4 repo
 `;`-joined for legacy; existing data is backfilled with unpaired emails flagged; the document contact
 pickers use real rows. Proven by tests + a legacy-read check.
 
+*(Built and tested. **`customer_contacts`** (`id, customer_id, name, role, phone, email, is_primary`,
+audit) via `CreateTable`, a `Customer.Contacts` navigation, soft-deletable with a query filter (the audit
+interceptor soft-deletes everything, so a reconciled-away contact stays in the table but out of every read).
+**Dual-write** — the customer save reconciles the contact rows (replace-all) and recomputes `cus_m.contactp`
+(`;`-join of names) and `cus_m.email` (`;`-join of emails) in the same transaction, so the live legacy app
+keeps reading. **Backfill** — `POST /api/customers/backfill-contacts`, permission-gated and idempotent
+(skips customers that already have contacts): it splits the two `;`-lists, pairs a name with an email only
+when the counts line up (they are independent lists), and turns surplus unpaired emails into email-only
+rows flagged for Data Exceptions — nothing guessed, nothing lost. **API** — `Contacts` on `CustomerSummary`
++ `SaveCustomerRequest`, projected in `Summarise`. **Web** — the customer dialog's single Contact/Email
+fields become a structured contacts editor (name/role/email/phone + primary + add/remove); the invoice,
+quotation and job-card pickers now read the structured rows via `customerContactNames`, falling back to the
+legacy string for customers not yet backfilled. One integration test (persist + reconcile-replace deletes
+the removed rows); full API suite **430**; web `tsc`/`eslint` clean.)*
+
 ---
 
 ## Slice 5 — Numbering init, reconciliation & the E2E · ~0.25 week

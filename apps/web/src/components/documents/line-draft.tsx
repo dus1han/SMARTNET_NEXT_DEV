@@ -84,14 +84,26 @@ export const serviceLine = (description: string): DraftLine => ({
 
 /**
  * A customer's contacts, out of the one `;`-separated field the master keeps them in. Trimmed, blanks
- * dropped. (The master storing several names in one string is what the Phase 6 structured-contacts work
- * replaces.)
+ * dropped. Retained as the fallback for customers whose structured contacts have not been backfilled yet.
  */
 export function parseContacts(field: string | null | undefined): string[] {
   return (field ?? "")
     .split(";")
     .map((name) => name.trim())
     .filter(Boolean);
+}
+
+/**
+ * The pickable contact names for a customer (Phase 6, slice 4): the structured `customer_contacts` rows
+ * when it has them, otherwise the legacy `;`-separated string parsed the old way — so a customer that has
+ * not been backfilled yet still offers its contacts.
+ */
+export function customerContactNames(customer: { contacts?: readonly { name?: string | null }[] | null; contactPerson?: string | null } | null | undefined): string[] {
+  if (!customer) return [];
+  const structured = (customer.contacts ?? [])
+    .map((c) => c.name?.trim())
+    .filter((n): n is string => Boolean(n));
+  return structured.length > 0 ? structured : parseContacts(customer.contactPerson);
 }
 
 export const clampPercent = (value: number) =>

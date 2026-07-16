@@ -10,11 +10,15 @@ namespace Smartnet.Api.Contracts;
 /// <c>Customer.AssignedCompanyId</c>: both entities invoice each other's customers, so this is a
 /// default when raising a document and nothing filters on it.
 /// </param>
+/// <summary>One structured contact (Phase 6, slice 4) — a real row behind the legacy <c>;</c>-separated strings.</summary>
+public sealed record CustomerContactDto(long Id, string? Name, string? Role, string? Phone, string? Email, bool IsPrimary);
+
 public sealed record CustomerSummary(
     long Id,
     string Code,
     string Name,
     string? Type,
+    // Kept for the list search and back-compat; it is the ;-joined contact names, dual-written from Contacts.
     string? ContactPerson,
     string? Address,
     string? Phone,
@@ -22,7 +26,9 @@ public sealed record CustomerSummary(
     string? VatNumber,
     long? AssignedCompanyId,
     long? ProfitPercentId,
-    decimal CreditLimit);
+    decimal CreditLimit,
+    // The structured contacts — the source of truth the document contact-pickers now read.
+    IReadOnlyList<CustomerContactDto> Contacts);
 
 /// <remarks>
 /// No code field: on create the server allocates one from the shared sequence; on edit the code is
@@ -39,9 +45,18 @@ public sealed record SaveCustomerRequest(
     string? VatNumber,
     long? AssignedCompanyId,
     long? ProfitPercentId,
-    decimal CreditLimit);
+    decimal CreditLimit,
+    // The structured contacts. When present, the customer's contact rows are reconciled to this list and
+    // the legacy contactp/email columns are dual-written (;-joined) from it. Null leaves contacts untouched.
+    IReadOnlyList<CustomerContactDto>? Contacts = null);
 
 public sealed record CreateCustomerResponse(long Id, string Code);
+
+/// <summary>
+/// What the one-off contacts backfill did (Phase 6, slice 4). <see cref="EmailOnlyRows"/> are the surplus
+/// emails that could not be paired with a name — created as email-only contacts, to surface in Data Exceptions.
+/// </summary>
+public sealed record ContactsBackfillResult(int CustomersBackfilled, int ContactsCreated, int EmailOnlyRows);
 
 /// <summary>A margin band the customer can be put on — "5", "10". From <c>profit_percent</c>.</summary>
 public sealed record ProfitPercentDto(long Id, string Name);

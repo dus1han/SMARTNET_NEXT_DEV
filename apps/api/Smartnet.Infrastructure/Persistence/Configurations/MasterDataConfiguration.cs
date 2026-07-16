@@ -54,6 +54,39 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.HasQueryFilter(c => c.DeletedAt == null);
 
         builder.HasIndex(c => c.Code).IsUnique();
+
+        builder.HasMany(c => c.Contacts)
+            .WithOne(ct => ct.Customer)
+            .HasForeignKey(ct => ct.CustomerId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+/// <summary>
+/// A customer's structured contacts — a new table (<c>customer_contacts</c>), replacing the legacy
+/// <c>;</c>-separated strings (Phase 6, slice 4).
+/// </summary>
+public class CustomerContactConfiguration : IEntityTypeConfiguration<CustomerContact>
+{
+    public void Configure(EntityTypeBuilder<CustomerContact> builder)
+    {
+        builder.ToTable("customer_contacts");
+
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).HasColumnName("id");
+        builder.Property(c => c.CustomerId).HasColumnName("customer_id");
+        builder.Property(c => c.Name).HasColumnName("name").HasMaxLength(200);
+        builder.Property(c => c.Role).HasColumnName("role").HasMaxLength(100);
+        builder.Property(c => c.Phone).HasColumnName("phone").HasMaxLength(100);
+        builder.Property(c => c.Email).HasColumnName("email").HasMaxLength(200);
+        builder.Property(c => c.IsPrimary).HasColumnName("is_primary");
+
+        builder.ConfigureAuditColumns();
+
+        // Soft-deleted contacts (a reconcile drops a removed one) stay in the table but out of every read.
+        builder.HasQueryFilter(c => c.DeletedAt == null);
+
+        builder.HasIndex(c => c.CustomerId);
     }
 }
 

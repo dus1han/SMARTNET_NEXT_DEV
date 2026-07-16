@@ -26,9 +26,9 @@ import { formatMoney, formatReportDate } from "@/components/reports";
 import { Button, Card, ErrorBanner, FadeIn, Input, Select, toast } from "@/components/ui";
 import {
   CustomerCombobox,
+  customerContactNames,
   LineDraftEditor,
   linesArePostable,
-  parseContacts,
   useDraftTotals,
   type DocumentKind,
   type DraftLine,
@@ -67,7 +67,7 @@ export default function NewQuotationPage() {
   }, [documentDiscount]);
 
   const selectedCustomer = customers.data?.find((c) => String(c.id) === customerId) ?? null;
-  const contactOptions = parseContacts(selectedCustomer?.contactPerson);
+  const contactOptions = customerContactNames(selectedCustomer);
 
   const totals = useDraftTotals(lines, ratePercent, docPercent);
   const canSubmit = companyId !== "" && customerId !== "" && linesArePostable(lines);
@@ -132,7 +132,7 @@ export default function NewQuotationPage() {
           onChange={(id) => {
             setCustomerId(id);
             const picked = customers.data?.find((c) => String(c.id) === id);
-            setContact(parseContacts(picked?.contactPerson)[0] ?? "");
+            setContact(customerContactNames(picked)[0] ?? "");
           }}
         />
 

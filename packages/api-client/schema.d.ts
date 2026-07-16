@@ -498,6 +498,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/customers/backfill-contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ContactsBackfillResult"];
+                        "application/json": components["schemas"]["ContactsBackfillResult"];
+                        "text/json": components["schemas"]["ContactsBackfillResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dashboard": {
         parameters: {
             query?: never;
@@ -4371,6 +4408,14 @@ export interface components {
             name: string;
             isVatRegistered: boolean;
         };
+        ContactsBackfillResult: {
+            /** Format: int32 */
+            customersBackfilled: number;
+            /** Format: int32 */
+            contactsCreated: number;
+            /** Format: int32 */
+            emailOnlyRows: number;
+        };
         ConvertQuotationRequest: {
             type: string;
             /** Format: date */
@@ -4564,6 +4609,15 @@ export interface components {
             outstanding: number;
             enforced: boolean;
         };
+        CustomerContactDto: {
+            /** Format: int64 */
+            id: number;
+            name?: string | null;
+            role?: string | null;
+            phone?: string | null;
+            email?: string | null;
+            isPrimary: boolean;
+        };
         CustomerSalesResponse: {
             /** Format: double */
             totalSales: number;
@@ -4607,6 +4661,7 @@ export interface components {
             profitPercentId?: number | null;
             /** Format: double */
             creditLimit: number;
+            contacts: components["schemas"]["CustomerContactDto"][];
         };
         CustomerVatResponse: {
             /** Format: double */
@@ -5352,6 +5407,7 @@ export interface components {
             profitPercentId?: number | null;
             /** Format: double */
             creditLimit: number;
+            contacts?: components["schemas"]["CustomerContactDto"][] | null;
         };
         SaveDocumentSeriesRequest: {
             prefix: string;

@@ -68,6 +68,9 @@ public class SmartnetDbContext : DbContext
 
     public DbSet<Customer> Customers => Set<Customer>();
 
+    /// <summary>A customer's structured contacts (Phase 6, slice 4) — the real rows behind the legacy strings.</summary>
+    public DbSet<CustomerContact> CustomerContacts => Set<CustomerContact>();
+
     public DbSet<Supplier> Suppliers => Set<Supplier>();
 
     public DbSet<Item> Items => Set<Item>();

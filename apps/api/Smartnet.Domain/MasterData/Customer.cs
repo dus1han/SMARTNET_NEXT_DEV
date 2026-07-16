@@ -73,6 +73,13 @@ public class Customer : IAuditable, ISoftDeletable
     /// </remarks>
     public decimal CreditLimit { get; set; }
 
+    /// <summary>
+    /// The customer's structured contacts (Phase 6, slice 4) — the real rows behind the legacy
+    /// <c>;</c>-separated <see cref="ContactPerson"/> / <see cref="Email"/> strings, which are dual-written
+    /// from these on save so the still-live legacy app keeps reading.
+    /// </summary>
+    public ICollection<CustomerContact> Contacts { get; set; } = new List<CustomerContact>();
+
     public long? CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; }
     public long? UpdatedBy { get; set; }

@@ -19,7 +19,7 @@ import { listCompanies, listCustomers } from "@/lib/customers";
 import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/shell/app-shell";
 import { Button, Card, ErrorBanner, FadeIn, Input, Select, toast } from "@/components/ui";
-import { CustomerCombobox, parseContacts } from "@/components/documents/line-draft";
+import { CustomerCombobox, customerContactNames } from "@/components/documents/line-draft";
 import { today } from "@/lib/period";
 
 interface Line { description: string; serial: string }
@@ -40,7 +40,7 @@ export default function NewJobCardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
-  const contactOptions = parseContacts(customers.data?.find((c) => String(c.id) === customerId)?.contactPerson);
+  const contactOptions = customerContactNames(customers.data?.find((c) => String(c.id) === customerId));
   const filledLines = lines.filter((l) => l.description.trim() !== "" || l.serial.trim() !== "");
   const canSubmit = companyId !== "" && customerId !== "" && filledLines.length > 0;
 
@@ -93,7 +93,7 @@ export default function NewJobCardPage() {
           value={customerId}
           onChange={(id) => {
             setCustomerId(id);
-            setContact(parseContacts(customers.data?.find((c) => String(c.id) === id)?.contactPerson)[0] ?? "");
+            setContact(customerContactNames(customers.data?.find((c) => String(c.id) === id))[0] ?? "");
           }}
         />
 

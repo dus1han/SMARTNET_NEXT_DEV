@@ -28,9 +28,9 @@ import { AlertTriangle } from "lucide-react";
 import { Button, Card, Dialog, ErrorBanner, FadeIn, Input, Select, toast } from "@/components/ui";
 import {
   CustomerCombobox,
+  customerContactNames,
   LineDraftEditor,
   linesArePostable,
-  parseContacts,
   useDraftTotals,
   type DocumentKind,
   type DraftLine,
@@ -75,7 +75,7 @@ export default function NewInvoicePage() {
 
   // The contact person comes from the customer: the master stores each contact in one `;`-separated field.
   const selectedCustomer = customers.data?.find((c) => String(c.id) === customerId) ?? null;
-  const contactOptions = parseContacts(selectedCustomer?.contactPerson);
+  const contactOptions = customerContactNames(selectedCustomer);
 
   // The customer's credit standing, fetched when both company and customer are chosen — the same figures
   // the server-side gate uses. Never per keystroke; only when the customer or company changes.
@@ -177,7 +177,7 @@ export default function NewInvoicePage() {
             setCustomerId(id);
             // Default the contact to the customer's first — the common case is a customer with one.
             const picked = customers.data?.find((c) => String(c.id) === id);
-            setContact(parseContacts(picked?.contactPerson)[0] ?? "");
+            setContact(customerContactNames(picked)[0] ?? "");
           }}
         />
 

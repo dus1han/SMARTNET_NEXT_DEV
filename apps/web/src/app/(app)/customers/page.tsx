@@ -11,7 +11,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { History as HistoryIcon, MoreHorizontal, SquarePen, Trash2, UserPlus } from "lucide-react";
+import { History as HistoryIcon, MoreHorizontal, Plus, SquarePen, Trash2, UserPlus, X } from "lucide-react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { useState } from "react";
 import { z } from "zod";
@@ -27,6 +27,7 @@ import {
   type CustomerSummary,
   type ProfitPercent,
 } from "@/lib/customers";
+import type { CustomerContactDto } from "@smartnet/api-client";
 import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -48,10 +49,9 @@ import {
 const customerSchema = z.object({
   name: z.string().min(1, "A name is required.").max(100),
   type: z.enum(["Company", "Individual"]),
-  contactPerson: z.string().max(100).optional(),
+  // contactPerson/email are no longer single fields — they are structured contacts (Phase 6, slice 4).
   address: z.string().max(100).optional(),
   phone: z.string().max(100).optional(),
-  email: z.string().email("That is not a valid email address.").or(z.literal("")).optional(),
   vatNumber: z.string().max(100).optional(),
   assignedCompanyId: z.coerce.number().int().nullable(),
   profitPercentId: z.coerce.number().int().nullable(),
@@ -65,10 +65,8 @@ type CustomerForm = z.infer<typeof customerSchema>;
 const emptyCustomer: CustomerForm = {
   name: "",
   type: "Company",
-  contactPerson: "",
   address: "",
   phone: "",
-  email: "",
   vatNumber: "",
   assignedCompanyId: null,
   profitPercentId: null,
@@ -281,19 +279,22 @@ function CustomerDialog({ target, companies, bands, onClose, onSaved }: {
   const form = useAppForm<CustomerForm>(customerSchema, emptyCustomer);
   const [banner, setBanner] = useState<string[]>([]);
   const [loaded, setLoaded] = useState<number | "new" | null>(null);
+  const [contacts, setContacts] = useState<ContactRow[]>([]);
 
   // Sync the form to whichever customer was opened, during render rather than in an effect.
   const key = editing?.id ?? (target === "new" ? "new" : null);
   if (target !== null && loaded !== key) {
     form.reset(editing ? toForm(editing) : emptyCustomer);
+    setContacts(editing ? editing.contacts.map(toContactRow) : []);
     setBanner([]);
     setLoaded(key);
   }
 
   const save = useMutation({
     mutationFn: async (values: CustomerForm): Promise<void> => {
-      if (editing) await updateCustomer(editing.id, toRequest(values));
-      else await createCustomer(toRequest(values));
+      const request = { ...toRequest(values), contacts: toContactDtos(contacts) };
+      if (editing) await updateCustomer(editing.id, request);
+      else await createCustomer(request);
     },
     onSuccess: () => {
       toast.success(editing ? "Customer saved." : "Customer created.");
@@ -347,22 +348,9 @@ function CustomerDialog({ target, companies, bands, onClose, onSaved }: {
           </Select>
 
           <Input
-            label="Contact person"
-            error={form.formState.errors.contactPerson?.message}
-            {...form.register("contactPerson")}
-          />
-
-          <Input
             label="Phone"
             error={form.formState.errors.phone?.message}
             {...form.register("phone")}
-          />
-
-          <Input
-            label="Email"
-            type="email"
-            error={form.formState.errors.email?.message}
-            {...form.register("email")}
           />
 
           <Input
@@ -377,6 +365,10 @@ function CustomerDialog({ target, companies, bands, onClose, onSaved }: {
           error={form.formState.errors.address?.message}
           {...form.register("address")}
         />
+
+        {/* Structured contacts (Phase 6, slice 4) — the real rows behind the legacy ;-separated columns,
+            which the server dual-writes from these on save. */}
+        <ContactsEditor contacts={contacts} onChange={setContacts} />
 
         <div className="grid gap-4 sm:grid-cols-3">
           <Select
@@ -419,15 +411,93 @@ function toForm(c: CustomerSummary): CustomerForm {
   return {
     name: c.name,
     type: c.type === "Individual" ? "Individual" : "Company",
-    contactPerson: c.contactPerson ?? "",
     address: c.address ?? "",
     phone: c.phone ?? "",
-    email: c.email ?? "",
     vatNumber: c.vatNumber ?? "",
     assignedCompanyId: c.assignedCompanyId ?? null,
     profitPercentId: c.profitPercentId ?? null,
     creditLimit: c.creditLimit,
   };
+}
+
+// --- Structured contacts (Phase 6, slice 4) -----------------------------------------------------
+
+interface ContactRow { name: string; role: string; phone: string; email: string; isPrimary: boolean }
+const blankContactRow: ContactRow = { name: "", role: "", phone: "", email: "", isPrimary: false };
+
+function toContactRow(c: CustomerContactDto): ContactRow {
+  return { name: c.name ?? "", role: c.role ?? "", phone: c.phone ?? "", email: c.email ?? "", isPrimary: c.isPrimary };
+}
+
+/** The rows the user filled, as DTOs — one primary guaranteed, blank rows dropped. Id 0: the server allocates. */
+function toContactDtos(rows: ContactRow[]): CustomerContactDto[] {
+  const filled = rows.filter((r) => r.name.trim() || r.email.trim() || r.phone.trim());
+  const hasPrimary = filled.some((r) => r.isPrimary);
+  const blankToNull = (s: string) => (s.trim() !== "" ? s.trim() : null);
+  return filled.map((r, i) => ({
+    id: 0,
+    name: blankToNull(r.name),
+    role: blankToNull(r.role),
+    phone: blankToNull(r.phone),
+    email: blankToNull(r.email),
+    isPrimary: hasPrimary ? r.isPrimary : i === 0,
+  }));
+}
+
+const contactInput = cn(
+  "min-w-0 flex-1 rounded-md border border-subtle bg-surface px-2.5 py-1.5 text-sm text-text placeholder:text-muted",
+  "focus:border-strong focus:outline-none focus:ring-2 focus:ring-ring/25",
+);
+
+function ContactsEditor({ contacts, onChange }: { contacts: ContactRow[]; onChange: (contacts: ContactRow[]) => void }) {
+  const set = (i: number, patch: Partial<ContactRow>) => onChange(contacts.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium text-text">Contacts</label>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => onChange([...contacts, { ...blankContactRow, isPrimary: contacts.length === 0 }])}
+        >
+          <Plus />
+          Add contact
+        </Button>
+      </div>
+
+      {contacts.length === 0 && (
+        <p className="text-sm text-muted">No contacts yet. Add one — the first is the default on new documents.</p>
+      )}
+
+      {contacts.map((c, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-2">
+          <input placeholder="Name" value={c.name} onChange={(e) => set(i, { name: e.target.value })} className={contactInput} />
+          <input placeholder="Role" value={c.role} onChange={(e) => set(i, { role: e.target.value })} className={cn(contactInput, "sm:max-w-[8rem]")} />
+          <input placeholder="Email" value={c.email} onChange={(e) => set(i, { email: e.target.value })} className={contactInput} />
+          <input placeholder="Phone" value={c.phone} onChange={(e) => set(i, { phone: e.target.value })} className={cn(contactInput, "sm:max-w-[9rem]")} />
+          <label className="flex shrink-0 items-center gap-1 text-xs text-muted">
+            <input
+              type="radio"
+              name="primary-contact"
+              checked={c.isPrimary}
+              onChange={() => onChange(contacts.map((x, idx) => ({ ...x, isPrimary: idx === i })))}
+            />
+            Primary
+          </label>
+          <button
+            type="button"
+            onClick={() => onChange(contacts.filter((_, idx) => idx !== i))}
+            className="grid size-8 shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-surface-sunken hover:text-danger"
+            aria-label="Remove contact"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function toRequest(values: CustomerForm) {
@@ -436,10 +506,11 @@ function toRequest(values: CustomerForm) {
   return {
     name: values.name.trim(),
     type: values.type,
-    contactPerson: blankToNull(values.contactPerson),
+    // contactPerson/email are derived from the structured contacts server-side; sent null here.
+    contactPerson: null,
     address: blankToNull(values.address),
     phone: blankToNull(values.phone),
-    email: blankToNull(values.email),
+    email: null,
     vatNumber: blankToNull(values.vatNumber),
     // An empty <select> coerces to 0 via z.coerce.number; 0 is not a company, so it is null.
     assignedCompanyId: values.assignedCompanyId ? values.assignedCompanyId : null,

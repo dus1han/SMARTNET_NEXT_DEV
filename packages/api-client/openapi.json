@@ -584,6 +584,35 @@
         }
       }
     },
+    "/api/customers/backfill-contacts": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactsBackfillResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactsBackfillResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactsBackfillResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/dashboard": {
       "get": {
         "tags": [
@@ -5691,6 +5720,29 @@
         },
         "additionalProperties": false
       },
+      "ContactsBackfillResult": {
+        "required": [
+          "contactsCreated",
+          "customersBackfilled",
+          "emailOnlyRows"
+        ],
+        "type": "object",
+        "properties": {
+          "customersBackfilled": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "contactsCreated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "emailOnlyRows": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "ConvertQuotationRequest": {
         "required": [
           "date",
@@ -6321,6 +6373,39 @@
         },
         "additionalProperties": false
       },
+      "CustomerContactDto": {
+        "required": [
+          "id",
+          "isPrimary"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "isPrimary": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "CustomerSalesResponse": {
         "required": [
           "customerCount",
@@ -6404,6 +6489,7 @@
       "CustomerSummary": {
         "required": [
           "code",
+          "contacts",
           "creditLimit",
           "id",
           "name"
@@ -6457,6 +6543,12 @@
           "creditLimit": {
             "type": "number",
             "format": "double"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerContactDto"
+            }
           }
         },
         "additionalProperties": false
@@ -8859,6 +8951,13 @@
           "creditLimit": {
             "type": "number",
             "format": "double"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerContactDto"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false

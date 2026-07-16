@@ -53,6 +53,8 @@ export type NumberPreview = Schemas["NumberPreview"];
 
 export type CustomerSummary = Schemas["CustomerSummary"];
 export type SaveCustomerRequest = Schemas["SaveCustomerRequest"];
+export type CustomerContactDto = Schemas["CustomerContactDto"];
+export type ContactsBackfillResult = Schemas["ContactsBackfillResult"];
 export type CreateCustomerResponse = Schemas["CreateCustomerResponse"];
 export type ProfitPercent = Schemas["ProfitPercentDto"];
 
