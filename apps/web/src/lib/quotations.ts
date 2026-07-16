@@ -1,0 +1,43 @@
+import type {
+  ConvertQuotationRequest,
+  CreateQuotationRequest,
+  InvoiceCreatedResponse,
+  InvoiceTaxRate,
+  QuotationCreatedResponse,
+  QuotationDetail,
+  QuotationSummary,
+} from "@smartnet/api-client";
+import { api } from "./api";
+
+// Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
+export type {
+  ConvertQuotationRequest,
+  CreateQuotationRequest,
+  QuotationCreatedResponse,
+  QuotationDetail,
+  QuotationSummary,
+} from "@smartnet/api-client";
+
+/** The quotations this app has raised, newest first. */
+export const getQuotations = () => api<QuotationSummary[]>("/api/quotations");
+
+/** One quotation in full, with its lines and conversion state. */
+export const getQuotation = (id: number) => api<QuotationDetail>(`/api/quotations/${id}`);
+
+/**
+ * The one VAT rate a quotation raised for this company on this date will carry — the same server engine
+ * the save uses, gated by the quotation permission. Fetched once when company or date changes.
+ */
+export const getQuotationTaxRate = (companyId: number, date: string) =>
+  api<InvoiceTaxRate>(`/api/quotations/tax-rate?companyId=${companyId}&date=${date}`);
+
+/** Raise a quotation — the whole document, posted once. No ledger, no stock. */
+export const createQuotation = (request: CreateQuotationRequest) =>
+  api<QuotationCreatedResponse>("/api/quotations", { method: "POST", body: request });
+
+/**
+ * Convert a quotation into an invoice — through the same save pipeline a hand-keyed invoice uses, once
+ * only. Returns the new invoice; a second attempt is refused by the server (409).
+ */
+export const convertQuotation = (id: number, request: ConvertQuotationRequest) =>
+  api<InvoiceCreatedResponse>(`/api/quotations/${id}/convert`, { method: "POST", body: request });

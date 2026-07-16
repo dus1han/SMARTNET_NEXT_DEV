@@ -110,9 +110,16 @@ export type CreateInvoiceRequest = Schemas["CreateInvoiceRequest"];
 export type CreateInvoiceLineRequest = Schemas["CreateInvoiceLineRequest"];
 export type InvoiceCreatedResponse = Schemas["InvoiceCreatedResponse"];
 export type InvoiceTaxRate = Schemas["InvoiceTaxRate"];
+export type CreditStatus = Schemas["CreditStatus"];
 export type InvoiceSummary = Schemas["InvoiceSummary"];
 export type InvoiceDetail = Schemas["InvoiceDetail"];
 export type InvoiceLineDetail = Schemas["InvoiceLineDetail"];
+
+export type CreateQuotationRequest = Schemas["CreateQuotationRequest"];
+export type ConvertQuotationRequest = Schemas["ConvertQuotationRequest"];
+export type QuotationCreatedResponse = Schemas["QuotationCreatedResponse"];
+export type QuotationSummary = Schemas["QuotationSummary"];
+export type QuotationDetail = Schemas["QuotationDetail"];
 
 // --- History ---------------------------------------------------------------------------------
 

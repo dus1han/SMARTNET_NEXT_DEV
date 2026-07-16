@@ -824,6 +824,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invoices/credit-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    customerId?: number;
+                    companyId?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CreditStatus"];
+                        "application/json": components["schemas"]["CreditStatus"];
+                        "text/json": components["schemas"]["CreditStatus"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/items": {
         parameters: {
             query?: never;
@@ -1234,6 +1274,194 @@ export interface paths {
                         "text/plain": components["schemas"]["SeriesInitialisation"][];
                         "application/json": components["schemas"]["SeriesInitialisation"][];
                         "text/json": components["schemas"]["SeriesInitialisation"][];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["QuotationSummary"][];
+                        "application/json": components["schemas"]["QuotationSummary"][];
+                        "text/json": components["schemas"]["QuotationSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateQuotationRequest"];
+                    "text/json": components["schemas"]["CreateQuotationRequest"];
+                    "application/*+json": components["schemas"]["CreateQuotationRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["QuotationCreatedResponse"];
+                        "application/json": components["schemas"]["QuotationCreatedResponse"];
+                        "text/json": components["schemas"]["QuotationCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quotations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["QuotationDetail"];
+                        "application/json": components["schemas"]["QuotationDetail"];
+                        "text/json": components["schemas"]["QuotationDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quotations/tax-rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    companyId?: number;
+                    date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceTaxRate"];
+                        "application/json": components["schemas"]["InvoiceTaxRate"];
+                        "text/json": components["schemas"]["InvoiceTaxRate"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quotations/{id}/convert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["ConvertQuotationRequest"];
+                    "text/json": components["schemas"]["ConvertQuotationRequest"];
+                    "application/*+json": components["schemas"]["ConvertQuotationRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceCreatedResponse"];
+                        "application/json": components["schemas"]["InvoiceCreatedResponse"];
+                        "text/json": components["schemas"]["InvoiceCreatedResponse"];
                     };
                 };
             };
@@ -3388,6 +3616,13 @@ export interface components {
             name: string;
             isVatRegistered: boolean;
         };
+        ConvertQuotationRequest: {
+            type: string;
+            /** Format: date */
+            date: string;
+            purchaseOrderNo?: string | null;
+            contactPerson?: string | null;
+        };
         CreateCustomerResponse: {
             /** Format: int64 */
             id: number;
@@ -3420,11 +3655,25 @@ export interface components {
             lines: components["schemas"]["CreateInvoiceLineRequest"][];
             /** Format: double */
             documentDiscountPercent: number;
+            acknowledgeCreditLimit: boolean;
         };
         CreateItemResponse: {
             /** Format: int64 */
             id: number;
             code: string;
+        };
+        CreateQuotationRequest: {
+            /** Format: int64 */
+            companyId: number;
+            /** Format: int64 */
+            customerId: number;
+            /** Format: date */
+            date: string;
+            contactPerson?: string | null;
+            validity?: string | null;
+            lines: components["schemas"]["CreateInvoiceLineRequest"][];
+            /** Format: double */
+            documentDiscountPercent: number;
         };
         CreateStockAdjustmentRequest: {
             /** Format: double */
@@ -3447,6 +3696,13 @@ export interface components {
             /** Format: int64 */
             id: number;
             temporaryPassword: string;
+        };
+        CreditStatus: {
+            /** Format: double */
+            creditLimit: number;
+            /** Format: double */
+            outstanding: number;
+            enforced: boolean;
         };
         CustomerSalesResponse: {
             /** Format: double */
@@ -3657,6 +3913,8 @@ export interface components {
             /** Format: date */
             date: string;
             type: string;
+            companyName?: string | null;
+            kind: string;
             customerName?: string | null;
             customerCode?: string | null;
             purchaseOrderNo?: string | null;
@@ -3675,6 +3933,7 @@ export interface components {
             total: number;
             /** Format: double */
             outstanding: number;
+            origin: string;
             lines: components["schemas"]["InvoiceLineDetail"][];
         };
         InvoiceLineDetail: {
@@ -3707,6 +3966,7 @@ export interface components {
             total: number;
             /** Format: double */
             outstanding: number;
+            origin: string;
         };
         InvoiceTaxRate: {
             /** Format: int64 */
@@ -3876,6 +4136,56 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
+        };
+        QuotationCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: double */
+            total: number;
+        };
+        QuotationDetail: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            companyName?: string | null;
+            kind: string;
+            customerName?: string | null;
+            customerCode?: string | null;
+            contactPerson?: string | null;
+            validity?: string | null;
+            /** Format: double */
+            subtotal: number;
+            /** Format: double */
+            discountAmount: number;
+            /** Format: double */
+            netTotal: number;
+            /** Format: double */
+            taxRatePercentage: number;
+            /** Format: double */
+            taxAmount: number;
+            /** Format: double */
+            total: number;
+            /** Format: int64 */
+            convertedInvoiceId?: number | null;
+            convertedInvoiceNumber?: string | null;
+            origin: string;
+            lines: components["schemas"]["InvoiceLineDetail"][];
+        };
+        QuotationSummary: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            customerName?: string | null;
+            /** Format: double */
+            total: number;
+            /** Format: int64 */
+            convertedInvoiceId?: number | null;
+            origin: string;
         };
         RecordHistoryResponse: {
             entries: components["schemas"]["AuditEntry"][];

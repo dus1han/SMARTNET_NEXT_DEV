@@ -38,6 +38,11 @@ public static class DependencyInjection
         // one transaction.
         services.AddScoped<IInvoiceCreator, InvoiceCreator>();
 
+        // Quotations (Phase 5, slice 3): the same pipeline without ledger or stock, and the converter
+        // that turns a quote into an invoice through the invoice pipeline, once only.
+        services.AddScoped<IQuotationCreator, QuotationCreator>();
+        services.AddScoped<IQuotationConverter, QuotationConverter>();
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));

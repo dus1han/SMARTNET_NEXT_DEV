@@ -44,6 +44,31 @@ public sealed class InvoiceCreator : IInvoiceCreator
 
     public async Task<InvoiceCreated> CreateAsync(NewInvoice request, CancellationToken cancellationToken = default)
     {
+        // One transaction: the number, the document, the ledger, the stock and the snapshot commit
+        // together or not at all (B2). Conversion reuses the core below inside its own transaction.
+        await using var transaction = await _db.Database
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var created = await CreateInCurrentTransactionAsync(request, sourceQuotationId: null, cancellationToken)
+            .ConfigureAwait(false);
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return created;
+    }
+
+    public async Task<InvoiceCreated> CreateInCurrentTransactionAsync(
+        NewInvoice request,
+        long? sourceQuotationId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_db.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException(
+                "CreateInCurrentTransactionAsync must be called inside an open transaction — it does not "
+                + "begin or commit one. Use CreateAsync for a stand-alone invoice.");
+        }
+
         var company = await _db.Companies
             .FirstOrDefaultAsync(c => c.Id == request.CompanyId, cancellationToken)
             .ConfigureAwait(false)
@@ -76,12 +101,7 @@ public sealed class InvoiceCreator : IInvoiceCreator
 
         await EnforceCreditLimit(request, customer, calc.Totals.Total, cancellationToken).ConfigureAwait(false);
 
-        // One transaction: the number, the document, the ledger, the stock and the snapshot commit
-        // together or not at all (B2). The number is reserved under a row lock inside it (B4).
-        await using var transaction = await _db.Database
-            .BeginTransactionAsync(cancellationToken)
-            .ConfigureAwait(false);
-
+        // The number is reserved under a row lock inside the caller's transaction (B4).
         var number = await _numbers
             .AllocateAsync(request.CompanyId, DocumentTypes.Invoice, request.Date, cancellationToken)
             .ConfigureAwait(false);
@@ -112,6 +132,7 @@ public sealed class InvoiceCreator : IInvoiceCreator
             TaxAmount = calc.Totals.Tax,
             Total = calc.Totals.Total,
             Cost = lineCost,
+            SourceQuotationId = sourceQuotationId,
             DataOrigin = "new",
 
             Lines = [.. request.Lines.Zip(calc.Lines, (input, line) => new InvoiceLine
@@ -140,8 +161,6 @@ public sealed class InvoiceCreator : IInvoiceCreator
             .WriteAsync(DocumentTypes.Invoice, invoice.Id, request.CompanyId, Snapshot(invoice, calc, customer, company), reason: null, cancellationToken)
             .ConfigureAwait(false);
 
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-
         // Outstanding = what the ledger now holds for this invoice: the full amount on credit, zero on
         // cash (the cash-at-issue payment settles it).
         var outstanding = request.Type == InvoiceType.Cash ? 0m : calc.Totals.Total;
@@ -149,8 +168,11 @@ public sealed class InvoiceCreator : IInvoiceCreator
     }
 
     /// <summary>
-    /// Rejects an invoice — cash or credit — that would take the customer past their limit, server-side,
-    /// against the derived balance, and only when enforcement is switched on (off by default).
+    /// Guards the customer's credit limit — a <b>soft</b> gate. It flags an invoice, cash or credit, that
+    /// would take the customer past their limit, but only when enforcement is on (off by default) and the
+    /// caller has <i>not</i> acknowledged the breach; an acknowledged breach proceeds (the confirmation is
+    /// the override — see <see cref="NewInvoice.AcknowledgeCreditLimit"/>). Measured against the derived
+    /// ledger balance, never a stored one.
     /// </summary>
     /// <remarks>
     /// The limit gates the <b>sale</b>, not just credit terms: it applies to cash and credit invoices
@@ -160,6 +182,13 @@ public sealed class InvoiceCreator : IInvoiceCreator
     {
         // A zero limit means "no limit".
         if (customer.CreditLimit <= 0m)
+        {
+            return;
+        }
+
+        // The caller has seen the breach and confirmed it — the save proceeds. This is what makes the
+        // gate soft: a breach is never a dead-end, it is a confirmation.
+        if (request.AcknowledgeCreditLimit)
         {
             return;
         }

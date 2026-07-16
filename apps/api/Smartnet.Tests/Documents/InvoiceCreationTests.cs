@@ -193,9 +193,57 @@ public sealed class InvoiceCreationTests
 
         await act.Should().ThrowAsync<CreditLimitExceededException>();
 
-        // The check runs before the transaction, so nothing was written — not the invoice, not a
-        // burned number.
+        // The check runs before any write, so nothing was written — not the invoice, not a burned number.
         (await db.Invoices.CountAsync(i => i.CustomerId == customerId)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task An_over_limit_invoice_saves_once_the_breach_is_acknowledged()
+    {
+        long companyId, customerId;
+        await using (var setup = _fixture.CreateContext(new FakeChangeContext { UserId = 1 }))
+        {
+            var company = new Company { Name = "Ltd", VatCode = "1", IsVatRegistered = true };
+            setup.Companies.Add(company);
+            await setup.SaveChangesAsync();
+            companyId = company.Id;
+
+            setup.TaxRates.Add(new TaxRate
+            {
+                CompanyId = companyId, Name = "VAT 18%", Percentage = 18m,
+                EffectiveFrom = new DateOnly(2024, 1, 1), IsDefault = true,
+            });
+
+            var customer = new Customer { Code = $"CLA-{companyId}", Name = "At the ceiling", CreditLimit = 500m };
+            setup.Customers.Add(customer);
+
+            setup.DocumentSeries.Add(new DocumentSeries
+            {
+                CompanyId = companyId, DocType = DocumentTypes.Invoice,
+                Prefix = $"CLA{companyId}-", NextNumber = 1, Padding = 0,
+            });
+
+            // Enforcement ON — and yet the acknowledged invoice still saves: the gate is soft.
+            setup.AppSettings.Add(new AppSetting
+            {
+                CompanyId = companyId, Key = BusinessRules.CreditLimitEnforced, Value = "true",
+            });
+
+            await setup.SaveChangesAsync();
+            customerId = customer.Id;
+        }
+
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
+        await using var db = _fixture.CreateContext(change);
+
+        // 1,000 + 18% = 1,180, well past the 500 limit — but acknowledged, so it is raised, not refused.
+        var created = await CreatorFor(db, change).CreateAsync(new NewInvoice(
+            companyId, customerId, InvoiceType.Credit, new DateOnly(2026, 7, 15), null, null,
+            [new NewInvoiceLine(null, null, "Big job", 1m, 1000m, 0m, null)],
+            AcknowledgeCreditLimit: true));
+
+        created.Total.Should().Be(1180m);
+        (await db.Invoices.CountAsync(i => i.CustomerId == customerId)).Should().Be(1);
     }
 
     // --- Seeding ---------------------------------------------------------------------------------

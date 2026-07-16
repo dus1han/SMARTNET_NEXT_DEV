@@ -55,7 +55,7 @@ export const NAVIGATION: NavSection[] = [
   {
     title: "Sales",
     items: [
-      { href: "/quotations", label: "Quotations", icon: FileText, permission: "search_qu", phase: "Phase 5" },
+      { href: "/quotations", label: "Quotations", icon: FileText, permission: "search_qu" },
       { href: "/invoices", label: "Invoices", icon: Receipt, permission: "search_in" },
       { href: "/payments", label: "Payments", icon: Wallet, permission: "payments", phase: "Phase 7" },
     ],

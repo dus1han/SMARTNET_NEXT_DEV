@@ -1006,6 +1006,53 @@
         }
       }
     },
+    "/api/invoices/credit-status": {
+      "get": {
+        "tags": [
+          "Invoices"
+        ],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditStatus"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditStatus"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/items": {
       "get": {
         "tags": [
@@ -1513,6 +1560,260 @@
                   "items": {
                     "$ref": "#/components/schemas/SeriesInitialisation"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quotations": {
+      "get": {
+        "tags": [
+          "Quotations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuotationSummary"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuotationSummary"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuotationSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Quotations"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateQuotationRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateQuotationRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateQuotationRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationCreatedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationCreatedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quotations/{id}": {
+      "get": {
+        "tags": [
+          "Quotations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationDetail"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationDetail"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quotations/tax-rate": {
+      "get": {
+        "tags": [
+          "Quotations"
+        ],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceTaxRate"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceTaxRate"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceTaxRate"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quotations/{id}/convert": {
+      "post": {
+        "tags": [
+          "Quotations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ConvertQuotationRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ConvertQuotationRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ConvertQuotationRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceCreatedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceCreatedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceCreatedResponse"
                 }
               }
             }
@@ -4287,6 +4588,31 @@
         },
         "additionalProperties": false
       },
+      "ConvertQuotationRequest": {
+        "required": [
+          "date",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "purchaseOrderNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "contactPerson": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateCustomerResponse": {
         "required": [
           "code",
@@ -4347,6 +4673,7 @@
       },
       "CreateInvoiceRequest": {
         "required": [
+          "acknowledgeCreditLimit",
           "companyId",
           "customerId",
           "date",
@@ -4388,6 +4715,9 @@
           "documentDiscountPercent": {
             "type": "number",
             "format": "double"
+          },
+          "acknowledgeCreditLimit": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -4405,6 +4735,49 @@
           },
           "code": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateQuotationRequest": {
+        "required": [
+          "companyId",
+          "customerId",
+          "date",
+          "documentDiscountPercent",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "companyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "customerId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "contactPerson": {
+            "type": "string",
+            "nullable": true
+          },
+          "validity": {
+            "type": "string",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateInvoiceLineRequest"
+            }
+          },
+          "documentDiscountPercent": {
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false
@@ -4485,6 +4858,28 @@
           },
           "temporaryPassword": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreditStatus": {
+        "required": [
+          "creditLimit",
+          "enforced",
+          "outstanding"
+        ],
+        "type": "object",
+        "properties": {
+          "creditLimit": {
+            "type": "number",
+            "format": "double"
+          },
+          "outstanding": {
+            "type": "number",
+            "format": "double"
+          },
+          "enforced": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -5143,9 +5538,11 @@
           "date",
           "discountAmount",
           "id",
+          "kind",
           "lines",
           "netTotal",
           "number",
+          "origin",
           "outstanding",
           "subtotal",
           "taxAmount",
@@ -5167,6 +5564,13 @@
             "format": "date"
           },
           "type": {
+            "type": "string"
+          },
+          "companyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
             "type": "string"
           },
           "customerName": {
@@ -5212,6 +5616,9 @@
           "outstanding": {
             "type": "number",
             "format": "double"
+          },
+          "origin": {
+            "type": "string"
           },
           "lines": {
             "type": "array",
@@ -5278,6 +5685,7 @@
           "date",
           "id",
           "number",
+          "origin",
           "outstanding",
           "total",
           "type"
@@ -5309,6 +5717,9 @@
           "outstanding": {
             "type": "number",
             "format": "double"
+          },
+          "origin": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -5863,6 +6274,164 @@
             "format": "int64"
           },
           "name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuotationCreatedResponse": {
+        "required": [
+          "id",
+          "number",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuotationDetail": {
+        "required": [
+          "date",
+          "discountAmount",
+          "id",
+          "kind",
+          "lines",
+          "netTotal",
+          "number",
+          "origin",
+          "subtotal",
+          "taxAmount",
+          "taxRatePercentage",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "companyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string"
+          },
+          "customerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "customerCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "contactPerson": {
+            "type": "string",
+            "nullable": true
+          },
+          "validity": {
+            "type": "string",
+            "nullable": true
+          },
+          "subtotal": {
+            "type": "number",
+            "format": "double"
+          },
+          "discountAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "netTotal": {
+            "type": "number",
+            "format": "double"
+          },
+          "taxRatePercentage": {
+            "type": "number",
+            "format": "double"
+          },
+          "taxAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "convertedInvoiceId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "convertedInvoiceNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "origin": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLineDetail"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuotationSummary": {
+        "required": [
+          "date",
+          "id",
+          "number",
+          "origin",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "customerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "convertedInvoiceId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "origin": {
             "type": "string"
           }
         },

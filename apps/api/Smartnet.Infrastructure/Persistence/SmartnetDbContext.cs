@@ -89,6 +89,12 @@ public class SmartnetDbContext : DbContext
     /// <summary>Invoice lines, on the adopted legacy <c>invoice_l</c>.</summary>
     public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
 
+    /// <summary>Quotations, on the adopted legacy <c>quotation_h</c>. No ledger, no stock — a priced offer.</summary>
+    public DbSet<Quotation> Quotations => Set<Quotation>();
+
+    /// <summary>Quotation lines, on the adopted legacy <c>quotation_l</c>.</summary>
+    public DbSet<QuotationLine> QuotationLines => Set<QuotationLine>();
+
     /// <summary>The receivables ledger. A customer's balance is the sum of these — see <see cref="LedgerEntry"/>.</summary>
     public DbSet<LedgerEntry> ReceivablesLedger => Set<LedgerEntry>();
 

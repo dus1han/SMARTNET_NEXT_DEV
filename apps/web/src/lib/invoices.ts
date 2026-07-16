@@ -1,5 +1,6 @@
 import type {
   CreateInvoiceRequest,
+  CreditStatus,
   InvoiceCreatedResponse,
   InvoiceDetail,
   InvoiceSummary,
@@ -11,6 +12,7 @@ import { api } from "./api";
 export type {
   CreateInvoiceRequest,
   CreateInvoiceLineRequest,
+  CreditStatus,
   InvoiceCreatedResponse,
   InvoiceDetail,
   InvoiceLineDetail,
@@ -31,6 +33,14 @@ export const getInvoice = (id: number) => api<InvoiceDetail>(`/api/invoices/${id
  */
 export const getInvoiceTaxRate = (companyId: number, date: string) =>
   api<InvoiceTaxRate>(`/api/invoices/tax-rate?companyId=${companyId}&date=${date}`);
+
+/**
+ * A customer's credit standing — outstanding (the derived ledger balance), their limit, and whether the
+ * company hard-blocks a breach. The screen shows this when a customer is picked, and confirms before a
+ * save that would breach it — the same figures the server-side gate uses.
+ */
+export const getCreditStatus = (customerId: number, companyId: number) =>
+  api<CreditStatus>(`/api/invoices/credit-status?customerId=${customerId}&companyId=${companyId}`);
 
 /** Raise an invoice — the whole document, posted once (the cart is gone). */
 export const createInvoice = (request: CreateInvoiceRequest) =>

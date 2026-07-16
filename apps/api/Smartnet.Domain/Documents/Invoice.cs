@@ -94,6 +94,13 @@ public class Invoice : IAuditable, ISoftDeletable
     public decimal Cost { get; set; }
 
     /// <summary>
+    /// The quotation this invoice was converted from, or null if it was raised directly. The back-link
+    /// the legacy conversion never stored (plan §6) — paired with <c>Quotation.ConvertedToInvoiceId</c>,
+    /// so the two documents point at each other.
+    /// </summary>
+    public long? SourceQuotationId { get; set; }
+
+    /// <summary>
     /// <c>new</c> for documents this app raises; existing rows are <c>legacy</c>. Set once, never changed
     /// — it is the line the legacy payments screen is scoped by, so it can never touch a new invoice.
     /// </summary>

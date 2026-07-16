@@ -102,8 +102,14 @@ public static class LegacySchema
         InvoiceH,
         InvoiceL,
 
+        // quotation_h and quotation_l are now ADOPTED (Phase 5, slice 3), like invoices, so they need
+        // their full legacy shape — every column the new entity maps or shadows, including the three that
+        // are NOT NULL (discountper, beforedisctot, contactperson), because a new-quotation insert has to
+        // satisfy them just as a legacy one did.
+        QuotationH,
+        QuotationL,
+
         // Already company-aware in the legacy schema, and each numbers its own documents.
-        Numbered("quotation_h", "q_no", company: true),
         Numbered("po_h", "po_no", company: true),
         Numbered("jobs_m", "jobno", company: true),
 
@@ -158,6 +164,50 @@ public static class LegacySchema
           `qty` varchar(100) DEFAULT NULL,
           `rate` varchar(100) DEFAULT NULL,
           `tot` varchar(100) DEFAULT NULL,
+          `itemcode` varchar(100) DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>quotation_h</c> in its full pre-adoption shape, faithful to the legacy app's own
+    /// <c>INSERT INTO quotation_h(…)</c> (ItemQuotationController). Like <c>invoice_h</c>, money and dates
+    /// are <c>varchar</c>; <c>discountper</c>, <c>beforedisctot</c> and <c>contactperson</c> are NOT NULL,
+    /// which is why a new quotation must write them (the dual-write). The header carries <c>q_valid</c>
+    /// (how long the price holds) and <c>quotecost</c> — the quotation's own column names.
+    /// </summary>
+    public const string QuotationH = """
+        CREATE TABLE `quotation_h` (
+          `q_no` varchar(100) DEFAULT NULL,
+          `qdate` varchar(100) DEFAULT NULL,
+          `customer` varchar(100) DEFAULT NULL,
+          `totamount` varchar(100) DEFAULT NULL,
+          `preparedby` varchar(100) DEFAULT NULL,
+          `cdatetime` varchar(100) DEFAULT NULL,
+          `company` varchar(100) DEFAULT NULL,
+          `it` varchar(100) DEFAULT NULL,
+          `quotecost` varchar(100) DEFAULT NULL,
+          `novattotal` varchar(100) DEFAULT NULL,
+          `vtype` varchar(100) DEFAULT NULL,
+          `vper` varchar(100) DEFAULT NULL,
+          `q_valid` varchar(100) DEFAULT NULL,
+          `discountper` varchar(50) NOT NULL,
+          `beforedisctot` varchar(100) NOT NULL,
+          `contactperson` varchar(100) NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>quotation_l</c> — the quotation's lines, all nullable, keyless. The line total column is
+    /// <c>total</c> (invoices call theirs <c>tot</c>); <c>desc</c> is text.
+    /// </summary>
+    public const string QuotationL = """
+        CREATE TABLE `quotation_l` (
+          `qno` varchar(100) DEFAULT NULL,
+          `itemno` bigint(21) DEFAULT NULL,
+          `desc` text DEFAULT NULL,
+          `qty` varchar(100) DEFAULT NULL,
+          `rate` varchar(100) DEFAULT NULL,
+          `total` varchar(100) DEFAULT NULL,
           `itemcode` varchar(100) DEFAULT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """;

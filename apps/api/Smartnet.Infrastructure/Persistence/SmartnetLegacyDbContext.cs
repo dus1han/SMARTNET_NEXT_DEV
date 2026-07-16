@@ -639,6 +639,8 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .HasNoKey()
                 .ToTable("invoice_h");
 
+            // A non-key scalar: the surrogate id the Phase 5 adoption added, used only as a stable handle.
+            entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.Balance)
                 .HasMaxLength(100)
                 .HasColumnName("balance");
@@ -693,6 +695,11 @@ public partial class SmartnetLegacyDbContext : DbContext
             entity.Property(e => e.Vtype)
                 .HasMaxLength(100)
                 .HasColumnName("vtype");
+            // Added by the Phase 5 invoice adoption; lets a legacy reader exclude the new app's rows,
+            // which now share this table (default 'legacy'; the new app writes 'new').
+            entity.Property(e => e.DataOrigin)
+                .HasMaxLength(16)
+                .HasColumnName("data_origin");
         });
 
         modelBuilder.Entity<InvoiceL>(entity =>
@@ -1141,6 +1148,11 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .HasNoKey()
                 .ToTable("quotation_h");
 
+            // Non-key scalars added by the Phase 5 quotation adoption — a stable handle and the legacy/new
+            // discriminator, so a legacy reader can exclude the new app's rows that share this table.
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.DataOrigin).HasMaxLength(16).HasColumnName("data_origin");
+            entity.Property(e => e.ConvertedToInvoiceId).HasColumnName("converted_to_invoice_id");
             entity.Property(e => e.Beforedisctot)
                 .HasMaxLength(100)
                 .HasColumnName("beforedisctot");

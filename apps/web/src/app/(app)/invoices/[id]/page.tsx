@@ -15,6 +15,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { getInvoice } from "@/lib/invoices";
+import { daysDueLabel } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
@@ -35,6 +36,7 @@ export default function InvoiceViewPage() {
   const error = invoice.error as ApiError | null;
   const data = invoice.data;
   const settled = (data?.outstanding ?? 0) <= 0;
+  const isLegacy = data?.origin === "legacy";
 
   return (
     <FadeIn className="space-y-6">
@@ -46,10 +48,13 @@ export default function InvoiceViewPage() {
         All invoices
       </Link>
 
-      <PageHeader
-        title={data ? `Invoice ${data.number}` : "Invoice"}
-        description={data ? `${data.type} · ${formatReportDate(data.date)}` : undefined}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <PageHeader
+          title={data ? `Invoice ${data.number}` : "Invoice"}
+          description={data ? `${data.kind} invoice · ${data.type} · ${formatReportDate(data.date)}` : undefined}
+        />
+        {isLegacy && <Badge tone="neutral">Legacy</Badge>}
+      </div>
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
 
@@ -57,7 +62,8 @@ export default function InvoiceViewPage() {
 
       {data && (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Detail label="Company" value={data.companyName ?? "—"} />
             <Detail label="Customer" value={data.customerName ?? "—"} sub={data.customerCode ?? undefined} />
             <Detail label="PO number" value={data.purchaseOrderNo || "—"} />
             <Detail label="Contact" value={data.contactPerson || "—"} />
@@ -80,19 +86,29 @@ export default function InvoiceViewPage() {
               <p className="stat-label text-xs font-semibold uppercase tracking-wider">Outstanding</p>
               <div className="flex items-center gap-3">
                 <span className="tabular text-3xl font-bold text-text">{formatMoney(data.outstanding)}</span>
-                <Badge tone={settled ? "success" : "warning"}>{settled ? "Paid" : "Due"}</Badge>
+                <Badge tone={settled ? "success" : "warning"}>{settled ? "Paid" : daysDueLabel(data.date)}</Badge>
               </div>
-              <p className="text-sm text-muted">Derived from the ledger — not a stored figure.</p>
+              <p className="text-sm text-muted">
+                {isLegacy ? "The legacy system's stored balance, as imported." : "Derived from the ledger — not a stored figure."}
+              </p>
             </Card>
           </div>
 
           <Card className="p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">History</h2>
-            <History
-              entityType="Invoice"
-              entityId={invoiceId}
-              document={{ docType: "INVOICE", docId: invoiceId, title: `Invoice ${data.number}` }}
-            />
+            {isLegacy ? (
+              // A legacy invoice predates the new app, so it has no version snapshots or audit trail —
+              // its history lives in the old system. New invoices carry a full history from creation.
+              <p className="text-sm text-muted">
+                Imported from the legacy system — it has no change history in the new app.
+              </p>
+            ) : (
+              <History
+                entityType="Invoice"
+                entityId={invoiceId}
+                document={{ docType: "INVOICE", docId: invoiceId, title: `Invoice ${data.number}` }}
+              />
+            )}
           </Card>
         </>
       )}

@@ -2,9 +2,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Smartnet.Api.Auth;
 using Smartnet.Api.Contracts;
+using System.Globalization;
 using Smartnet.Domain.Documents;
 using Smartnet.Domain.Identity;
+using Smartnet.Domain.Ledger;
+using Smartnet.Domain.Settings;
 using Smartnet.Infrastructure.Persistence;
+using Smartnet.Infrastructure.Reporting;
 
 namespace Smartnet.Api.Controllers;
 
@@ -24,26 +28,49 @@ public sealed class InvoicesController : ControllerBase
     private readonly IInvoiceCreator _creator;
     private readonly ICompanyContext _company;
     private readonly SmartnetDbContext _db;
+    private readonly SmartnetLegacyDbContext _legacy;
     private readonly ITaxEngine _tax;
+    private readonly IReceivablesLedger _ledger;
+    private readonly IBusinessRuleReader _rules;
 
-    public InvoicesController(IInvoiceCreator creator, ICompanyContext company, SmartnetDbContext db, ITaxEngine tax)
+    public InvoicesController(
+        IInvoiceCreator creator,
+        ICompanyContext company,
+        SmartnetDbContext db,
+        SmartnetLegacyDbContext legacy,
+        ITaxEngine tax,
+        IReceivablesLedger ledger,
+        IBusinessRuleReader rules)
     {
         _creator = creator;
         _company = company;
         _db = db;
+        _legacy = legacy;
         _tax = tax;
+        _ledger = ledger;
+        _rules = rules;
     }
 
-    /// <summary>The invoices this app has raised, newest first, across the companies the caller may see.</summary>
+    /// <summary>
+    /// Every invoice the caller may see, newest first — the ones this app has raised <b>and</b> the ones
+    /// adopted from the legacy system.
+    /// </summary>
+    /// <remarks>
+    /// New and legacy invoices share the one <c>invoice_h</c> table, told apart by <c>data_origin</c>. A
+    /// new invoice carries typed <c>decimal</c> figures and a ledger-derived outstanding; a legacy one
+    /// carries the old system's <c>varchar</c> figures, parsed defensively (a bad value is 0, never an
+    /// exception — <see cref="LegacyValue"/>) and shown read-only, since there is no new-side detail view
+    /// for it. The two are merged and ordered by date.
+    /// </remarks>
     [HttpGet]
     [RequirePermission(Permissions.SearchInvoice)]
     public async Task<ActionResult<IReadOnlyList<InvoiceSummary>>> List(CancellationToken cancellationToken)
     {
         var accessible = _company.Accessible.ToList();
 
+        // --- New invoices (this app's own) ----------------------------------------------------------
         var invoices = await _db.Invoices
             .Where(i => i.CompanyId != null && accessible.Contains(i.CompanyId.Value))
-            .OrderByDescending(i => i.Id)
             .Select(i => new { i.Id, i.Number, i.Date, i.CustomerId, i.Type, i.Total })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -63,17 +90,54 @@ public sealed class InvoicesController : ControllerBase
             .ToDictionaryAsync(x => x.InvoiceId, x => x.Balance, cancellationToken)
             .ConfigureAwait(false);
 
-        return Ok(invoices.Select(i => new InvoiceSummary(
+        var rows = invoices.Select(i => new InvoiceSummary(
             i.Id,
             i.Number,
             i.Date,
             names.GetValueOrDefault(i.CustomerId),
             i.Type.ToString(),
             i.Total,
-            outstanding.GetValueOrDefault(i.Id))).ToList());
+            outstanding.GetValueOrDefault(i.Id),
+            "new")).ToList();
+
+        // --- Legacy invoices (adopted from the old system) ------------------------------------------
+        // The legacy company column is a varchar holding the id; match the accessible ids as strings.
+        var accessibleText = accessible.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToHashSet();
+
+        var legacy = await _legacy.InvoiceHs
+            .Where(h => h.DataOrigin != "new") // legacy rows only — the new ones are already above
+            .Select(h => new { h.Id, h.Invoiceno, h.Indate, h.Customer, h.Invtype, h.Totamount, h.Balance, h.Company })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        legacy = legacy.Where(h => h.Company != null && accessibleText.Contains(h.Company)).ToList();
+
+        // Resolve customer names by code from the adopted customer master, in one pass.
+        var legacyCodes = legacy.Select(h => h.Customer).Where(c => c != null).Distinct().ToList();
+        var namesByCode = (await _db.Customers
+            .Where(c => c.Code != null && legacyCodes.Contains(c.Code))
+            .Select(c => new { c.Code, c.Name })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false))
+            .ToDictionary(c => c.Code!, c => c.Name);
+
+        rows.AddRange(legacy.Select(h => new InvoiceSummary(
+            h.Id,
+            h.Invoiceno ?? "—",
+            LegacyValue.Date(h.Indate) ?? DateOnly.MinValue,
+            h.Customer is not null ? namesByCode.GetValueOrDefault(h.Customer) : null,
+            h.Invtype ?? "—",
+            LegacyValue.Money(h.Totamount),
+            LegacyValue.Money(h.Balance),
+            "legacy")));
+
+        return Ok(rows.OrderByDescending(r => r.Date).ThenByDescending(r => r.Id).ToList());
     }
 
-    /// <summary>One invoice in full — the read view.</summary>
+    /// <summary>
+    /// One invoice in full — the read view. Serves both a <c>new</c> invoice (typed figures, ledger
+    /// balance) and a <c>legacy</c> one adopted from the old system (its stored <c>varchar</c> figures).
+    /// </summary>
     [HttpGet("{id:long}")]
     [RequirePermission(Permissions.SearchInvoice)]
     public async Task<ActionResult<InvoiceDetail>> Get(long id, CancellationToken cancellationToken)
@@ -87,25 +151,36 @@ public sealed class InvoicesController : ControllerBase
                 cancellationToken)
             .ConfigureAwait(false);
 
+        // Not one of this app's own — it may be a legacy invoice adopted into the same table.
         if (invoice is null)
         {
-            return NotFound();
+            return await LegacyInvoiceDetail(id, accessible, cancellationToken).ConfigureAwait(false);
         }
 
         var customer = await _db.Customers
             .FirstOrDefaultAsync(c => c.Id == invoice.CustomerId, cancellationToken)
             .ConfigureAwait(false);
 
+        var companyName = invoice.CompanyId is { } cid
+            ? await _db.Companies.Where(c => c.Id == cid).Select(c => c.Name).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+            : null;
+
         var outstanding = await _db.ReceivablesLedger
             .Where(e => e.InvoiceId == id)
             .SumAsync(e => e.Amount, cancellationToken)
             .ConfigureAwait(false);
+
+        // Item vs service is the line-level distinction (slice 0-B): an invoice with any item line is an
+        // item invoice, otherwise a service one.
+        var kind = invoice.Lines.Any(l => l.ItemId is not null) ? "Item" : "Service";
 
         return Ok(new InvoiceDetail(
             invoice.Id,
             invoice.Number,
             invoice.Date,
             invoice.Type.ToString(),
+            companyName,
+            kind,
             customer?.Name,
             customer?.Code,
             invoice.PurchaseOrderNo,
@@ -117,8 +192,84 @@ public sealed class InvoicesController : ControllerBase
             invoice.TaxAmount,
             invoice.Total,
             outstanding,
+            "new",
             [.. invoice.Lines.Select(l => new InvoiceLineDetail(
                 l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
+    }
+
+    /// <summary>
+    /// The read view for a legacy invoice — the same shape, built from the old system's <c>varchar</c>
+    /// columns, parsed defensively (a bad value is 0, never an exception — <see cref="LegacyValue"/>). Its
+    /// figures are reconstructed as they were stored: the discount is subtotal less the after-discount
+    /// net, the tax is total less net. Lines come from <c>invoice_l</c> by the legacy number; a legacy
+    /// line carries no per-line discount or item reference, so those are 0/absent.
+    /// </summary>
+    private async Task<ActionResult<InvoiceDetail>> LegacyInvoiceDetail(
+        long id,
+        List<long> accessible,
+        CancellationToken cancellationToken)
+    {
+        var accessibleText = accessible.Select(x => x.ToString(CultureInfo.InvariantCulture)).ToHashSet();
+
+        var h = await _legacy.InvoiceHs
+            .FirstOrDefaultAsync(x => x.Id == id && x.DataOrigin != "new", cancellationToken)
+            .ConfigureAwait(false);
+
+        if (h is null || h.Company is null || !accessibleText.Contains(h.Company))
+        {
+            return NotFound();
+        }
+
+        var lines = await _legacy.InvoiceLs
+            .Where(l => l.Inno == h.Invoiceno)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var customer = h.Customer is null
+            ? null
+            : await _db.Customers.FirstOrDefaultAsync(c => c.Code == h.Customer, cancellationToken).ConfigureAwait(false);
+
+        // The legacy company column is the id as a string; resolve its name from the adopted companies.
+        var companyName = long.TryParse(h.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var legacyCompanyId)
+            ? await _db.Companies.Where(c => c.Id == legacyCompanyId).Select(c => c.Name).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+            : null;
+
+        var subtotal = LegacyValue.Money(h.Beforedisctot);
+        var net = LegacyValue.Money(h.Novattotal);
+        var total = LegacyValue.Money(h.Totamount);
+
+        // The legacy `it` column already records ITEM vs SERVICE.
+        var kind = string.Equals(h.It, "ITEM", StringComparison.OrdinalIgnoreCase) ? "Item" : "Service";
+
+        return Ok(new InvoiceDetail(
+            h.Id,
+            h.Invoiceno ?? "—",
+            LegacyValue.Date(h.Indate) ?? DateOnly.MinValue,
+            h.Invtype ?? "—",
+            companyName,
+            kind,
+            customer?.Name ?? h.Customer,
+            customer?.Code ?? h.Customer,
+            h.Pono,
+            h.Contactperson,
+            subtotal,
+            subtotal - net, // discount = pre-discount subtotal less the after-discount net
+            net,
+            LegacyValue.Money(h.Vper),
+            total - net, // tax = grand total less the pre-VAT net
+            total,
+            LegacyValue.Money(h.Balance),
+            "legacy",
+            [.. lines.Select(l => new InvoiceLineDetail(
+                null,
+                l.Itemcode,
+                l.Desc,
+                LegacyValue.Money(l.Qty),
+                LegacyValue.Money(l.Rate),
+                0m,
+                LegacyValue.Money(l.Tot),
+                LegacyValue.Money(l.Tot),
+                null))]));
     }
 
     /// <summary>
@@ -174,6 +325,44 @@ public sealed class InvoicesController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// A customer's credit standing — for the New Invoice screen's advisory when a customer is picked.
+    /// </summary>
+    /// <remarks>
+    /// The <b>same</b> derived-ledger balance and enforcement setting the server-side gate uses (so the
+    /// warning and the gate agree), surfaced so the screen can show the outstanding and the remaining
+    /// headroom up front and confirm before a save that would breach it — rather than the breach only
+    /// surfacing as a 409 after the whole document is typed.
+    /// </remarks>
+    [HttpGet("credit-status")]
+    [RequirePermission(Permissions.ItemInvoice)]
+    public async Task<ActionResult<CreditStatus>> CustomerCreditStatus(
+        long customerId,
+        long companyId,
+        CancellationToken cancellationToken)
+    {
+        if (!_company.Accessible.Contains(companyId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "You cannot raise an invoice in that company.");
+        }
+
+        var customer = await _db.Customers
+            .FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken)
+            .ConfigureAwait(false);
+        if (customer is null)
+        {
+            return NotFound();
+        }
+
+        var outstanding = await _ledger.BalanceForCustomerAsync(customerId, cancellationToken).ConfigureAwait(false);
+        var enforced = BusinessRules.AsBool(
+            await _rules.ResolveAsync(companyId, BusinessRules.CreditLimitEnforced, cancellationToken).ConfigureAwait(false));
+
+        return Ok(new CreditStatus(customer.CreditLimit, outstanding, enforced));
+    }
+
     /// <remarks>
     /// Creating is not a reason-gated action (AUDIT.md §5 — "the record is the reason"), so no
     /// <c>X-Change-Reason</c> here; editing an issued invoice, in slice 5, is.
@@ -208,14 +397,17 @@ public sealed class InvoicesController : ControllerBase
                     request.ContactPerson,
                     [.. request.Lines.Select(l => new NewInvoiceLine(
                         l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
-                    request.DocumentDiscountPercent),
+                    request.DocumentDiscountPercent,
+                    request.AcknowledgeCreditLimit),
                 cancellationToken).ConfigureAwait(false);
         }
         catch (CreditLimitExceededException over)
         {
-            // A business rule the caller can act on (raise the limit, take a payment first), not a
-            // server fault — 409, with the numbers, not a generic 500.
-            return Problem(statusCode: StatusCodes.Status409Conflict, title: over.Message);
+            // A soft gate, not a dead-end: the screen catches this, shows the numbers, and re-posts with
+            // AcknowledgeCreditLimit once the user confirms. The code lets it tell this 409 from any other.
+            var problem = new ProblemDetails { Status = StatusCodes.Status409Conflict, Title = over.Message };
+            problem.Extensions["code"] = "credit_limit_exceeded";
+            return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
         }
 
         return Ok(new InvoiceCreatedResponse(created.Id, created.Number, created.Total, created.Outstanding));

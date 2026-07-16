@@ -17,6 +17,12 @@ public sealed record NewInvoiceLine(
 /// A discount on the whole document, after any per-line discounts and before VAT. 0 for none — a
 /// discount may be given per line, on the document, or both.
 /// </param>
+/// <param name="AcknowledgeCreditLimit">
+/// The credit limit is a <b>soft</b> gate: a breach is not a dead-end. When the person raising the
+/// invoice has been shown the breach and confirmed it, this is <c>true</c> and the save proceeds — the
+/// confirmation is the override. It is <c>false</c> on a first, un-confirmed attempt (and on a direct
+/// API call), so a breach is caught and surfaced rather than slipping through unseen.
+/// </param>
 public sealed record NewInvoice(
     long CompanyId,
     long CustomerId,
@@ -25,7 +31,8 @@ public sealed record NewInvoice(
     string? PurchaseOrderNo,
     string? ContactPerson,
     IReadOnlyList<NewInvoiceLine> Lines,
-    decimal DocumentDiscountPercent = 0m);
+    decimal DocumentDiscountPercent = 0m,
+    bool AcknowledgeCreditLimit = false);
 
 /// <summary>What the caller gets back — enough to show a toast and route to the new invoice.</summary>
 public sealed record InvoiceCreated(long Id, string Number, decimal Total, decimal Outstanding);
@@ -42,5 +49,26 @@ public sealed record InvoiceCreated(long Id, string Number, decimal Total, decim
 /// </remarks>
 public interface IInvoiceCreator
 {
+    /// <summary>
+    /// Creates an invoice in its own transaction — the entry point for a hand-keyed invoice.
+    /// </summary>
     Task<InvoiceCreated> CreateAsync(NewInvoice request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates an invoice <b>inside a transaction the caller already owns</b>, without beginning or
+    /// committing one — the entry point for quotation conversion, which must write the invoice and mark
+    /// the quote converted atomically (all or none).
+    /// </summary>
+    /// <param name="sourceQuotationId">
+    /// The quotation being converted, stored on the invoice as its back-link; null for a direct invoice.
+    /// </param>
+    /// <remarks>
+    /// Throws if there is no active transaction: an invoice half-written outside one is exactly the
+    /// partial document (B2) the pipeline exists to prevent. <see cref="CreateAsync"/> is this method
+    /// wrapped in <c>BeginTransaction … Commit</c>.
+    /// </remarks>
+    Task<InvoiceCreated> CreateInCurrentTransactionAsync(
+        NewInvoice request,
+        long? sourceQuotationId,
+        CancellationToken cancellationToken = default);
 }

@@ -5,6 +5,12 @@ namespace Smartnet.Infrastructure.Entities;
 
 public partial class InvoiceH
 {
+    /// <summary>
+    /// The surrogate key the Phase 5 adoption added to <c>invoice_h</c> (it had none). Present on every
+    /// row now, including legacy ones — a stable, unique handle for a legacy invoice in a list.
+    /// </summary>
+    public long Id { get; set; }
+
     public string? It { get; set; }
 
     public string? Invoiceno { get; set; }
@@ -40,4 +46,11 @@ public partial class InvoiceH
     public string Beforedisctot { get; set; } = null!;
 
     public string Contactperson { get; set; } = null!;
+
+    /// <summary>
+    /// The <c>data_origin</c> discriminator the Phase 5 invoice adoption added. Legacy rows are
+    /// <c>legacy</c> (the default); rows the new app writes are <c>new</c>. This read-model is for the
+    /// legacy rows, so a reader that must not double-count the new invoices filters on it.
+    /// </summary>
+    public string? DataOrigin { get; set; }
 }

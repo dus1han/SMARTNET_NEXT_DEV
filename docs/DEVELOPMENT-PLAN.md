@@ -180,6 +180,14 @@ correct totals, a correct ledger, and a correct audit record — proven by tests
 Purchase orders, supplier invoices (pending/paid), job cards (fault description, remarks,
 serial-tracked lines, close-job workflow). Same engine, same patterns.
 
+**Structured customer contacts.** Retire the `;`-separated `customer.contactperson`/`email` fields
+for a real `customer_contacts` table (name, role, phone, email per row). Additive migration that
+**dual-writes** the legacy `varchar` columns so the still-live legacy app keeps reading, plus a
+**backfill** that splits existing `;`-separated production values into rows. The customer master
+gains add/edit/remove of multiple contacts, and the Phase 5 invoice contact-picker — which today
+splits that one string client-side — points at the real rows instead. *(Deferred here from Phase 5,
+2026-07-15: it is master-data plumbing, not part of the documents engine.)*
+
 ---
 
 ### Phase 7 — Money & documents · ~2.5 weeks

@@ -265,6 +265,13 @@ The same engine with **no stock and no ledger impact** — a quotation charges n
 **Exit:** a quotation converts to an invoice exactly once, the invoice carries a link back to its quote,
 and the quote shows as converted. A second conversion attempt is refused.
 
+*(Built and tested — quotation adoption (`quotation_h`/`quotation_l`, additive migration), the
+no-ledger/no-stock `QuotationCreator`, and the `QuotationConverter` that builds the invoice through the
+shared `IInvoiceCreator.CreateInCurrentTransactionAsync` inside one transaction, links both documents,
+and refuses a second conversion. Three integration tests green: create touches no ledger or stock,
+convert-once raises a real invoice with a charge + stock issue + back-link, second convert refused. Web:
+quotation list/new/view on the shared `LineDraftEditor`, with a convert dialog. All 350 API tests pass.)*
+
 ---
 
 ## Slice 4 — Credit notes · ~0.75 week

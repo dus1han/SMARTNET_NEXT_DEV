@@ -22,3 +22,22 @@ export function currentMonthStart(): string {
 export function today(): string {
   return iso(new Date());
 }
+
+/**
+ * Whole days a document has been outstanding — its age since `date` (an ISO `yyyy-MM-dd`). Null when the
+ * date is missing or implausible (a legacy row with an unreadable date falls back to year 1).
+ */
+export function daysDue(date: string): number | null {
+  const then = Date.parse(date);
+  if (Number.isNaN(then)) return null;
+  const days = Math.floor((Date.now() - then) / 86_400_000);
+  if (days < 0 || days > 40_000) return null;
+  return days;
+}
+
+/** "2 days due" / "1 day due", or "Due" when the age is unknown. */
+export function daysDueLabel(date: string): string {
+  const days = daysDue(date);
+  if (days == null) return "Due";
+  return `${days} ${days === 1 ? "day" : "days"} due`;
+}

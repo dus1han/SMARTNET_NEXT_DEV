@@ -104,6 +104,10 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.Property(i => i.Total).HasColumnName("total_amount").HasColumnType("decimal(18,4)");
         builder.Property(i => i.Cost).HasColumnName("cost_amount").HasColumnType("decimal(18,4)");
 
+        // The quotation this invoice was converted from — the back-link paired with
+        // Quotation.ConvertedToInvoiceId. A plain scalar column (no navigation), null for a direct invoice.
+        builder.Property(i => i.SourceQuotationId).HasColumnName("source_quotation_id");
+
         builder.Property(i => i.DataOrigin).HasColumnName("data_origin").HasMaxLength(16);
 
         // --- Legacy shadow columns -----------------------------------------------------------------
