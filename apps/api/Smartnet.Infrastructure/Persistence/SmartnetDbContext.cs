@@ -127,6 +127,12 @@ public class SmartnetDbContext : DbContext
     /// <summary>Receipt allocations — one per invoice a receipt settles.</summary>
     public DbSet<ReceiptAllocation> ReceiptAllocations => Set<ReceiptAllocation>();
 
+    /// <summary>Supplier payments (Phase 7) — money paid, allocated across supplier invoices; the settlement is the payables ledger.</summary>
+    public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
+
+    /// <summary>Supplier-payment allocations — one per supplier invoice a payment settles.</summary>
+    public DbSet<SupplierPaymentAllocation> SupplierPaymentAllocations => Set<SupplierPaymentAllocation>();
+
     /// <summary>Job cards, on the adopted legacy <c>jobs_m</c>. A service/repair document — no tax, ledger or stock.</summary>
     public DbSet<JobCard> JobCards => Set<JobCard>();
 

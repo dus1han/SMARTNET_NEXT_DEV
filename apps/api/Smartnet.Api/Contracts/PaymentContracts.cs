@@ -75,3 +75,76 @@ public sealed class CreateCustomerReceiptRequestValidator : AbstractValidator<Cr
         });
     }
 }
+
+// --- Supplier payments (Phase 7) ----------------------------------------------------------------
+//
+// The payables mirror: money paid to a supplier, allocated across its open invoices. Its truth is the
+// payables ledger; a legacy supplier_inv_pay row + paymentstat are dual-written for the surviving report.
+
+/// <summary>One allocation of a supplier payment — how much of it settles which supplier invoice.</summary>
+public sealed record CreateSupplierPaymentAllocationRequest(long SupplierInvoiceId, decimal Amount);
+
+/// <summary>A whole supplier payment, posted at once — the total is the sum of its allocations.</summary>
+public sealed record CreateSupplierPaymentRequest(
+    long CompanyId,
+    long SupplierId,
+    DateOnly Date,
+    string? Method,
+    string? Reference,
+    string IdempotencyKey,
+    IReadOnlyList<CreateSupplierPaymentAllocationRequest> Allocations);
+
+/// <summary>What the caller gets back. <paramref name="AlreadyExisted"/> is true when the idempotency key matched an existing payment.</summary>
+public sealed record SupplierPaymentCreatedResponse(long Id, decimal Amount, bool AlreadyExisted);
+
+/// <summary>One row of the supplier-payments list.</summary>
+public sealed record SupplierPaymentSummary(
+    long Id,
+    DateOnly Date,
+    string? SupplierName,
+    decimal Amount,
+    string? Method,
+    string? Reference,
+    int Invoices);
+
+/// <summary>One allocation, for the read view.</summary>
+public sealed record SupplierPaymentAllocationLine(long SupplierInvoiceId, string? Reference, decimal Amount);
+
+/// <summary>One supplier payment, in full — the read view, with its per-invoice allocations.</summary>
+public sealed record SupplierPaymentDetail(
+    long Id,
+    DateOnly Date,
+    string? CompanyName,
+    string? SupplierName,
+    string? SupplierCode,
+    decimal Amount,
+    string? Method,
+    string? Reference,
+    int RowVersion,
+    IReadOnlyList<SupplierPaymentAllocationLine> Allocations);
+
+/// <summary>One of a supplier's open invoices — the picker a payment is allocated over (new and legacy alike).</summary>
+public sealed record OutstandingSupplierInvoiceLine(
+    long SupplierInvoiceId,
+    string Reference,
+    DateOnly Date,
+    decimal Amount,
+    decimal Outstanding,
+    string Origin);
+
+/// <summary>Server-side validation for a new supplier payment — a supplier, an idempotency key, positive allocations.</summary>
+public sealed class CreateSupplierPaymentRequestValidator : AbstractValidator<CreateSupplierPaymentRequest>
+{
+    public CreateSupplierPaymentRequestValidator()
+    {
+        RuleFor(r => r.CompanyId).GreaterThan(0);
+        RuleFor(r => r.SupplierId).GreaterThan(0);
+        RuleFor(r => r.IdempotencyKey).NotEmpty().WithMessage("A payment needs an idempotency key.");
+        RuleFor(r => r.Allocations).NotEmpty().WithMessage("A payment must allocate to at least one invoice.");
+        RuleForEach(r => r.Allocations).ChildRules(a =>
+        {
+            a.RuleFor(x => x.SupplierInvoiceId).GreaterThan(0);
+            a.RuleFor(x => x.Amount).GreaterThan(0m).WithMessage("Each allocation must be a positive amount.");
+        });
+    }
+}

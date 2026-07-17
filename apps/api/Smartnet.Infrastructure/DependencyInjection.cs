@@ -90,6 +90,13 @@ public static class DependencyInjection
         services.AddScoped<ICustomerReceiptCreator>(sp => sp.GetRequiredService<CustomerReceiptService>());
         services.AddScoped<ICustomerReceiptVoider>(sp => sp.GetRequiredService<CustomerReceiptService>());
 
+        // Supplier payments (Phase 7): the payables mirror — money paid, allocated across supplier invoices
+        // (new and adopted-legacy alike), Payment entries on the payables ledger dual-writing supplier_inv_pay
+        // + paymentstat, idempotent, with a soft void that reverses. One service behind create and void.
+        services.AddScoped<SupplierPaymentService>();
+        services.AddScoped<ISupplierPaymentCreator>(sp => sp.GetRequiredService<SupplierPaymentService>());
+        services.AddScoped<ISupplierPaymentVoider>(sp => sp.GetRequiredService<SupplierPaymentService>());
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));

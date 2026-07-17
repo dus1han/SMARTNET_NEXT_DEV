@@ -96,7 +96,7 @@ public sealed class CustomerReceiptTests
             // Exactly one payment took place — the outstanding fell by 40 once, not 80.
             (await OutstandingFor(db, inv)).Should().Be(60m);
             (await PaymentRowCount(db, "INV-B1")).Should().Be(1);
-            (await db.CustomerReceipts.CountAsync()).Should().Be(1);
+            (await db.CustomerReceipts.CountAsync(r => r.CustomerId == customerId)).Should().Be(1);
         }
     }
 

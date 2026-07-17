@@ -170,6 +170,14 @@ export type CustomerReceiptDetail = Schemas["CustomerReceiptDetail"];
 export type ReceiptAllocationLine = Schemas["ReceiptAllocationLine"];
 export type OutstandingInvoiceLine = Schemas["OutstandingInvoiceLine"];
 
+export type CreateSupplierPaymentRequest = Schemas["CreateSupplierPaymentRequest"];
+export type CreateSupplierPaymentAllocationRequest = Schemas["CreateSupplierPaymentAllocationRequest"];
+export type SupplierPaymentCreatedResponse = Schemas["SupplierPaymentCreatedResponse"];
+export type SupplierPaymentSummary = Schemas["SupplierPaymentSummary"];
+export type SupplierPaymentDetail = Schemas["SupplierPaymentDetail"];
+export type SupplierPaymentAllocationLine = Schemas["SupplierPaymentAllocationLine"];
+export type OutstandingSupplierInvoiceLine = Schemas["OutstandingSupplierInvoiceLine"];
+
 // --- History ---------------------------------------------------------------------------------
 
 export type AuditEntry = Schemas["AuditEntry"];

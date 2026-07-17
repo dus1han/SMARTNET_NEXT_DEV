@@ -94,10 +94,17 @@ public sealed class SupplierInvoiceService : ISupplierInvoiceCreator, ISupplierI
 
     public async Task<SupplierPaymentRecorded> RecordPaymentAsync(long supplierInvoiceId, RecordSupplierPayment payment, CancellationToken cancellationToken = default)
     {
-        var invoice = await _db.SupplierInvoices
-            .FirstOrDefaultAsync(s => s.Id == supplierInvoiceId, cancellationToken)
-            .ConfigureAwait(false)
-            ?? throw new InvalidOperationException($"Supplier invoice {supplierInvoiceId} does not exist.");
+        // The supplier comes off the payable, not the header — so this settles adopted legacy invoices too
+        // (their supplier_id column is NULL, but their seeded OpeningBalance entry carries the resolved id).
+        var supplierId = await _db.PayablesLedger
+            .Where(e => e.SupplierInvoiceId == supplierInvoiceId)
+            .Select(e => e.SupplierId)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (supplierId == 0)
+        {
+            throw new InvalidOperationException($"Supplier invoice {supplierInvoiceId} does not exist or has no payable to settle.");
+        }
 
         var outstanding = await _ledger.OutstandingForInvoiceAsync(supplierInvoiceId, cancellationToken).ConfigureAwait(false);
         if (payment.Amount > outstanding)
@@ -112,7 +119,7 @@ public sealed class SupplierInvoiceService : ISupplierInvoiceCreator, ISupplierI
         // The payment reduces what we owe — a negative payable entry, tied to the invoice.
         _db.PayablesLedger.Add(new PayablesLedgerEntry
         {
-            SupplierId = invoice.SupplierId,
+            SupplierId = supplierId,
             Type = PayablesLedgerEntryType.Payment,
             Amount = -payment.Amount,
             SupplierInvoiceId = supplierInvoiceId,
