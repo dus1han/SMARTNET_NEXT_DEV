@@ -5156,7 +5156,6 @@ export interface components {
             /** Format: int64 */
             id: number;
             name?: string | null;
-            role?: string | null;
             phone?: string | null;
             email?: string | null;
             usage: string;

@@ -292,7 +292,9 @@ function CustomerDialog({ target, companies, bands, onClose, onSaved }: {
 
   const save = useMutation({
     mutationFn: async (values: CustomerForm): Promise<void> => {
-      const request = { ...toRequest(values), contacts: toContactDtos(contacts) };
+      // An Individual customer is a person, so their contact takes the customer's own name.
+      const rows = values.type === "Individual" ? withCustomerNameContact(contacts, values.name) : contacts;
+      const request = { ...toRequest(values), contacts: toContactDtos(rows) };
       if (editing) await updateCustomer(editing.id, request);
       else await createCustomer(request);
     },
@@ -347,12 +349,8 @@ function CustomerDialog({ target, companies, bands, onClose, onSaved }: {
             <option value="Individual">Individual</option>
           </Select>
 
-          <Input
-            label="Phone"
-            error={form.formState.errors.phone?.message}
-            {...form.register("phone")}
-          />
-
+          {/* The company-level phone is no longer collected — a contact person's phone is enough. The
+              existing value is preserved (kept in the form state, not wiped) and migrated onto a contact. */}
           <Input
             label="VAT number"
             error={form.formState.errors.vatNumber?.message}
@@ -426,11 +424,19 @@ function toForm(c: CustomerSummary): CustomerForm {
 const DOCUMENTS_AND_NOTIFICATIONS = "DocumentsAndNotifications";
 const NOTIFICATIONS_ONLY = "NotificationsOnly";
 
-interface ContactRow { name: string; role: string; phone: string; email: string; usage: string }
-const blankContactRow: ContactRow = { name: "", role: "", phone: "", email: "", usage: DOCUMENTS_AND_NOTIFICATIONS };
+interface ContactRow { name: string; phone: string; email: string; usage: string }
+const blankContactRow: ContactRow = { name: "", phone: "", email: "", usage: DOCUMENTS_AND_NOTIFICATIONS };
 
 function toContactRow(c: CustomerContactDto): ContactRow {
-  return { name: c.name ?? "", role: c.role ?? "", phone: c.phone ?? "", email: c.email ?? "", usage: c.usage };
+  return { name: c.name ?? "", phone: c.phone ?? "", email: c.email ?? "", usage: c.usage };
+}
+
+/** For an Individual customer the person is the customer, so the first contact takes the customer's name. */
+function withCustomerNameContact(rows: ContactRow[], customerName: string): ContactRow[] {
+  const name = customerName.trim();
+  if (!name) return rows;
+  if (rows.length === 0) return [{ ...blankContactRow, name }];
+  return rows.map((r, i) => (i === 0 ? { ...r, name } : r));
 }
 
 /** The rows the user filled, as DTOs — blank rows dropped. Id 0: the server allocates. */
@@ -440,7 +446,6 @@ function toContactDtos(rows: ContactRow[]): CustomerContactDto[] {
   return filled.map((r) => ({
     id: 0,
     name: blankToNull(r.name),
-    role: blankToNull(r.role),
     phone: blankToNull(r.phone),
     email: blankToNull(r.email),
     usage: r.usage === NOTIFICATIONS_ONLY ? NOTIFICATIONS_ONLY : DOCUMENTS_AND_NOTIFICATIONS,
@@ -477,7 +482,6 @@ function ContactsEditor({ contacts, onChange }: { contacts: ContactRow[]; onChan
       {contacts.map((c, i) => (
         <div key={i} className="flex flex-wrap items-center gap-2">
           <input placeholder="Name" value={c.name} onChange={(e) => set(i, { name: e.target.value })} className={contactInput} />
-          <input placeholder="Role" value={c.role} onChange={(e) => set(i, { role: e.target.value })} className={cn(contactInput, "sm:max-w-[8rem]")} />
           <input placeholder="Email" value={c.email} onChange={(e) => set(i, { email: e.target.value })} className={contactInput} />
           <input placeholder="Phone" value={c.phone} onChange={(e) => set(i, { phone: e.target.value })} className={cn(contactInput, "sm:max-w-[9rem]")} />
           <select

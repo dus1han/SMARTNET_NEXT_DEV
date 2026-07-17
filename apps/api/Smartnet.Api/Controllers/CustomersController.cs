@@ -359,7 +359,7 @@ public sealed class CustomersController : ControllerBase
             c.CreditLimit,
             c.Contacts
                 .OrderBy(ct => ct.Id)
-                .Select(ct => new CustomerContactDto(ct.Id, ct.Name, ct.Role, ct.Phone, ct.Email, ct.Usage))
+                .Select(ct => new CustomerContactDto(ct.Id, ct.Name, ct.Phone, ct.Email, ct.Usage))
                 .ToList());
 
     /// <summary>
@@ -381,7 +381,6 @@ public sealed class CustomersController : ControllerBase
             customer.Contacts.Add(new CustomerContact
             {
                 Name = contact.Name,
-                Role = contact.Role,
                 Phone = contact.Phone,
                 Email = contact.Email,
                 Usage = contact.Usage is ContactUsage.NotificationsOnly ? ContactUsage.NotificationsOnly : ContactUsage.DocumentsAndNotifications,

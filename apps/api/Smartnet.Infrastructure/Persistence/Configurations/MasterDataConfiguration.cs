@@ -76,7 +76,6 @@ public class CustomerContactConfiguration : IEntityTypeConfiguration<CustomerCon
         builder.Property(c => c.Id).HasColumnName("id");
         builder.Property(c => c.CustomerId).HasColumnName("customer_id");
         builder.Property(c => c.Name).HasColumnName("name").HasMaxLength(200);
-        builder.Property(c => c.Role).HasColumnName("role").HasMaxLength(100);
         builder.Property(c => c.Phone).HasColumnName("phone").HasMaxLength(100);
         builder.Property(c => c.Email).HasColumnName("email").HasMaxLength(200);
         builder.Property(c => c.Usage).HasColumnName("contact_usage").HasMaxLength(32);

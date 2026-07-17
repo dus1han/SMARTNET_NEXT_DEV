@@ -38,9 +38,6 @@ public class CustomerContact : IAuditable, ISoftDeletable
     /// <summary>The contact's name — the value the legacy <c>contactp</c> string held one of.</summary>
     public string? Name { get; set; }
 
-    /// <summary>Their role, e.g. "Accounts" or "Site manager". Optional; the legacy data had none.</summary>
-    public string? Role { get; set; }
-
     public string? Phone { get; set; }
 
     /// <summary>Their email — the value the legacy <c>email</c> string held one of.</summary>

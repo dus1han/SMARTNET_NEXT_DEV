@@ -30,7 +30,7 @@ public sealed class CustomerContactTests
                 Name = "Acme",
                 Contacts =
                 [
-                    new CustomerContact { Name = "Priya", Role = "Accounts", Email = "priya@acme.test", Usage = ContactUsage.DocumentsAndNotifications },
+                    new CustomerContact { Name = "Priya", Email = "priya@acme.test", Usage = ContactUsage.DocumentsAndNotifications },
                     new CustomerContact { Name = "Sam", Phone = "0771234567", Usage = ContactUsage.NotificationsOnly },
                 ],
             };

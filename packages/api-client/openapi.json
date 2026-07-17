@@ -7279,10 +7279,6 @@
             "type": "string",
             "nullable": true
           },
-          "role": {
-            "type": "string",
-            "nullable": true
-          },
           "phone": {
             "type": "string",
             "nullable": true
