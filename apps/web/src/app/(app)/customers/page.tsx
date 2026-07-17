@@ -11,7 +11,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { History as HistoryIcon, MoreHorizontal, Plus, SquarePen, Trash2, UserPlus, X } from "lucide-react";
+import { ChevronDown, History as HistoryIcon, MoreHorizontal, Plus, SquarePen, Trash2, UserPlus, X } from "lucide-react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
 import { useState } from "react";
 import { z } from "zod";
@@ -107,10 +107,7 @@ export default function CustomersPage() {
         return (
           <div className="min-w-0">
             <p className="truncate font-medium text-text">{customer.name}</p>
-            <p className="truncate text-xs text-muted">
-              {customer.code}
-              {displayContactName(customer) ? ` · ${displayContactName(customer)}` : ""}
-            </p>
+            <p className="truncate text-xs text-muted">{customer.code}</p>
           </div>
         );
       },
@@ -128,14 +125,42 @@ export default function CustomersPage() {
     },
     {
       id: "contact",
-      header: "Contact",
-      accessorFn: (row) => displayContactPhone(row),
-      cell: ({ row }) => (
-        <div className="min-w-0 text-sm">
-          <p className="truncate text-text">{displayContactPhone(row.original) || "—"}</p>
-          <p className="truncate text-xs text-muted">{displayContactEmail(row.original)}</p>
-        </div>
-      ),
+      header: "Contacts",
+      enableSorting: false,
+      cell: ({ row }) => {
+        const list = row.original.contacts;
+        if (list.length === 0) return <span className="text-muted">—</span>;
+        return (
+          <Menu.Root>
+            <Menu.Trigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5">
+                {list.length} contact{list.length === 1 ? "" : "s"}
+                <ChevronDown className="size-3.5 text-muted" aria-hidden />
+              </Button>
+            </Menu.Trigger>
+            <Menu.Portal>
+              <Menu.Content
+                align="start"
+                sideOffset={4}
+                className="z-50 max-h-80 w-72 overflow-y-auto rounded-lg border border-subtle bg-surface p-1.5 shadow-lg data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+              >
+                {list.map((ct, i) => (
+                  <div key={i} className="rounded-md px-2 py-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-medium text-text">{ct.name || "—"}</span>
+                      <Badge tone={ct.usage === NOTIFICATIONS_ONLY ? "neutral" : "success"}>
+                        {ct.usage === NOTIFICATIONS_ONLY ? "Notify" : "Docs"}
+                      </Badge>
+                    </div>
+                    {ct.phone && <div className="text-xs text-muted">{ct.phone}</div>}
+                    {ct.email && <div className="truncate text-xs text-muted">{ct.email}</div>}
+                  </div>
+                ))}
+              </Menu.Content>
+            </Menu.Portal>
+          </Menu.Root>
+        );
+      },
     },
     {
       id: "creditLimit",
@@ -442,18 +467,6 @@ function toContactRow(c: CustomerContactDto): ContactRow {
   return { name: c.name ?? "", phone: c.phone ?? "", email: c.email ?? "", usage: c.usage };
 }
 
-// The list reads a customer's contact details from the structured contacts (the new source of truth), not
-// the legacy ;-separated contactPerson/email strings — those are only kept dual-written for the legacy app.
-function displayContactName(c: CustomerSummary): string {
-  const named = c.contacts.filter((ct) => ct.usage !== NOTIFICATIONS_ONLY && ct.name?.trim());
-  return (named[0]?.name ?? c.contacts.find((ct) => ct.name?.trim())?.name ?? "").trim();
-}
-function displayContactPhone(c: CustomerSummary): string {
-  return c.contacts.find((ct) => ct.phone?.trim())?.phone ?? "";
-}
-function displayContactEmail(c: CustomerSummary): string {
-  return c.contacts.find((ct) => ct.email?.trim())?.email ?? "";
-}
 
 /** The rows the user filled, as DTOs — blank rows dropped. Id 0: the server allocates. */
 function toContactDtos(rows: ContactRow[]): CustomerContactDto[] {
