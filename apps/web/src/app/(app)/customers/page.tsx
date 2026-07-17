@@ -107,7 +107,10 @@ export default function CustomersPage() {
         return (
           <div className="min-w-0">
             <p className="truncate font-medium text-text">{customer.name}</p>
-            <p className="truncate text-xs text-muted">{customer.code}</p>
+            <p className="truncate text-xs text-muted">
+              {customer.code}
+              {customer.address ? ` · ${customer.address}` : ""}
+            </p>
           </div>
         );
       },
