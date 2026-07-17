@@ -4,12 +4,16 @@ import { Eye, EyeOff } from "lucide-react";
 import {
   useId,
   useState,
+  type ChangeEvent,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
 import { cn } from "@/lib/cn";
+
+// A partial decimal: optional leading minus, digits, at most one dot. Empty is allowed (a cleared field).
+const DECIMAL = /^-?\d*\.?\d*$/;
 
 const control = cn(
   "w-full rounded-md border border-subtle bg-surface px-3 py-2 text-sm text-text",
@@ -81,9 +85,22 @@ export type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "id"> & {
   label: string;
   error?: string;
   hint?: ReactNode;
+  /** Force numeric-only entry (also implied by inputMode="decimal"). Non-decimal keystrokes/pastes are rejected. */
+  numeric?: boolean;
 };
 
-export function Input({ label, error, hint, className, required, ...props }: InputProps) {
+export function Input({ label, error, hint, className, required, numeric, inputMode, onChange, ...props }: InputProps) {
+  // A value field only accepts a value. Any input flagged numeric (or with a decimal keypad) rejects
+  // anything that is not a partial decimal — typed or pasted — so "total", "qty", "VAT" et al. cannot hold
+  // letters. This covers every money/quantity field in the app from the one component (see AGENTS.md).
+  const isNumeric = numeric || inputMode === "decimal";
+  const handleChange =
+    isNumeric && onChange
+      ? (e: ChangeEvent<HTMLInputElement>) => {
+          if (DECIMAL.test(e.target.value)) onChange(e);
+        }
+      : onChange;
+
   return (
     <FieldShell label={label} error={error} hint={hint} required={required}>
       {({ id, describedBy, invalid }) => (
@@ -92,6 +109,8 @@ export function Input({ label, error, hint, className, required, ...props }: Inp
           aria-invalid={invalid || undefined}
           aria-describedby={describedBy}
           required={required}
+          inputMode={isNumeric ? "decimal" : inputMode}
+          onChange={handleChange}
           className={cn(control, className)}
           {...props}
         />

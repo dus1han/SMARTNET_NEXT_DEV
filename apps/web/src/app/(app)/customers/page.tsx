@@ -514,7 +514,7 @@ function ContactsEditor({ contacts, onChange }: { contacts: ContactRow[]; onChan
       {contacts.map((c, i) => (
         <div key={i} className="flex flex-wrap items-center gap-2">
           <input placeholder="Name" value={c.name} onChange={(e) => set(i, { name: e.target.value })} className={contactInput} />
-          <input placeholder="Email" value={c.email} onChange={(e) => set(i, { email: e.target.value })} className={contactInput} />
+          <input type="email" placeholder="Email" value={c.email} onChange={(e) => set(i, { email: e.target.value })} className={contactInput} />
           <input placeholder="Phone" value={c.phone} onChange={(e) => set(i, { phone: e.target.value })} className={cn(contactInput, "sm:max-w-[9rem]")} />
           <select
             value={c.usage}

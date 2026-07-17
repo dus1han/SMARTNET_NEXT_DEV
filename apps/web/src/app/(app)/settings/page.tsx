@@ -275,7 +275,7 @@ function CompanyForm({ profile, onSave }: {
           onChange={(e) => set("country", e.target.value)}
         />
         <Input label="Phone" value={draft.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
-        <Input label="Email" value={draft.email ?? ""} onChange={(e) => set("email", e.target.value)} />
+        <Input label="Email" type="email" value={draft.email ?? ""} onChange={(e) => set("email", e.target.value)} />
         <Input
           label="Website"
           value={draft.website ?? ""}

@@ -377,9 +377,12 @@ function NumberCell({ value, parse, onCommit, onDone, label, ref }: {
       inputMode="decimal"
       value={raw ?? value}
       onChange={(event) => {
-        setRaw(event.target.value);
+        const next = event.target.value;
+        if (!/^-?\d*\.?\d*$/.test(next)) return; // a value cell holds only a number
 
-        const parsed = parse(event.target.value.trim());
+        setRaw(next);
+
+        const parsed = parse(next.trim());
 
         if (parsed !== null) onCommit(parsed);
       }}
