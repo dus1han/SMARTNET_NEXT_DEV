@@ -333,6 +333,27 @@ public sealed class EditInvoiceRequestValidator : AbstractValidator<EditInvoiceR
     }
 }
 
+/// <summary>Server-side validation for a quotation edit — a quotation still needs at least one line.</summary>
+public sealed class EditQuotationRequestValidator : AbstractValidator<EditQuotationRequest>
+{
+    public EditQuotationRequestValidator()
+    {
+        RuleFor(r => r.DocumentDiscountPercent).InclusiveBetween(0m, 100m);
+        RuleFor(r => r.Lines).NotEmpty().WithMessage("A quotation needs at least one line.");
+
+        RuleForEach(r => r.Lines).ChildRules(line =>
+        {
+            line.RuleFor(l => l.Quantity).GreaterThan(0);
+            line.RuleFor(l => l.UnitPrice).GreaterThanOrEqualTo(0);
+            line.RuleFor(l => l.DiscountPercent).InclusiveBetween(0m, 100m);
+
+            line.RuleFor(l => l)
+                .Must(l => l.ItemId is not null || !string.IsNullOrWhiteSpace(l.Description))
+                .WithMessage("A line must reference an item or carry a description.");
+        });
+    }
+}
+
 /// <summary>Server-side validation for a new quotation — the same line rules as an invoice.</summary>
 public sealed class CreateQuotationRequestValidator : AbstractValidator<CreateQuotationRequest>
 {
