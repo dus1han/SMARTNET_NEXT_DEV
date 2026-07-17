@@ -5172,6 +5172,10 @@ export interface components {
             date: string;
             description: string;
             /** Format: double */
+            netAmount: number;
+            /** Format: double */
+            taxRatePercentage: number;
+            /** Format: double */
             amount: number;
             method?: string | null;
             reference?: string | null;
@@ -5725,6 +5729,10 @@ export interface components {
             categoryId: number;
             category?: string | null;
             description: string;
+            /** Format: double */
+            netAmount: number;
+            /** Format: double */
+            taxAmount: number;
             /** Format: double */
             amount: number;
             method?: string | null;

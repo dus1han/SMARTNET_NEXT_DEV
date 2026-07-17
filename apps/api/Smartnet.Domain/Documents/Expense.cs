@@ -29,7 +29,16 @@ public class Expense : IAuditable, ISoftDeletable
     /// <summary>What it was for.</summary>
     public string Description { get; set; } = null!;
 
-    /// <summary>The amount spent.</summary>
+    /// <summary>The net amount, before VAT.</summary>
+    public decimal NetAmount { get; set; }
+
+    /// <summary>The VAT rate applied, as a percentage.</summary>
+    public decimal TaxRatePercentage { get; set; }
+
+    /// <summary>The VAT amount — derived (<see cref="Amount"/> − <see cref="NetAmount"/>), not stored.</summary>
+    public decimal TaxAmount => Amount - NetAmount;
+
+    /// <summary>The total spent, VAT included (the legacy <c>expense_amount</c>).</summary>
     public decimal Amount { get; set; }
 
     /// <summary>How it was paid — Cash, Cheque, etc. (the legacy <c>paymentm</c>).</summary>

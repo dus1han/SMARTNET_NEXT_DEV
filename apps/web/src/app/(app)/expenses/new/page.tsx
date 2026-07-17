@@ -6,7 +6,7 @@
  * A flat log entry against a shared category. No ledger, no balance. Dual-writes the legacy expense_tr row.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -28,6 +28,8 @@ export default function NewExpensePage() {
   const [categoryId, setCategoryId] = useState("");
   const [date, setDate] = useState(today);
   const [description, setDescription] = useState("");
+  const [net, setNet] = useState("");
+  const [vat, setVat] = useState("");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("Cash");
   const [reference, setReference] = useState("");
@@ -38,23 +40,36 @@ export default function NewExpensePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
-  const amountValue = amount !== "" ? Number(amount) : 0;
-  const canSubmit = companyId !== "" && categoryId !== "" && description.trim() !== "" && amountValue > 0 && !submitting;
+  // Net + VAT% suggest the total, which the user can still override (rounding etc.). Total is what's stored.
+  const suggested = useMemo(() => {
+    const n = Number(net);
+    const v = Number(vat);
+    if (!Number.isFinite(n) || !Number.isFinite(v)) return null;
+    return Math.round(n * (1 + v / 100) * 100) / 100;
+  }, [net, vat]);
+
+  const netValue = net !== "" ? Number(net) : 0;
+  const amountValue = amount !== "" ? Number(amount) : suggested ?? 0;
+  const byCheque = method.toUpperCase() === "CHEQUE";
+  const canSubmit =
+    companyId !== "" && categoryId !== "" && description.trim() !== "" && amountValue > 0 &&
+    (!byCheque || chequePayee.trim() !== "") && !submitting;
 
   async function submit() {
     setSubmitting(true);
     setError(null);
     try {
-      const byCheque = method.toUpperCase() === "CHEQUE";
       const created = await createExpense({
         companyId: Number(companyId),
         categoryId: Number(categoryId),
         date,
         description: description.trim(),
+        netAmount: net !== "" ? netValue : amountValue,
+        taxRatePercentage: vat !== "" ? Number(vat) : 0,
         amount: amountValue,
         method: method || null,
         reference: reference || null,
-        chequePayee: byCheque ? chequePayee || null : null,
+        chequePayee: byCheque ? chequePayee.trim() : null,
         chequeBank: byCheque ? chequeBank || null : null,
         chequeNumber: byCheque ? chequeNumber || null : null,
         chequeDate: byCheque ? date : null,
@@ -107,11 +122,21 @@ export default function NewExpensePage() {
         </Select>
 
         <Input label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} />
-        <Input label="Amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
 
-        {method.toUpperCase() === "CHEQUE" && (
+        <Input label="Net (before VAT)" inputMode="decimal" value={net} onChange={(e) => setNet(e.target.value)} placeholder="0" />
+        <Input label="VAT %" inputMode="decimal" value={vat} onChange={(e) => setVat(e.target.value)} placeholder="0" />
+        <Input
+          label="Total"
+          inputMode="decimal"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder={suggested != null ? String(suggested) : "0"}
+          hint={suggested != null && amount === "" ? `Net + VAT = ${formatMoney(suggested)} (edit if it differs).` : undefined}
+        />
+
+        {byCheque && (
           <>
-            <Input label="Cheque payee" value={chequePayee} onChange={(e) => setChequePayee(e.target.value)} placeholder="Defaults to the description" />
+            <Input label="Cheque payee" required value={chequePayee} onChange={(e) => setChequePayee(e.target.value)} />
             <Input label="Bank" value={chequeBank} onChange={(e) => setChequeBank(e.target.value)} />
             <Input label="Cheque no." value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} />
             <Input label="Cheque due date" type="date" value={chequeDueDate} onChange={(e) => setChequeDueDate(e.target.value)} />

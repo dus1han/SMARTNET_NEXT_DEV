@@ -62,13 +62,13 @@ public sealed class ExpensesController : ControllerBase
 
         var newExpenses = await _db.Expenses
             .Where(e => e.CompanyId != null && accessible.Contains(e.CompanyId.Value))
-            .Select(e => new { e.Id, e.Date, e.CategoryId, e.Description, e.Amount, e.Method, e.Reference, e.CompanyId, e.RowVersion })
+            .Select(e => new { e.Id, e.Date, e.CategoryId, e.Description, e.NetAmount, e.Amount, e.Method, e.Reference, e.CompanyId, e.RowVersion })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var rows = newExpenses
             .Select(e => new ExpenseSummary(
-                e.Id, e.Date, e.CategoryId, categoryNames.GetValueOrDefault(e.CategoryId), e.Description, e.Amount,
+                e.Id, e.Date, e.CategoryId, categoryNames.GetValueOrDefault(e.CategoryId), e.Description, e.NetAmount, e.Amount - e.NetAmount, e.Amount,
                 e.Method, e.Reference, e.CompanyId is { } cid ? companyNames.GetValueOrDefault(cid) : null, e.RowVersion, "new"))
             .ToList();
 
@@ -84,9 +84,10 @@ public sealed class ExpensesController : ControllerBase
             var catId = long.TryParse(e.ExpCat, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ci) ? ci : 0;
             var companyName = long.TryParse(e.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var co)
                 ? companyNames.GetValueOrDefault(co) : null;
+            var legacyTotal = LegacyValue.Money(e.ExpenseAmount);
             return new ExpenseSummary(
                 e.Id, LegacyValue.Date(e.ExpenseDate) ?? DateOnly.MinValue, catId, categoryNames.GetValueOrDefault(catId),
-                e.ExpenseDesc, LegacyValue.Money(e.ExpenseAmount), e.Paymentm, e.PaymentRef, companyName, e.RowVersion, "legacy");
+                e.ExpenseDesc, legacyTotal, 0m, legacyTotal, e.Paymentm, e.PaymentRef, companyName, e.RowVersion, "legacy");
         }));
 
         return Ok(rows
@@ -106,7 +107,8 @@ public sealed class ExpensesController : ControllerBase
         }
 
         var created = await _creator.CreateAsync(
-            new NewExpense(request.CompanyId, request.CategoryId, request.Date, request.Description, request.Amount, request.Method, request.Reference,
+            new NewExpense(request.CompanyId, request.CategoryId, request.Date, request.Description,
+                request.NetAmount, request.TaxRatePercentage, request.Amount, request.Method, request.Reference,
                 request.ChequePayee, request.ChequeBank, request.ChequeNumber, request.ChequeDate, request.ChequeDueDate),
             cancellationToken).ConfigureAwait(false);
 

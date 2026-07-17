@@ -6918,7 +6918,9 @@
           "categoryId",
           "companyId",
           "date",
-          "description"
+          "description",
+          "netAmount",
+          "taxRatePercentage"
         ],
         "type": "object",
         "properties": {
@@ -6936,6 +6938,14 @@
           },
           "description": {
             "type": "string"
+          },
+          "netAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "taxRatePercentage": {
+            "type": "number",
+            "format": "double"
           },
           "amount": {
             "type": "number",
@@ -8707,8 +8717,10 @@
           "date",
           "description",
           "id",
+          "netAmount",
           "origin",
-          "rowVersion"
+          "rowVersion",
+          "taxAmount"
         ],
         "type": "object",
         "properties": {
@@ -8730,6 +8742,14 @@
           },
           "description": {
             "type": "string"
+          },
+          "netAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "taxAmount": {
+            "type": "number",
+            "format": "double"
           },
           "amount": {
             "type": "number",

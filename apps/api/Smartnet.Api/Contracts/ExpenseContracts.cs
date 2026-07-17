@@ -12,6 +12,8 @@ public sealed record CreateExpenseRequest(
     long CategoryId,
     DateOnly Date,
     string Description,
+    decimal NetAmount,
+    decimal TaxRatePercentage,
     decimal Amount,
     string? Method,
     string? Reference,
@@ -31,6 +33,8 @@ public sealed record ExpenseSummary(
     long CategoryId,
     string? Category,
     string Description,
+    decimal NetAmount,
+    decimal TaxAmount,
     decimal Amount,
     string? Method,
     string? Reference,
@@ -52,7 +56,13 @@ public sealed class CreateExpenseRequestValidator : AbstractValidator<CreateExpe
         RuleFor(r => r.CompanyId).GreaterThan(0);
         RuleFor(r => r.CategoryId).GreaterThan(0).WithMessage("An expense needs a category.");
         RuleFor(r => r.Description).NotEmpty().WithMessage("An expense needs a description.").MaximumLength(100);
+        RuleFor(r => r.NetAmount).GreaterThanOrEqualTo(0m);
+        RuleFor(r => r.TaxRatePercentage).InclusiveBetween(0m, 100m);
         RuleFor(r => r.Amount).GreaterThan(0m).WithMessage("An expense needs an amount.");
+        RuleFor(r => r.ChequePayee)
+            .NotEmpty()
+            .When(r => string.Equals(r.Method, "Cheque", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("A cheque expense needs a payee.");
     }
 }
 

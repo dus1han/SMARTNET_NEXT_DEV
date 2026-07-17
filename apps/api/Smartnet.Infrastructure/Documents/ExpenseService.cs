@@ -49,6 +49,8 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
             CategoryId = request.CategoryId,
             Date = request.Date,
             Description = request.Description,
+            NetAmount = request.NetAmount,
+            TaxRatePercentage = request.TaxRatePercentage,
             Amount = request.Amount,
             Method = request.Method ?? string.Empty,
             Reference = request.Reference ?? string.Empty,

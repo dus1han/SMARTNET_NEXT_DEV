@@ -164,8 +164,10 @@ function ExpenseDetailDialog({ expense, onClose, onVoid }: { expense: ExpenseSum
         <Detail label="Company" value={expense.companyName ?? "—"} />
         <Detail label="Category" value={expense.category ?? "—"} />
         <Detail label="Date" value={formatReportDate(expense.date)} />
-        <Detail label="Amount" value={formatMoney(expense.amount)} />
         <Detail label="Method" value={expense.method || "—"} />
+        <Detail label="Net (before VAT)" value={formatMoney(expense.netAmount)} />
+        <Detail label="VAT" value={formatMoney(expense.taxAmount)} />
+        <Detail label="Total" value={formatMoney(expense.amount)} />
         <Detail label="Reference" value={expense.reference || "—"} />
         <div className="sm:col-span-2">
           <Detail label="Description" value={expense.description || "—"} />

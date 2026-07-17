@@ -9,6 +9,8 @@ public sealed record NewExpense(
     long CategoryId,
     DateOnly Date,
     string Description,
+    decimal NetAmount,
+    decimal TaxRatePercentage,
     decimal Amount,
     string? Method,
     string? Reference,
