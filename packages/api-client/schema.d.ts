@@ -281,6 +281,169 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/customer-receipts/outstanding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    customerId?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["OutstandingInvoiceLine"][];
+                        "application/json": components["schemas"]["OutstandingInvoiceLine"][];
+                        "text/json": components["schemas"]["OutstandingInvoiceLine"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/customer-receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CustomerReceiptSummary"][];
+                        "application/json": components["schemas"]["CustomerReceiptSummary"][];
+                        "text/json": components["schemas"]["CustomerReceiptSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateCustomerReceiptRequest"];
+                    "text/json": components["schemas"]["CreateCustomerReceiptRequest"];
+                    "application/*+json": components["schemas"]["CreateCustomerReceiptRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CustomerReceiptCreatedResponse"];
+                        "application/json": components["schemas"]["CustomerReceiptCreatedResponse"];
+                        "text/json": components["schemas"]["CustomerReceiptCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/customer-receipts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CustomerReceiptDetail"];
+                        "application/json": components["schemas"]["CustomerReceiptDetail"];
+                        "text/json": components["schemas"]["CustomerReceiptDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/customers": {
         parameters: {
             query?: never;
@@ -4431,6 +4594,18 @@ export interface components {
             returnsStock: boolean;
             lines: components["schemas"]["CreateInvoiceLineRequest"][];
         };
+        CreateCustomerReceiptRequest: {
+            /** Format: int64 */
+            companyId: number;
+            /** Format: int64 */
+            customerId: number;
+            /** Format: date */
+            date: string;
+            method?: string | null;
+            reference?: string | null;
+            idempotencyKey: string;
+            allocations: components["schemas"]["CreateReceiptAllocationRequest"][];
+        };
         CreateCustomerResponse: {
             /** Format: int64 */
             id: number;
@@ -4516,6 +4691,12 @@ export interface components {
             documentDiscountPercent: number;
             /** Format: double */
             documentCost?: number | null;
+        };
+        CreateReceiptAllocationRequest: {
+            /** Format: int64 */
+            invoiceId: number;
+            /** Format: double */
+            amount: number;
         };
         CreateStockAdjustmentRequest: {
             /** Format: double */
@@ -4617,6 +4798,42 @@ export interface components {
             phone?: string | null;
             email?: string | null;
             isPrimary: boolean;
+        };
+        CustomerReceiptCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            /** Format: double */
+            amount: number;
+            alreadyExisted: boolean;
+        };
+        CustomerReceiptDetail: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            date: string;
+            companyName?: string | null;
+            customerName?: string | null;
+            customerCode?: string | null;
+            /** Format: double */
+            amount: number;
+            method?: string | null;
+            reference?: string | null;
+            /** Format: int32 */
+            rowVersion: number;
+            allocations: components["schemas"]["ReceiptAllocationLine"][];
+        };
+        CustomerReceiptSummary: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            date: string;
+            customerName?: string | null;
+            /** Format: double */
+            amount: number;
+            method?: string | null;
+            reference?: string | null;
+            /** Format: int32 */
+            invoices: number;
         };
         CustomerSalesResponse: {
             /** Format: double */
@@ -5140,6 +5357,18 @@ export interface components {
             now: string;
             nextMonth: string;
         };
+        OutstandingInvoiceLine: {
+            /** Format: int64 */
+            invoiceId: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            /** Format: double */
+            total: number;
+            /** Format: double */
+            outstanding: number;
+            origin: string;
+        };
         OutstandingResponse: {
             /** Format: double */
             totalOutstanding: number;
@@ -5323,6 +5552,13 @@ export interface components {
             /** Format: int64 */
             convertedInvoiceId?: number | null;
             origin: string;
+        };
+        ReceiptAllocationLine: {
+            /** Format: int64 */
+            invoiceId: number;
+            invoiceNumber?: string | null;
+            /** Format: double */
+            amount: number;
         };
         RecordHistoryResponse: {
             entries: components["schemas"]["AuditEntry"][];

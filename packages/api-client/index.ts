@@ -160,6 +160,16 @@ export type JobCardDetail = Schemas["JobCardDetail"];
 export type JobCardLineDetail = Schemas["JobCardLineDetail"];
 export type CloseJobCardRequest = Schemas["CloseJobCardRequest"];
 
+// --- Customer receipts (Phase 7) --------------------------------------------------------------
+
+export type CreateCustomerReceiptRequest = Schemas["CreateCustomerReceiptRequest"];
+export type CreateReceiptAllocationRequest = Schemas["CreateReceiptAllocationRequest"];
+export type CustomerReceiptCreatedResponse = Schemas["CustomerReceiptCreatedResponse"];
+export type CustomerReceiptSummary = Schemas["CustomerReceiptSummary"];
+export type CustomerReceiptDetail = Schemas["CustomerReceiptDetail"];
+export type ReceiptAllocationLine = Schemas["ReceiptAllocationLine"];
+export type OutstandingInvoiceLine = Schemas["OutstandingInvoiceLine"];
+
 // --- History ---------------------------------------------------------------------------------
 
 export type AuditEntry = Schemas["AuditEntry"];

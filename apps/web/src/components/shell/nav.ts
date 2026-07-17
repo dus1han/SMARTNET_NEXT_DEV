@@ -62,7 +62,7 @@ export const NAVIGATION: NavSection[] = [
       { href: "/invoices", label: "Invoices", icon: Receipt, permission: "search_in" },
       { href: "/invoices/deleted", label: "Deleted invoices", icon: Trash2, permission: "deleted_in" },
       { href: "/credit-notes", label: "Credit notes", icon: FileMinus, permission: "search_cn" },
-      { href: "/payments", label: "Payments", icon: Wallet, permission: "payments", phase: "Phase 7" },
+      { href: "/payments", label: "Payments", icon: Wallet, permission: "payments" },
     ],
   },
   {
