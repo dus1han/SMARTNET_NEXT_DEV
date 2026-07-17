@@ -215,6 +215,27 @@ public sealed record TrialBalanceResponse(
     bool Balances,
     IReadOnlyList<TrialBalanceRow> Rows);
 
+// --- Profit & loss (general ledger) --------------------------------------------------------
+
+/// <summary>One income or expense account's contribution to the P&amp;L for the period.</summary>
+/// <param name="Section">Revenue, Cost of Sales, or Expenses — how the account groups on the statement.</param>
+/// <param name="Amount">The account's P&amp;L amount, always positive: revenue earned, or cost incurred.</param>
+public sealed record ProfitLossLine(
+    string Section,
+    string Code,
+    string Name,
+    decimal Amount);
+
+/// <param name="GrossProfit">Revenue − Cost of Sales.</param>
+/// <param name="NetProfit">Gross Profit − Expenses: the bottom line for the period.</param>
+public sealed record ProfitLossResponse(
+    decimal Revenue,
+    decimal CostOfSales,
+    decimal GrossProfit,
+    decimal Expenses,
+    decimal NetProfit,
+    IReadOnlyList<ProfitLossLine> Lines);
+
 // --- Supplier purchase summary (supplierpurchase_rpt) --------------------------------------
 
 /// <param name="PendingBalance">Σ amount of this supplier's invoices still flagged <c>paymentstat =

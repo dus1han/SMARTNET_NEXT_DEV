@@ -11,6 +11,7 @@ import type {
   SalesReportResponse,
   SupplierOption,
   SupplierPaymentResponse,
+  ProfitLossResponse,
   SupplierPurchaseResponse,
   SupplierVatResponse,
   TrialBalanceResponse,
@@ -45,6 +46,8 @@ export type {
   SupplierVatRow,
   TrialBalanceResponse,
   TrialBalanceRow,
+  ProfitLossResponse,
+  ProfitLossLine,
 } from "@smartnet/api-client";
 
 /** The company a report is scoped to: a specific company id, or "all" (every accessible one). */
@@ -150,6 +153,14 @@ export const getTrialBalanceReport = (period: ReportPeriod, company: CompanyFilt
 
 export const trialBalanceReportExportUrl = (period: ReportPeriod, company: CompanyFilter) =>
   `/api/reports/trial-balance/export${periodQuery(period, { company: companyParam(company) })}`;
+
+// --- Profit & loss (general ledger) ----------------------------------------------------------
+
+export const getProfitLossReport = (period: ReportPeriod, company: CompanyFilter) =>
+  api<ProfitLossResponse>(`/api/reports/profit-loss${periodQuery(period, { company: companyParam(company) })}`);
+
+export const profitLossReportExportUrl = (period: ReportPeriod, company: CompanyFilter) =>
+  `/api/reports/profit-loss/export${periodQuery(period, { company: companyParam(company) })}`;
 
 // --- Supplier purchase (supplierpurchase_rpt) ------------------------------------------------
 

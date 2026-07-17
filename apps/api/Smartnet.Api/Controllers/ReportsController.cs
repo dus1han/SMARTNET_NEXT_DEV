@@ -8,6 +8,7 @@ using Smartnet.Api.Reporting;
 using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Exporting;
 using Smartnet.Domain.Identity;
+using Smartnet.Domain.Ledger;
 using Smartnet.Domain.Reporting;
 using Smartnet.Infrastructure.Entities;
 using Smartnet.Infrastructure.Persistence;
@@ -401,6 +402,40 @@ public sealed class ReportsController : ControllerBase
         return await Download(workbook, "trial-balance", report.Rows.Count, cancellationToken).ConfigureAwait(false);
     }
 
+    // --- Profit & loss (general ledger) ------------------------------------------------------
+
+    [HttpGet("profit-loss")]
+    [RequirePermission(Permissions.GeneralLedger)]
+    public async Task<ActionResult<ProfitLossResponse>> ProfitLoss(
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
+        CancellationToken cancellationToken) =>
+        Ok(await BuildProfitLoss(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false));
+
+    [HttpGet("profit-loss/export")]
+    [RequirePermission(Permissions.GeneralLedger)]
+    public async Task<IActionResult> ProfitLossExport(
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
+        CancellationToken cancellationToken)
+    {
+        var report = await BuildProfitLoss(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false);
+
+        var workbook = _excel.Export<ProfitLossLine>(
+            "Profit and loss",
+            [
+                new("Section", r => r.Section),
+                new("Code", r => r.Code),
+                new("Account", r => r.Name),
+                new("Amount", r => r.Amount, ExcelFormat.Money),
+            ],
+            report.Lines);
+
+        return await Download(workbook, "profit-loss", report.Lines.Count, cancellationToken).ConfigureAwait(false);
+    }
+
     // --- Supplier purchase summary (supplierpurchase_rpt) ------------------------------------
 
     [HttpGet("supplier-purchase")]
@@ -643,6 +678,83 @@ public sealed class ReportsController : ControllerBase
         var totalCredit = rows.Sum(r => r.Credit);
 
         return new TrialBalanceResponse(totalDebit, totalCredit, Math.Abs(totalDebit - totalCredit) < 0.005m, rows);
+    }
+
+    /// <summary>
+    /// The profit &amp; loss statement — the income and expense accounts of the GL over the period, from the
+    /// app's own gl_* tables. Revenue is the income accounts (a credit balance shown positive); Cost of Sales
+    /// is Purchases; Expenses are the per-category expense accounts. Gross profit = revenue − cost of sales,
+    /// net profit = gross − expenses. VAT and balance-sheet accounts are excluded, as a P&amp;L should.
+    /// </summary>
+    private async Task<ProfitLossResponse> BuildProfitLoss(ReportPeriod period, string? company, CancellationToken cancellationToken)
+    {
+        var scope = CompanyScope(company)
+            .Select(s => long.Parse(s, CultureInfo.InvariantCulture))
+            .ToList();
+        if (scope.Count == 0)
+        {
+            return new ProfitLossResponse(0m, 0m, 0m, 0m, 0m, []);
+        }
+
+        var grouped = await (
+            from l in _db.GlLines
+            join a in _db.GlAccounts on l.AccountId equals a.Id
+            join e in _db.GlEntries on l.GlEntryId equals e.Id
+            where scope.Contains(a.CompanyId)
+                && (a.Type == AccountType.Income || a.Type == AccountType.Expense)
+                && (period.From == null || e.Date >= period.From)
+                && (period.To == null || e.Date <= period.To)
+            group new { l.Debit, l.Credit } by new { a.Code, a.Name, a.Type } into g
+            select new
+            {
+                g.Key.Code,
+                g.Key.Name,
+                g.Key.Type,
+                Debit = g.Sum(x => x.Debit),
+                Credit = g.Sum(x => x.Credit),
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var lines = new List<(int Order, ProfitLossLine Line)>();
+        decimal revenue = 0m, costOfSales = 0m, expenses = 0m;
+
+        foreach (var r in grouped)
+        {
+            if (r.Type == AccountType.Income)
+            {
+                var amount = r.Credit - r.Debit; // income is a credit balance, shown positive
+                if (amount == 0m) continue;
+                revenue += amount;
+                lines.Add((0, new ProfitLossLine("Revenue", r.Code, r.Name, amount)));
+            }
+            else // Expense
+            {
+                var amount = r.Debit - r.Credit; // expense is a debit balance, shown positive
+                if (amount == 0m) continue;
+                if (r.Code == GlAccountCodes.Purchases)
+                {
+                    costOfSales += amount;
+                    lines.Add((1, new ProfitLossLine("Cost of Sales", r.Code, r.Name, amount)));
+                }
+                else
+                {
+                    expenses += amount;
+                    lines.Add((2, new ProfitLossLine("Expenses", r.Code, r.Name, amount)));
+                }
+            }
+        }
+
+        var ordered = lines
+            .OrderBy(x => x.Order)
+            .ThenBy(x => x.Line.Code, StringComparer.Ordinal)
+            .Select(x => x.Line)
+            .ToList();
+
+        var grossProfit = revenue - costOfSales;
+        var netProfit = grossProfit - expenses;
+
+        return new ProfitLossResponse(revenue, costOfSales, grossProfit, expenses, netProfit, ordered);
     }
 
     private async Task<SalesReportResponse> BuildSales(ReportPeriod period, string? company, CancellationToken cancellationToken)

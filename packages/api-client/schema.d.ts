@@ -3276,6 +3276,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reports/profit-loss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    company?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProfitLossResponse"];
+                        "application/json": components["schemas"]["ProfitLossResponse"];
+                        "text/json": components["schemas"]["ProfitLossResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/profit-loss/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    company?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reports/supplier-purchase": {
         parameters: {
             query?: never;
@@ -6151,6 +6229,26 @@ export interface components {
             instance?: string | null;
         } & {
             [key: string]: unknown;
+        };
+        ProfitLossLine: {
+            section: string;
+            code: string;
+            name: string;
+            /** Format: double */
+            amount: number;
+        };
+        ProfitLossResponse: {
+            /** Format: double */
+            revenue: number;
+            /** Format: double */
+            costOfSales: number;
+            /** Format: double */
+            grossProfit: number;
+            /** Format: double */
+            expenses: number;
+            /** Format: double */
+            netProfit: number;
+            lines: components["schemas"]["ProfitLossLine"][];
         };
         ProfitPercentDto: {
             /** Format: int64 */
