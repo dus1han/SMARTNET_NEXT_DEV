@@ -18,4 +18,12 @@ public static class GlSources
     public const string PayablesPayment = "PayablesPayment";
     public const string Expense = "Expense";
     public const string ExpenseVoid = "ExpenseVoid";
+
+    /// <summary>A historical customer payment, posted by the Phase 8 backfill from the legacy <c>payments</c>
+    /// table (keyed on the payment row id).</summary>
+    public const string LegacyPayment = "LegacyPayment";
+
+    /// <summary>A payment recorded to correct a "paid, no payment" data exception (LEGACY-DATA-POLICY §4).
+    /// Keyed on the invoice, so one such correction posts per invoice.</summary>
+    public const string DataExceptionPayment = "DataExceptionPayment";
 }

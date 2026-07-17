@@ -3428,6 +3428,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reports/data-exceptions/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["ResolveDataExceptionRequest"];
+                    "text/json": components["schemas"]["ResolveDataExceptionRequest"];
+                    "application/*+json": components["schemas"]["ResolveDataExceptionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reports/supplier-purchase": {
         parameters: {
             query?: never;
@@ -6500,6 +6539,11 @@ export interface components {
         };
         ResetPasswordResponse: {
             temporaryPassword: string;
+        };
+        ResolveDataExceptionRequest: {
+            resolution: string;
+            reference: string;
+            reason: string;
         };
         RoleSummary: {
             /** Format: int64 */

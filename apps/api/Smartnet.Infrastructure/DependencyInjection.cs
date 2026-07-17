@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Documents;
+using Smartnet.Domain.Reporting;
 using Smartnet.Infrastructure.Auditing;
 using Smartnet.Infrastructure.Documents;
 using Smartnet.Infrastructure.Persistence;
@@ -89,6 +90,10 @@ public static class DependencyInjection
         services.AddScoped<CustomerReceiptService>();
         services.AddScoped<ICustomerReceiptCreator>(sp => sp.GetRequiredService<CustomerReceiptService>());
         services.AddScoped<ICustomerReceiptVoider>(sp => sp.GetRequiredService<CustomerReceiptService>());
+
+        // Data-exception corrections (LEGACY-DATA-POLICY §4): audited, transactional fixes behind the Data
+        // Exceptions screen — remove a duplicate payment, record a missing one, or restore a receivable.
+        services.AddScoped<IDataExceptionResolver, DataExceptionResolver>();
 
         // Supplier payments (Phase 7): the payables mirror — money paid, allocated across supplier invoices
         // (new and adopted-legacy alike), Payment entries on the payables ledger dual-writing supplier_inv_pay

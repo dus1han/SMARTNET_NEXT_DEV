@@ -4291,6 +4291,49 @@
         }
       }
     },
+    "/api/reports/data-exceptions/resolve": {
+      "post": {
+        "tags": [
+          "Reports"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ResolveDataExceptionRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ResolveDataExceptionRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ResolveDataExceptionRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/reports/supplier-purchase": {
       "get": {
         "tags": [
@@ -10707,6 +10750,26 @@
         "type": "object",
         "properties": {
           "temporaryPassword": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResolveDataExceptionRequest": {
+        "required": [
+          "reason",
+          "reference",
+          "resolution"
+        ],
+        "type": "object",
+        "properties": {
+          "resolution": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "reason": {
             "type": "string"
           }
         },

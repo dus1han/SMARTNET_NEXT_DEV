@@ -103,6 +103,7 @@ export type ProfitLossLine = Schemas["ProfitLossLine"];
 export type ProfitLossReconciliation = Schemas["ProfitLossReconciliation"];
 export type DataExceptionsResponse = Schemas["DataExceptionsResponse"];
 export type DataExceptionRow = Schemas["DataExceptionRow"];
+export type ResolveDataExceptionRequest = Schemas["ResolveDataExceptionRequest"];
 export type SupplierPurchaseResponse = Schemas["SupplierPurchaseResponse"];
 export type SupplierPurchaseRow = Schemas["SupplierPurchaseRow"];
 export type SupplierPaymentResponse = Schemas["SupplierPaymentResponse"];

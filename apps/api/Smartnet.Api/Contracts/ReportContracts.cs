@@ -365,6 +365,15 @@ public sealed record DataExceptionsResponse(
     int Total,
     IReadOnlyList<DataExceptionRow> Rows);
 
+/// <summary>A request to correct one data exception — the resolution, the invoice it sits on, and the
+/// mandatory reason recorded in the audit log.</summary>
+/// <param name="Resolution">One of <c>RemoveDuplicatePayments</c>, <c>RecordPayment</c>,
+/// <c>RestoreReceivable</c>.</param>
+public sealed record ResolveDataExceptionRequest(
+    string Resolution,
+    string Reference,
+    string Reason);
+
 /// <summary>One outstanding invoice — the per-invoice drill-down behind the "export selected" list,
 /// the legacy outstanding-invoice sheet for the chosen customers.</summary>
 public sealed record OutstandingDetailRow(

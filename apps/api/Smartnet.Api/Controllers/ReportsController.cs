@@ -43,6 +43,7 @@ public sealed class ReportsController : ControllerBase
     private readonly IExcelExporter _excel;
     private readonly ICompanyContext _company;
     private readonly IAuditWriter _audit;
+    private readonly IDataExceptionResolver _resolver;
     private readonly TimeProvider _time;
 
     public ReportsController(
@@ -51,6 +52,7 @@ public sealed class ReportsController : ControllerBase
         IExcelExporter excel,
         ICompanyContext company,
         IAuditWriter audit,
+        IDataExceptionResolver resolver,
         TimeProvider time)
     {
         _legacy = legacy;
@@ -58,6 +60,7 @@ public sealed class ReportsController : ControllerBase
         _excel = excel;
         _company = company;
         _audit = audit;
+        _resolver = resolver;
         _time = time;
     }
 
@@ -498,6 +501,23 @@ public sealed class ReportsController : ControllerBase
             report.Rows);
 
         return await Download(workbook, "data-exceptions", report.Rows.Count, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Applies an audited, permission-gated correction to one data exception — the correction fixes
+    /// the underlying data, so the exception then self-clears from the list.</summary>
+    [HttpPost("data-exceptions/resolve")]
+    [RequirePermission(Permissions.GeneralLedger)]
+    public async Task<IActionResult> ResolveDataException(
+        [FromBody] ResolveDataExceptionRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.TryParse<DataExceptionResolution>(request.Resolution, ignoreCase: true, out var resolution))
+        {
+            return BadRequest($"Unknown resolution '{request.Resolution}'.");
+        }
+
+        await _resolver.ResolveAsync(resolution, request.Reference, request.Reason, cancellationToken).ConfigureAwait(false);
+        return NoContent();
     }
 
     // --- Supplier purchase summary (supplierpurchase_rpt) ------------------------------------
