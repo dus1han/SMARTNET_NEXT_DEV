@@ -34,9 +34,12 @@ public static class Permissions
     public const string SettingsManage = "settings.manage";
     public const string AuditView = "audit.view";
 
+    /// <summary>The general ledger / trial balance — a surface the legacy app never had.</summary>
+    public const string GeneralLedger = "general_ledger";
+
     /// <summary>The new permissions, in the order they should appear in the admin UI.</summary>
     public static readonly IReadOnlyList<string> NewPermissions =
-        [SystemDevAdmin, RolesManage, SettingsManage, AuditView];
+        [SystemDevAdmin, RolesManage, SettingsManage, AuditView, GeneralLedger];
 
     // --- The 35 legacy flags -----------------------------------------------------------------
 

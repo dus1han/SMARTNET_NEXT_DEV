@@ -13,6 +13,7 @@ import type {
   SupplierPaymentResponse,
   SupplierPurchaseResponse,
   SupplierVatResponse,
+  TrialBalanceResponse,
 } from "@smartnet/api-client";
 import { api } from "./api";
 
@@ -42,6 +43,8 @@ export type {
   SupplierPurchaseRow,
   SupplierVatResponse,
   SupplierVatRow,
+  TrialBalanceResponse,
+  TrialBalanceRow,
 } from "@smartnet/api-client";
 
 /** The company a report is scoped to: a specific company id, or "all" (every accessible one). */
@@ -139,6 +142,14 @@ export const getSupplierVatReport = (period: ReportPeriod, company: CompanyFilte
 
 export const supplierVatReportExportUrl = (period: ReportPeriod, company: CompanyFilter) =>
   `/api/reports/supplier-vat/export${periodQuery(period, { company: companyParam(company) })}`;
+
+// --- Trial balance (general ledger) ----------------------------------------------------------
+
+export const getTrialBalanceReport = (period: ReportPeriod, company: CompanyFilter) =>
+  api<TrialBalanceResponse>(`/api/reports/trial-balance${periodQuery(period, { company: companyParam(company) })}`);
+
+export const trialBalanceReportExportUrl = (period: ReportPeriod, company: CompanyFilter) =>
+  `/api/reports/trial-balance/export${periodQuery(period, { company: companyParam(company) })}`;
 
 // --- Supplier purchase (supplierpurchase_rpt) ------------------------------------------------
 

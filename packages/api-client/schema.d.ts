@@ -3198,6 +3198,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reports/trial-balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    company?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["TrialBalanceResponse"];
+                        "application/json": components["schemas"]["TrialBalanceResponse"];
+                        "text/json": components["schemas"]["TrialBalanceResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/trial-balance/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    company?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reports/supplier-purchase": {
         parameters: {
             query?: never;
@@ -6608,6 +6686,25 @@ export interface components {
             /** Format: date */
             effectiveTo?: string | null;
             isDefault: boolean;
+        };
+        TrialBalanceResponse: {
+            /** Format: double */
+            totalDebit: number;
+            /** Format: double */
+            totalCredit: number;
+            balances: boolean;
+            rows: components["schemas"]["TrialBalanceRow"][];
+        };
+        TrialBalanceRow: {
+            code: string;
+            name: string;
+            type: string;
+            /** Format: double */
+            debit: number;
+            /** Format: double */
+            credit: number;
+            /** Format: double */
+            balance: number;
         };
         UpdateUserRequest: {
             name: string;

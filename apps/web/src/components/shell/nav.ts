@@ -11,6 +11,7 @@ import {
   Package,
   Percent,
   Receipt,
+  Scale,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -92,6 +93,7 @@ export const NAVIGATION: NavSection[] = [
   {
     title: "Reports",
     items: [
+      { href: "/reports/trial-balance", label: "Trial balance", icon: Scale, permission: "general_ledger" },
       { href: "/reports/sales", label: "Sales", icon: BarChart3, permission: "sales_rpt" },
       { href: "/reports/customer-sales", label: "Customer sales", icon: Users, permission: "customersales_rpt" },
       { href: "/reports/expenses", label: "Expenses", icon: Banknote, permission: "expenses_rpt" },

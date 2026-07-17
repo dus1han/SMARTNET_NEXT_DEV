@@ -365,6 +365,42 @@ public sealed class ReportsController : ControllerBase
         return await Download(workbook, "supplier-vat", report.Rows.Count, cancellationToken).ConfigureAwait(false);
     }
 
+    // --- Trial balance (general ledger) ------------------------------------------------------
+
+    [HttpGet("trial-balance")]
+    [RequirePermission(Permissions.GeneralLedger)]
+    public async Task<ActionResult<TrialBalanceResponse>> TrialBalance(
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
+        CancellationToken cancellationToken) =>
+        Ok(await BuildTrialBalance(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false));
+
+    [HttpGet("trial-balance/export")]
+    [RequirePermission(Permissions.GeneralLedger)]
+    public async Task<IActionResult> TrialBalanceExport(
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] string? company,
+        CancellationToken cancellationToken)
+    {
+        var report = await BuildTrialBalance(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false);
+
+        var workbook = _excel.Export<TrialBalanceRow>(
+            "Trial balance",
+            [
+                new("Code", r => r.Code),
+                new("Account", r => r.Name),
+                new("Type", r => r.Type),
+                new("Debit", r => r.Debit, ExcelFormat.Money),
+                new("Credit", r => r.Credit, ExcelFormat.Money),
+                new("Balance", r => r.Balance, ExcelFormat.Money),
+            ],
+            report.Rows);
+
+        return await Download(workbook, "trial-balance", report.Rows.Count, cancellationToken).ConfigureAwait(false);
+    }
+
     // --- Supplier purchase summary (supplierpurchase_rpt) ------------------------------------
 
     [HttpGet("supplier-purchase")]
@@ -561,6 +597,52 @@ public sealed class ReportsController : ControllerBase
         }
 
         return accessible.Select(i => i.ToString(CultureInfo.InvariantCulture)).ToList();
+    }
+
+    /// <summary>
+    /// The trial balance — every GL account's summed debits and credits over the period, from the new app's
+    /// own gl_* tables (no legacy parsing). Grouped by account <b>code</b> across the scoped companies, so
+    /// "all companies" consolidates the shared chart rather than repeating each code per company. A
+    /// well-formed ledger always balances (Σ debit = Σ credit), which the response states outright.
+    /// </summary>
+    private async Task<TrialBalanceResponse> BuildTrialBalance(ReportPeriod period, string? company, CancellationToken cancellationToken)
+    {
+        var scope = CompanyScope(company)
+            .Select(s => long.Parse(s, CultureInfo.InvariantCulture))
+            .ToList();
+        if (scope.Count == 0)
+        {
+            return new TrialBalanceResponse(0m, 0m, true, []);
+        }
+
+        var grouped = await (
+            from l in _db.GlLines
+            join a in _db.GlAccounts on l.AccountId equals a.Id
+            join e in _db.GlEntries on l.GlEntryId equals e.Id
+            where scope.Contains(a.CompanyId)
+                && (period.From == null || e.Date >= period.From)
+                && (period.To == null || e.Date <= period.To)
+            group new { l.Debit, l.Credit } by new { a.Code, a.Name, a.Type } into g
+            select new
+            {
+                g.Key.Code,
+                g.Key.Name,
+                g.Key.Type,
+                Debit = g.Sum(x => x.Debit),
+                Credit = g.Sum(x => x.Credit),
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var rows = grouped
+            .OrderBy(r => r.Code, StringComparer.Ordinal)
+            .Select(r => new TrialBalanceRow(r.Code, r.Name, r.Type.ToString(), r.Debit, r.Credit, r.Debit - r.Credit))
+            .ToList();
+
+        var totalDebit = rows.Sum(r => r.Debit);
+        var totalCredit = rows.Sum(r => r.Credit);
+
+        return new TrialBalanceResponse(totalDebit, totalCredit, Math.Abs(totalDebit - totalCredit) < 0.005m, rows);
     }
 
     private async Task<SalesReportResponse> BuildSales(ReportPeriod period, string? company, CancellationToken cancellationToken)

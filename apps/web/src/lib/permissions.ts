@@ -60,6 +60,7 @@ const LABELS: Record<string, PermissionMeta> = {
   supplierpayments_rpt: { label: "Supplier payments report" },
   cusvat_rpt: { label: "Customer VAT report" },
   suppliervat_rpt: { label: "Supplier VAT report" },
+  general_ledger: { label: "Trial balance / general ledger" },
 
   // Documents & notes
   docstorage: { label: "Document storage" },
@@ -94,6 +95,7 @@ const GROUPS: { title: string; keys: string[] }[] = [
   {
     title: "Reports",
     keys: [
+      "general_ledger",
       "sales_rpt", "customersales_rpt", "supplierpurchase_rpt", "supplierpayments_rpt",
       "cusvat_rpt", "suppliervat_rpt",
     ],

@@ -196,6 +196,25 @@ public sealed record SupplierVatResponse(
     int FlaggedCount,
     IReadOnlyList<SupplierVatRow> Rows);
 
+// --- Trial balance (general ledger) --------------------------------------------------------
+
+/// <summary>One account's totals in the trial balance — the summed debits and credits of its GL lines.</summary>
+/// <param name="Balance">Debit − Credit: positive shows in the debit column, negative in the credit column.</param>
+public sealed record TrialBalanceRow(
+    string Code,
+    string Name,
+    string Type,
+    decimal Debit,
+    decimal Credit,
+    decimal Balance);
+
+/// <param name="Balances">True when total debits equal total credits — a well-formed ledger always does.</param>
+public sealed record TrialBalanceResponse(
+    decimal TotalDebit,
+    decimal TotalCredit,
+    bool Balances,
+    IReadOnlyList<TrialBalanceRow> Rows);
+
 // --- Supplier purchase summary (supplierpurchase_rpt) --------------------------------------
 
 /// <param name="PendingBalance">Σ amount of this supplier's invoices still flagged <c>paymentstat =
