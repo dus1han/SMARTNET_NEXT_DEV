@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { getReportCompanies, type CompanyFilter } from "@/lib/reports";
+import { currentMonthStart, today } from "@/lib/period";
 import { Card, Input, Select } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
@@ -69,6 +70,46 @@ export function ReportFilterBar({ from, to, onFrom, onTo, company, onCompany, sh
       )}
       {children}
     </Card>
+  );
+}
+
+/** All-time lower bound — earlier than any data, so "All time" is effectively unbounded on the left. */
+const ALL_TIME_START = "2000-01-01";
+
+/**
+ * A two-way period preset for a cumulative report (trial balance, P&L): "This month" (the default) or
+ * "All time". It just drives the same from/to the date inputs use, so a manual date edit still works.
+ */
+export function PeriodPreset({ from, onFrom, onTo }: {
+  from?: string;
+  onFrom?: (value: string) => void;
+  onTo?: (value: string) => void;
+}) {
+  const mode: "month" | "all" = from && from <= ALL_TIME_START ? "all" : "month";
+  const apply = (all: boolean) => {
+    onFrom?.(all ? ALL_TIME_START : currentMonthStart());
+    onTo?.(today());
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted">Period</span>
+      <div className="inline-flex rounded-lg border border-border p-0.5">
+        {(["month", "all"] as const).map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => apply(key === "all")}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm transition-colors",
+              mode === key ? "bg-surface-sunken font-medium text-text" : "text-muted hover:text-text",
+            )}
+          >
+            {key === "all" ? "All time" : "This month"}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

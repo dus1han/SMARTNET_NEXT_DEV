@@ -10,19 +10,15 @@ import { Download, TrendingUp, Wallet } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import { getProfitLossReport, profitLossReportExportUrl, type CompanyFilter, type ProfitLossLine } from "@/lib/reports";
-import { today } from "@/lib/period";
+import { currentMonthStart, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
-import { ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
+import { PeriodPreset, ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
 import { downloadExcel } from "@/components/data-table/export";
 import { AnimatedNumber, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
-/** A P&L is cumulative by nature; it opens on all history to date rather than the current month. */
-const LEDGER_START = "2020-01-01";
-
-const SECTIONS = ["Revenue", "Cost of Sales", "Expenses"] as const;
-
 export default function ProfitLossReportPage() {
-  const [from, setFrom] = useState(LEDGER_START);
+  // Opens on the current month, with a one-click switch to all history.
+  const [from, setFrom] = useState(currentMonthStart);
   const [to, setTo] = useState(today);
   const [company, setCompany] = useState<CompanyFilter>("all");
   const [exporting, setExporting] = useState(false);
@@ -44,7 +40,9 @@ export default function ProfitLossReportPage() {
         description="Revenue, cost of sales and expenses from the general ledger — the net profit for the period."
       />
 
-      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany} />
+      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany}>
+        <PeriodPreset from={from} onFrom={setFrom} onTo={setTo} />
+      </ReportFilterBar>
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 

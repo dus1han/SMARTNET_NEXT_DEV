@@ -27,6 +27,6 @@ export const getJobCard = (id: number) => api<JobCardDetail>(`/api/job-cards/${i
 export const createJobCard = (request: CreateJobCardRequest) =>
   api<JobCardCreatedResponse>("/api/job-cards", { method: "POST", body: request });
 
-/** Close a job — the guarded PENDING → CLOSED transition. Reason-gated; a stale row_version is a 409. */
-export const closeJobCard = (id: number, request: CloseJobCardRequest, reason: string) =>
-  api<void>(`/api/job-cards/${id}/close`, { method: "POST", body: request, reason });
+/** Close a job — the guarded PENDING → CLOSED transition (closing means completed). A stale row_version is a 409. */
+export const closeJobCard = (id: number, request: CloseJobCardRequest) =>
+  api<void>(`/api/job-cards/${id}/close`, { method: "POST", body: request });

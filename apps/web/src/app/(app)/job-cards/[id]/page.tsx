@@ -117,7 +117,7 @@ export default function JobCardViewPage() {
               void queryClient.invalidateQueries({ queryKey: ["job-cards"] });
               toast.success(`Job card ${data.number} closed.`);
             }}
-            close={(request, reason) => closeJobCard(jobId, request, reason)}
+            close={(request) => closeJobCard(jobId, request)}
           />
         </>
       )}
@@ -130,25 +130,21 @@ function CloseDialog({ open, onOpenChange, rowVersion, onClosed, close }: {
   onOpenChange: (open: boolean) => void;
   rowVersion: number;
   onClosed: () => void;
-  close: (request: { expectedRowVersion: number; cost: number; sell: number; completionRemarks: string | null }, reason: string) => Promise<unknown>;
+  close: (request: { expectedRowVersion: number; cost: number; sell: number; completionRemarks: string | null }) => Promise<unknown>;
 }) {
   const [cost, setCost] = useState("");
   const [sell, setSell] = useState("");
   const [completion, setCompletion] = useState("");
-  const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
-  const valid = Number.isFinite(Number(cost)) && Number.isFinite(Number(sell)) && reason.trim().length >= 10;
+  const valid = Number.isFinite(Number(cost)) && Number.isFinite(Number(sell));
 
   async function submit() {
     setSubmitting(true);
     setError(null);
     try {
-      await close(
-        { expectedRowVersion: rowVersion, cost: Number(cost || 0), sell: Number(sell || 0), completionRemarks: completion || null },
-        reason,
-      );
+      await close({ expectedRowVersion: rowVersion, cost: Number(cost || 0), sell: Number(sell || 0), completionRemarks: completion || null });
       onOpenChange(false);
       onClosed();
     } catch (e) {
@@ -177,14 +173,7 @@ function CloseDialog({ open, onOpenChange, rowVersion, onClosed, close }: {
           <Input label="Cost" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0" />
           <Input label="Sell" inputMode="decimal" value={sell} onChange={(e) => setSell(e.target.value)} placeholder="0" />
         </div>
-        <Input label="Completion remarks" value={completion} onChange={(e) => setCompletion(e.target.value)} />
-        <Input
-          label="Reason"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          hint="At least 10 characters — recorded on the audit trail."
-          placeholder="Why / how the job was completed"
-        />
+        <Input label="Completion remarks" value={completion} onChange={(e) => setCompletion(e.target.value)} placeholder="What was done (optional)" />
       </div>
     </Dialog>
   );

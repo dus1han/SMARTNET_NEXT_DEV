@@ -1,2 +1,2 @@
-export { ReportFilterBar, StatTile } from "./report-shell";
+export { ReportFilterBar, StatTile, PeriodPreset } from "./report-shell";
 export { formatMoney, formatReportDate } from "./format";

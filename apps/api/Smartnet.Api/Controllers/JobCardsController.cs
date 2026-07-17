@@ -185,10 +185,12 @@ public sealed class JobCardsController : ControllerBase
         return Ok(new JobCardCreatedResponse(created.Id, created.Number));
     }
 
-    /// <summary>Close a job — the guarded PENDING → CLOSED transition; records cost, sell and completion.</summary>
+    /// <summary>
+    /// Close a job — the guarded PENDING → CLOSED transition; records cost, sell and completion. Closing a
+    /// job means it is completed, so it needs no change reason (the legacy app asked for none either).
+    /// </summary>
     [HttpPost("{id:long}/close")]
     [RequirePermission(Permissions.JobCards)]
-    [RequireChangeReason]
     public async Task<IActionResult> Close(long id, CloseJobCardRequest request, CancellationToken cancellationToken)
     {
         if (!await CallerMaySee(id, cancellationToken).ConfigureAwait(false))

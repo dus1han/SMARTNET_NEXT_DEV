@@ -10,17 +10,15 @@ import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import { getTrialBalanceReport, trialBalanceReportExportUrl, type CompanyFilter, type TrialBalanceRow } from "@/lib/reports";
-import { today } from "@/lib/period";
+import { currentMonthStart, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
+import { PeriodPreset, ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
 import { AnimatedNumber, ErrorBanner, FadeIn } from "@/components/ui";
 
-/** A trial balance is cumulative, so it opens on all history to date rather than the current month. */
-const LEDGER_START = "2020-01-01";
-
 export default function TrialBalanceReportPage() {
-  const [from, setFrom] = useState(LEDGER_START);
+  // Opens on the current month, with a one-click switch to all history.
+  const [from, setFrom] = useState(currentMonthStart);
   const [to, setTo] = useState(today);
   const [company, setCompany] = useState<CompanyFilter>("all");
 
@@ -39,7 +37,9 @@ export default function TrialBalanceReportPage() {
         description="Every general-ledger account's debits and credits for the period. A sound ledger balances — total debits equal total credits."
       />
 
-      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany} />
+      <ReportFilterBar from={from} to={to} onFrom={setFrom} onTo={setTo} company={company} onCompany={setCompany}>
+        <PeriodPreset from={from} onFrom={setFrom} onTo={setTo} />
+      </ReportFilterBar>
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
