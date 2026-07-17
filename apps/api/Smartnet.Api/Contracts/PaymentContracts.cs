@@ -25,6 +25,7 @@ public sealed record CreateCustomerReceiptRequest(
 public sealed record CustomerReceiptCreatedResponse(long Id, decimal Amount, bool AlreadyExisted);
 
 /// <summary>One row of the receipts list.</summary>
+/// <param name="Origin"><c>new</c> for a receipt this app recorded; <c>legacy</c> for a pre-cutover one from the payments table.</param>
 public sealed record CustomerReceiptSummary(
     long Id,
     DateOnly Date,
@@ -32,7 +33,8 @@ public sealed record CustomerReceiptSummary(
     decimal Amount,
     string? Method,
     string? Reference,
-    int Invoices);
+    int Invoices,
+    string Origin);
 
 /// <summary>One allocation, for the read view.</summary>
 public sealed record ReceiptAllocationLine(long InvoiceId, string? InvoiceNumber, decimal Amount);

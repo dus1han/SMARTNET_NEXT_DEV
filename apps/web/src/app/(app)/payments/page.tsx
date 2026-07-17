@@ -16,7 +16,7 @@ import { getCustomerReceipts, type CustomerReceiptSummary } from "@/lib/payments
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
-import { Button, ErrorBanner, FadeIn } from "@/components/ui";
+import { Badge, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function PaymentsPage() {
   const router = useRouter();
@@ -45,10 +45,10 @@ export default function PaymentsPage() {
             Record a receipt
           </Button>
         }
-        onRowClick={(row) => router.push(`/payments/${row.id}`)}
+        onRowClick={(row) => row.origin === "new" && router.push(`/payments/${row.id}`)}
         empty={{
           title: "No receipts yet",
-          description: "Money received from customers appears here once recorded.",
+          description: "Money received from customers — this app's own and the legacy ones — appears here.",
         }}
       />
     </FadeIn>
@@ -66,7 +66,12 @@ const columns: ColumnDef<CustomerReceiptSummary, unknown>[] = [
     id: "customer",
     accessorFn: (row) => row.customerName ?? "",
     header: "Customer",
-    cell: ({ row }) => <span className="font-medium text-text">{row.original.customerName ?? "—"}</span>,
+    cell: ({ row }) => (
+      <span className="flex items-center gap-2">
+        <span className="font-medium text-text">{row.original.customerName ?? "—"}</span>
+        {row.original.origin === "legacy" && <Badge tone="neutral">Legacy</Badge>}
+      </span>
+    ),
   },
   {
     id: "method",

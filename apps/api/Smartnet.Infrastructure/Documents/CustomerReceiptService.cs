@@ -246,14 +246,15 @@ public sealed class CustomerReceiptService : ICustomerReceiptCreator, ICustomerR
     {
         await _db.Database.ExecuteSqlAsync(
             $"""
-            INSERT INTO `payments` (`invoiceno`, `amount`, `paymentrecdate`, `enteredby`, `entereddt`, `paym`, `payref`)
+            INSERT INTO `payments` (`invoiceno`, `amount`, `paymentrecdate`, `enteredby`, `entereddt`, `paym`, `payref`, `data_origin`)
             VALUES ({invoiceNumber},
                     {Money(amount)},
                     {date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)},
                     {enteredBy},
                     {_time.GetUtcNow().UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)},
                     {method ?? "CASH"},
-                    {reference ?? string.Empty})
+                    {reference ?? string.Empty},
+                    'new')
             """,
             cancellationToken).ConfigureAwait(false);
 

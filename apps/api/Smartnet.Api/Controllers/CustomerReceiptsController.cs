@@ -122,12 +122,72 @@ public sealed class CustomerReceiptsController : ControllerBase
 
         var rows = receipts
             .Select(r => new CustomerReceiptSummary(
-                r.Id, r.Date, names.GetValueOrDefault(r.CustomerId), r.Amount, r.Method, r.Reference, r.Invoices))
-            .OrderByDescending(r => r.Date)
-            .ThenByDescending(r => r.Id)
+                r.Id, r.Date, names.GetValueOrDefault(r.CustomerId), r.Amount, r.Method, r.Reference, r.Invoices, "new"))
             .ToList();
 
-        return Ok(rows);
+        // --- Legacy customer payments -------------------------------------------------------------
+        // Pre-cutover payments live in the payments table (data_origin NULL); the new path writes 'new', so
+        // this shows the legacy history without double-counting. Unlike supplier_inv_pay, payments carries an
+        // amount, so a legacy row shows its own figure.
+        rows.AddRange(await LegacyCustomerPayments(cancellationToken).ConfigureAwait(false));
+
+        return Ok(rows
+            .OrderByDescending(r => r.Date)
+            .ThenByDescending(r => r.Id)
+            .ToList());
+    }
+
+    /// <summary>The pre-cutover legacy customer payments (payments, data_origin NULL), joined for customer + amount.</summary>
+    private async Task<List<CustomerReceiptSummary>> LegacyCustomerPayments(CancellationToken cancellationToken)
+    {
+        var accessibleText = _company.Accessible.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToHashSet();
+
+        // != "new" is null-aware in EF (matches NULL and 'legacy'), so it is exactly the pre-cutover rows.
+        var legacyPays = await _legacy.Payments
+            .Where(p => p.DataOrigin != "new" && p.Invoiceno != null)
+            .Select(p => new { p.Id, p.Invoiceno, p.Amount, p.Paymentrecdate, p.Paym, p.Payref })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (legacyPays.Count == 0)
+        {
+            return [];
+        }
+
+        var invoiceNos = legacyPays.Select(p => p.Invoiceno!).Distinct().ToList();
+        var invoices = (await _legacy.InvoiceHs
+            .Where(h => h.Invoiceno != null && invoiceNos.Contains(h.Invoiceno))
+            .Select(h => new { h.Invoiceno, h.Customer, h.Company })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false))
+            .GroupBy(h => h.Invoiceno!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+        var custCodes = invoices.Values.Select(i => i.Customer).Where(c => c != null).Distinct().ToList();
+        var namesByCode = (await _db.Customers
+            .Where(c => c.Code != null && custCodes.Contains(c.Code))
+            .Select(c => new { c.Code, c.Name })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false))
+            .ToDictionary(c => c.Code!, c => c.Name);
+
+        var rows = new List<CustomerReceiptSummary>();
+        foreach (var p in legacyPays)
+        {
+            if (!invoices.TryGetValue(p.Invoiceno!, out var inv)) continue;
+            if (inv.Company is null || !accessibleText.Contains(inv.Company)) continue;
+
+            rows.Add(new CustomerReceiptSummary(
+                -p.Id, // negative id: legacy rows are display-only, and it avoids colliding with a new receipt's id
+                LegacyValue.Date(p.Paymentrecdate) ?? DateOnly.MinValue,
+                inv.Customer is not null ? namesByCode.GetValueOrDefault(inv.Customer) : null,
+                LegacyValue.Money(p.Amount),
+                p.Paym,
+                p.Payref,
+                1,
+                "legacy"));
+        }
+
+        return rows;
     }
 
     /// <summary>One receipt in full — its per-invoice allocations.</summary>

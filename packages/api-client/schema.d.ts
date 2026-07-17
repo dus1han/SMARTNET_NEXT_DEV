@@ -5015,6 +5015,7 @@ export interface components {
             reference?: string | null;
             /** Format: int32 */
             invoices: number;
+            origin: string;
         };
         CustomerSalesResponse: {
             /** Format: double */

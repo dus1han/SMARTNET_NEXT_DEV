@@ -1042,6 +1042,9 @@ public partial class SmartnetLegacyDbContext : DbContext
             entity.Property(e => e.Payref)
                 .HasMaxLength(100)
                 .HasColumnName("payref");
+            entity.Property(e => e.DataOrigin)
+                .HasMaxLength(16)
+                .HasColumnName("data_origin");
         });
 
         modelBuilder.Entity<PoH>(entity =>

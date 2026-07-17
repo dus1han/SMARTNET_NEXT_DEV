@@ -17,7 +17,14 @@ public partial class Payment
 
     public string? Entereddt { get; set; }
 
-    public string Paym { get; set; } = null!;
+    public string? Paym { get; set; }
 
-    public string Payref { get; set; } = null!;
+    public string? Payref { get; set; }
+
+    /// <summary>
+    /// Additive discriminator (Phase 7): <c>new</c> on a row the new customer-receipt path dual-wrote,
+    /// <c>NULL</c> on a pre-cutover legacy payment — so the payments list can show legacy history without
+    /// double-counting the new dual-writes.
+    /// </summary>
+    public string? DataOrigin { get; set; }
 }
