@@ -164,6 +164,16 @@ is not ported (it carries nothing worth migrating); it stays readable via the Le
 
 ## Slice 1 — Customer payments (receipts & allocation) · ~1 week · *the spine*
 
+> **Built and shipped** (commits `4f4026c` backend, `0310c3b` web). `CustomerReceipt`/`ReceiptAllocation`
+> on new tables; `CustomerReceiptService` posts a `Payment` ledger entry per allocation and dual-writes the
+> legacy `payments` row + `invoice_h.balance` — set to the **derived** outstanding (an absolute value off the
+> ledger, not the legacy in-place decrement, so the shadow can't drift). Idempotency key dedupes a resubmit
+> (Finding 1); over-allocation refused; soft, reason-gated void reverses each allocation through a
+> compensating entry. `/payments` web module (list, allocate-across-invoices form, detail + void). Tests
+> green (444); migration applied to the dev DB. One refinement to the plan below: the legacy `balance` is
+> **set to the derived outstanding**, not decremented, which is strictly better than the `balance − amount`
+> sketched here.
+
 The receivables mirror of the Phase 6 supplier-payment path, with allocation. This is where the customer-side
 money bugs close.
 
