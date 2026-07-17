@@ -100,9 +100,12 @@ public sealed class JobCardService : IJobCardCreator, IJobCardWorkflow
 
     public async Task CloseAsync(long jobCardId, CloseJobCard request, int expectedRowVersion, CancellationToken cancellationToken = default)
     {
+        // IgnoreQueryFilters so a legacy job card (data_origin='legacy') can be closed too — the legacy app
+        // closed them, and closing is a pure state change with nothing downstream. Soft-deletes still excluded.
         var jobCard = await _db.JobCards
+            .IgnoreQueryFilters()
             .Include(j => j.Lines)
-            .FirstOrDefaultAsync(j => j.Id == jobCardId, cancellationToken)
+            .FirstOrDefaultAsync(j => j.Id == jobCardId && j.DeletedAt == null, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Job card {jobCardId} does not exist.");
 

@@ -148,11 +148,20 @@ public sealed class JobCardsController : ControllerBase
         var lines = ParseItemsBlob(h.Items);
         var closed = string.Equals(h.Jstat, "CLOSED", StringComparison.OrdinalIgnoreCase);
 
+        // The real row_version off the adopted row, so a legacy card can be closed (the close is guarded by
+        // an optimistic-concurrency check that a hardcoded 0 would always fail).
+        var rowVersion = await _db.JobCards
+            .IgnoreQueryFilters()
+            .Where(j => j.Id == h.Id)
+            .Select(j => j.RowVersion)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         return Ok(new JobCardDetail(
             h.Id, h.Jobno, LegacyValue.Date(h.Jdate) ?? DateOnly.MinValue, companyName,
             customer?.Name ?? h.Customer, customer?.Code ?? h.Customer, h.Contactperson, h.FaultD, h.Remarks,
             h.Jobdoneby, h.Jstat, closed ? LegacyValue.Money(h.Cost) : null, closed ? LegacyValue.Money(h.Sell) : null,
-            h.Completionremarks, 0, "legacy", lines));
+            h.Completionremarks, rowVersion, "legacy", lines));
     }
 
     /// <summary>Book in a job card — PENDING, with structured serial lines.</summary>

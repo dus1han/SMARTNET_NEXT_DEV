@@ -120,6 +120,47 @@ public sealed class JobCardTests
         }
     }
 
+    [Fact]
+    public async Task A_legacy_job_card_can_be_closed_too()
+    {
+        var (companyId, customerId) = await Seed();
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
+
+        long id;
+        int rowVersion;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            id = (await ServiceFor(db, change).CreateAsync(new NewJobCard(
+                companyId, customerId, new DateOnly(2023, 1, 1), null, "Old fault", null, "tech",
+                [new NewJobCardLine(null, "Laptop", "SN-9")]))).Id;
+
+            // Demote it to a legacy-origin row — the exact shape adoption leaves: present in jobs_m and
+            // PENDING, but data_origin='legacy', so the new-only query filter hides it.
+            await db.Database.ExecuteSqlAsync($"UPDATE jobs_m SET data_origin = 'legacy' WHERE id = {id}");
+            rowVersion = await db.JobCards.IgnoreQueryFilters().Where(j => j.Id == id).Select(j => j.RowVersion).SingleAsync();
+        }
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            // It is invisible to the normal query filter...
+            (await db.JobCards.CountAsync(j => j.Id == id)).Should().Be(0);
+            // ...but Close reaches it anyway and flips it to CLOSED.
+            await ServiceFor(db, change).CloseAsync(id, new CloseJobCard(50m, 90m, "Fixed"), rowVersion);
+        }
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            var card = await db.JobCards.IgnoreQueryFilters().FirstAsync(j => j.Id == id);
+            card.Status.Should().Be(JobCardStatus.Closed);
+            card.Sell.Should().Be(90m);
+
+            // jstat dual-written to CLOSED for the legacy job sheet.
+            var jstat = await db.Database
+                .SqlQuery<string>($"SELECT jstat AS Value FROM jobs_m WHERE id = {id}").SingleAsync();
+            jstat.Should().Be("CLOSED");
+        }
+    }
+
     // --- Seeding ---------------------------------------------------------------------------------
 
     private static JobCardService ServiceFor(TestDbContext db, FakeChangeContext change) => new(

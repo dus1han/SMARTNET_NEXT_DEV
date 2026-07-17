@@ -39,7 +39,9 @@ export default function JobCardViewPage() {
   const data = job.data;
   const isLegacy = data?.origin === "legacy";
   const isClosed = data?.status === "CLOSED";
-  const canClose = data != null && !isLegacy && !isClosed && (user.data?.permissions.includes("jobcards") ?? false);
+  // Legacy job cards can be closed too — the legacy app closed them, and a PENDING legacy card is a real
+  // open job. Closing is guarded server-side (only PENDING, optimistic concurrency).
+  const canClose = data != null && !isClosed && (user.data?.permissions.includes("jobcards") ?? false);
 
   return (
     <FadeIn className="space-y-6">
