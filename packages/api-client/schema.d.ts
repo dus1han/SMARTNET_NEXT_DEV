@@ -178,6 +178,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cheques": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ChequeSummary"][];
+                        "application/json": components["schemas"]["ChequeSummary"][];
+                        "text/json": components["schemas"]["ChequeSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateChequeRequest"];
+                    "text/json": components["schemas"]["CreateChequeRequest"];
+                    "application/*+json": components["schemas"]["CreateChequeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ChequeCreatedResponse"];
+                        "application/json": components["schemas"]["ChequeCreatedResponse"];
+                        "text/json": components["schemas"]["ChequeCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cheques/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ChequeDetail"];
+                        "application/json": components["schemas"]["ChequeDetail"];
+                        "text/json": components["schemas"]["ChequeDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/credit-notes": {
         parameters: {
             query?: never;
@@ -4668,6 +4792,32 @@ export interface components {
             currentPassword: string;
             newPassword: string;
         };
+        ChequeCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            /** Format: double */
+            amount: number;
+        };
+        ChequeDetail: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            chequeDate?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            payTo: string;
+            entryType: string;
+            supplierName?: string | null;
+            supplierCode?: string | null;
+            bank?: string | null;
+            chequeNumber?: string | null;
+            /** Format: double */
+            amount: number;
+            companyName?: string | null;
+            /** Format: int32 */
+            rowVersion: number;
+            origin: string;
+        };
         ChequeReportResponse: {
             /** Format: double */
             total: number;
@@ -4694,6 +4844,21 @@ export interface components {
             createdAt?: string | null;
             printedAt?: string | null;
             hasDataIssue: boolean;
+        };
+        ChequeSummary: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            chequeDate?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            payTo: string;
+            bank?: string | null;
+            chequeNumber?: string | null;
+            /** Format: double */
+            amount: number;
+            companyName?: string | null;
+            origin: string;
         };
         CloseJobCardRequest: {
             /** Format: int32 */
@@ -4748,6 +4913,22 @@ export interface components {
             date: string;
             purchaseOrderNo?: string | null;
             contactPerson?: string | null;
+        };
+        CreateChequeRequest: {
+            /** Format: int64 */
+            companyId: number;
+            entryType: string;
+            payTo: string;
+            /** Format: int64 */
+            supplierId?: number | null;
+            bank?: string | null;
+            chequeNumber?: string | null;
+            /** Format: double */
+            amount: number;
+            /** Format: date */
+            chequeDate?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
         };
         CreateCreditNoteRequest: {
             /** Format: int64 */

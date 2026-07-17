@@ -97,6 +97,12 @@ public static class DependencyInjection
         services.AddScoped<ISupplierPaymentCreator>(sp => sp.GetRequiredService<SupplierPaymentService>());
         services.AddScoped<ISupplierPaymentVoider>(sp => sp.GetRequiredService<SupplierPaymentService>());
 
+        // Cheques (Phase 7, slice 2): the cheque register — a standalone adopted record (no ledger, no
+        // balance) that dual-writes the legacy cheques row for the surviving ChequeReport. One service.
+        services.AddScoped<ChequeService>();
+        services.AddScoped<IChequeCreator>(sp => sp.GetRequiredService<ChequeService>());
+        services.AddScoped<IChequeVoider>(sp => sp.GetRequiredService<ChequeService>());
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));

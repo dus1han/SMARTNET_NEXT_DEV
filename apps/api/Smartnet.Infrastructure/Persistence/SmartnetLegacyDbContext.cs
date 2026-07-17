@@ -164,6 +164,9 @@ public partial class SmartnetLegacyDbContext : DbContext
             entity.Property(e => e.Supcode)
                 .HasMaxLength(100)
                 .HasColumnName("supcode");
+            entity.Property(e => e.DataOrigin)
+                .HasMaxLength(16)
+                .HasColumnName("data_origin");
         });
 
         modelBuilder.Entity<CnH>(entity =>

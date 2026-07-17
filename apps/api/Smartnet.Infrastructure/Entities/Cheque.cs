@@ -30,4 +30,7 @@ public partial class Cheque
     public string Entry { get; set; } = null!;
 
     public string Supcode { get; set; } = null!;
+
+    /// <summary>The Phase 7 adoption discriminator: <c>new</c> for a cheque this app raised, <c>legacy</c> for an adopted one.</summary>
+    public string? DataOrigin { get; set; }
 }

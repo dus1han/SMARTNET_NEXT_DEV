@@ -200,6 +200,9 @@ transactional, ledger + legacy shadow in step — proven by unit + integration t
 
 ## Slice 2 — Cheque register · ~0.4 week
 
+> **Built and shipped.** Adopted `cheques` additively (id promoted to PK; typed amount/dates + supplier_id beside the legacy varchars; company_id already existed). `ChequeService` dual-writes the legacy row for `ChequeReport`; soft reason-gated void. `/cheques` web module (list new+legacy, Manual/Supplier form, detail + void). No printing (Phase 8). Tests green (469).
+
+
 - **Adopt `cheques`** additively (surrogate id, typed `decimal`/`date`, `data_origin`, audit; `company_id`
   exists; optional `supplier_id` beside legacy `supcode`). A `Cheque` aggregate, EF config with the legacy
   shadow, `data_origin='new'` query filter.

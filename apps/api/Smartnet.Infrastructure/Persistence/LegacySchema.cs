@@ -136,8 +136,9 @@ public static class LegacySchema
         SupplierInvoiceTable,
         SupplierInvPayTable,
 
-        // Company-aware but unnumbered by the legacy app.
-        Document("cheques"),
+        // Company-aware but unnumbered by the legacy app. cheques is now ADOPTED (Phase 7, slice 2), so it
+        // carries its full pre-adoption shape (id under a non-unique key, all-varchar) rather than the stub.
+        Cheques,
         Document("expense_tr"),
         Document("del_invoice_h"),
 
@@ -195,6 +196,31 @@ public static class LegacySchema
           `paym` varchar(100) DEFAULT NULL,
           `payref` varchar(100) DEFAULT NULL,
           PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>cheques</c> in its full pre-adoption shape — an AUTO_INCREMENT <c>id</c> under a non-unique key
+    /// (Finding 6, promoted to a PK by the Phase 7 adoption), everything else <c>varchar</c> and — bar
+    /// <c>chequedate</c> — NOT NULL, so a new cheque writes them all. <c>company_id</c> is NOT here: the
+    /// multi-company migration adds it (and its index), exactly as in production.
+    /// </summary>
+    public const string Cheques = """
+        CREATE TABLE `cheques` (
+          `id` int(100) NOT NULL AUTO_INCREMENT,
+          `chequedate` varchar(100) DEFAULT NULL,
+          `payto` varchar(100) NOT NULL,
+          `amount` varchar(100) NOT NULL,
+          `company` varchar(100) NOT NULL,
+          `duedate` varchar(100) NOT NULL,
+          `createdby` varchar(100) NOT NULL,
+          `createddt` varchar(100) NOT NULL,
+          `printeddt` varchar(100) NOT NULL,
+          `bank` varchar(100) NOT NULL,
+          `chkno` varchar(100) NOT NULL,
+          `entry` varchar(100) NOT NULL,
+          `supcode` varchar(100) NOT NULL,
+          KEY `id` (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """;
 

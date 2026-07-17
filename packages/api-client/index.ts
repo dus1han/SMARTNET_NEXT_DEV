@@ -178,6 +178,13 @@ export type SupplierPaymentDetail = Schemas["SupplierPaymentDetail"];
 export type SupplierPaymentAllocationLine = Schemas["SupplierPaymentAllocationLine"];
 export type OutstandingSupplierInvoiceLine = Schemas["OutstandingSupplierInvoiceLine"];
 
+// --- Cheque register (Phase 7) ----------------------------------------------------------------
+
+export type CreateChequeRequest = Schemas["CreateChequeRequest"];
+export type ChequeCreatedResponse = Schemas["ChequeCreatedResponse"];
+export type ChequeSummary = Schemas["ChequeSummary"];
+export type ChequeDetail = Schemas["ChequeDetail"];
+
 // --- History ---------------------------------------------------------------------------------
 
 export type AuditEntry = Schemas["AuditEntry"];

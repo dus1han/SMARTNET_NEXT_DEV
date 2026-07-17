@@ -133,6 +133,9 @@ public class SmartnetDbContext : DbContext
     /// <summary>Supplier-payment allocations — one per supplier invoice a payment settles.</summary>
     public DbSet<SupplierPaymentAllocation> SupplierPaymentAllocations => Set<SupplierPaymentAllocation>();
 
+    /// <summary>Cheques (Phase 7), on the adopted legacy <c>cheques</c>. A standalone written record — no ledger, no balance.</summary>
+    public DbSet<Cheque> Cheques => Set<Cheque>();
+
     /// <summary>Job cards, on the adopted legacy <c>jobs_m</c>. A service/repair document — no tax, ledger or stock.</summary>
     public DbSet<JobCard> JobCards => Set<JobCard>();
 
