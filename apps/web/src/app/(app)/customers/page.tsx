@@ -109,7 +109,7 @@ export default function CustomersPage() {
             <p className="truncate font-medium text-text">{customer.name}</p>
             <p className="truncate text-xs text-muted">
               {customer.code}
-              {customer.contactPerson ? ` · ${customer.contactPerson}` : ""}
+              {displayContactName(customer) ? ` · ${displayContactName(customer)}` : ""}
             </p>
           </div>
         );
@@ -129,11 +129,11 @@ export default function CustomersPage() {
     {
       id: "contact",
       header: "Contact",
-      accessorFn: (row) => row.phone ?? "",
+      accessorFn: (row) => displayContactPhone(row),
       cell: ({ row }) => (
         <div className="min-w-0 text-sm">
-          <p className="truncate text-text">{row.original.phone || "—"}</p>
-          <p className="truncate text-xs text-muted">{row.original.email}</p>
+          <p className="truncate text-text">{displayContactPhone(row.original) || "—"}</p>
+          <p className="truncate text-xs text-muted">{displayContactEmail(row.original)}</p>
         </div>
       ),
     },
@@ -233,7 +233,7 @@ export default function CustomersPage() {
         // Sorted by name on load, so the list is never in the API's arbitrary order. The header
         // shows the arrow, and the user can click any column — including the code — to re-sort.
         defaultSort={{ id: "customer" }}
-        searchable={(c) => `${c.name} ${c.code} ${c.contactPerson ?? ""} ${c.phone ?? ""} ${c.email ?? ""}`}
+        searchable={(c) => `${c.name} ${c.code} ${c.contacts.map((ct) => `${ct.name ?? ""} ${ct.phone ?? ""} ${ct.email ?? ""}`).join(" ")}`}
         searchPlaceholder="Search customers…"
         exportUrl="/api/customers/export"
         exportFilename="customers.xlsx"
@@ -440,6 +440,19 @@ const blankContactRow: ContactRow = { name: "", phone: "", email: "", usage: DOC
 
 function toContactRow(c: CustomerContactDto): ContactRow {
   return { name: c.name ?? "", phone: c.phone ?? "", email: c.email ?? "", usage: c.usage };
+}
+
+// The list reads a customer's contact details from the structured contacts (the new source of truth), not
+// the legacy ;-separated contactPerson/email strings — those are only kept dual-written for the legacy app.
+function displayContactName(c: CustomerSummary): string {
+  const named = c.contacts.filter((ct) => ct.usage !== NOTIFICATIONS_ONLY && ct.name?.trim());
+  return (named[0]?.name ?? c.contacts.find((ct) => ct.name?.trim())?.name ?? "").trim();
+}
+function displayContactPhone(c: CustomerSummary): string {
+  return c.contacts.find((ct) => ct.phone?.trim())?.phone ?? "";
+}
+function displayContactEmail(c: CustomerSummary): string {
+  return c.contacts.find((ct) => ct.email?.trim())?.email ?? "";
 }
 
 /** The rows the user filled, as DTOs — blank rows dropped. Id 0: the server allocates. */
