@@ -31,6 +31,7 @@ export default function ExpensesPage() {
   const error = expenses.error as ApiError | null;
 
   const [voiding, setVoiding] = useState<ExpenseSummary | null>(null);
+  const [viewing, setViewing] = useState<ExpenseSummary | null>(null);
   const [managingCategories, setManagingCategories] = useState(false);
 
   const columns: ColumnDef<ExpenseSummary, unknown>[] = [
@@ -76,7 +77,15 @@ export default function ExpensesPage() {
       enableSorting: false,
       cell: ({ row }) =>
         row.original.origin === "new" ? (
-          <Button variant="ghost" size="icon" aria-label="Void expense" onClick={() => setVoiding(row.original)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Void expense"
+            onClick={(e) => {
+              e.stopPropagation();
+              setVoiding(row.original);
+            }}
+          >
             <Trash2 className="text-muted" />
           </Button>
         ) : null,
@@ -99,6 +108,7 @@ export default function ExpensesPage() {
         searchable={(row) => `${row.description} ${row.category ?? ""} ${row.reference ?? ""} ${row.method ?? ""}`}
         searchPlaceholder="Search by description, category, reference…"
         defaultSort={{ id: "date", desc: true }}
+        onRowClick={(row) => setViewing(row)}
         actions={
           <>
             <Button variant="secondary" size="sm" onClick={() => setManagingCategories(true)}>
@@ -117,9 +127,68 @@ export default function ExpensesPage() {
         }}
       />
 
+      {viewing && (
+        <ExpenseDetailDialog
+          expense={viewing}
+          onClose={() => setViewing(null)}
+          onVoid={() => {
+            const e = viewing;
+            setViewing(null);
+            setVoiding(e);
+          }}
+        />
+      )}
       {voiding && <VoidExpenseDialog expense={voiding} onClose={() => setVoiding(null)} />}
       <CategoriesDialog open={managingCategories} onOpenChange={setManagingCategories} />
     </FadeIn>
+  );
+}
+
+function ExpenseDetailDialog({ expense, onClose, onVoid }: { expense: ExpenseSummary; onClose: () => void; onVoid: () => void }) {
+  return (
+    <Dialog
+      open
+      onOpenChange={(next) => !next && onClose()}
+      title={`Expense · ${formatMoney(expense.amount)}`}
+      description={`${expense.description} · ${formatReportDate(expense.date)}`}
+      footer={
+        <>
+          {expense.origin === "new" && (
+            <Button variant="secondary" onClick={onVoid}>
+              <Trash2 />
+              Void
+            </Button>
+          )}
+          <Button onClick={onClose}>Close</Button>
+        </>
+      }
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Detail label="Company" value={expense.companyName ?? "—"} />
+        <Detail label="Category" value={expense.category ?? "—"} />
+        <Detail label="Date" value={formatReportDate(expense.date)} />
+        <Detail label="Amount" value={formatMoney(expense.amount)} />
+        <Detail label="Method" value={expense.method || "—"} />
+        <Detail label="Reference" value={expense.reference || "—"} />
+        <div className="sm:col-span-2">
+          <Detail label="Description" value={expense.description || "—"} />
+        </div>
+        {expense.origin === "legacy" && (
+          <div className="sm:col-span-2">
+            <Badge tone="neutral">Legacy</Badge>
+          </div>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</p>
+      <p className="mt-0.5 text-sm text-text">{value}</p>
+    </div>
   );
 }
 
