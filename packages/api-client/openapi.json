@@ -4232,6 +4232,65 @@
         }
       }
     },
+    "/api/reports/data-exceptions": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "parameters": [
+          {
+            "name": "company",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExceptionsResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExceptionsResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExceptionsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/data-exceptions/export": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "parameters": [
+          {
+            "name": "company",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/reports/supplier-purchase": {
       "get": {
         "tags": [
@@ -8314,6 +8373,70 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/DashboardCompanyOption"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExceptionRow": {
+        "required": [
+          "amount",
+          "customerName",
+          "detail",
+          "reference",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExceptionsResponse": {
+        "required": [
+          "duplicatePayments",
+          "linesNotHeader",
+          "paidNoPayment",
+          "rows",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "duplicatePayments": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paidNoPayment": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "linesNotHeader": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataExceptionRow"
             }
           }
         },

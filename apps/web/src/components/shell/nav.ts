@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   ShoppingCart,
+  ShieldAlert,
   Trash2,
   TrendingUp,
   Truck,
@@ -106,6 +107,7 @@ export const NAVIGATION: NavSection[] = [
       { href: "/reports/supplier-purchase", label: "Supplier purchases", icon: ShoppingBag, permission: "supplierpurchase_rpt" },
       { href: "/reports/supplier-payments", label: "Supplier payments", icon: HandCoins, permission: "supplierpayments_rpt" },
       { href: "/reports/outstanding", label: "Outstanding", icon: Wallet, permission: "customer_outstanding" },
+      { href: "/reports/data-exceptions", label: "Data exceptions", icon: ShieldAlert, permission: "general_ledger" },
     ],
   },
   {

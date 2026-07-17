@@ -334,6 +334,37 @@ public sealed record OutstandingResponse(
     DateOnly AsAt,
     IReadOnlyList<OutstandingRow> Rows);
 
+// --- Data exceptions (LEGACY-DATA-POLICY §4) -----------------------------------------------
+
+/// <summary>
+/// One known legacy-data defect — a row on the Data Exceptions screen. The screen lists what is wrong in
+/// the imported data, live, so it is visible and does not quietly grow (LEGACY-DATA-POLICY §4). It is
+/// read-only for now; the permission-gated, audited correction is a later slice.
+/// </summary>
+/// <param name="Type">The kind of defect — <c>Duplicate payment</c>, <c>Paid, no payment</c>, or
+/// <c>Lines ≠ header</c>.</param>
+/// <param name="Reference">The invoice number the defect sits on.</param>
+/// <param name="CustomerName">The customer, for context (blank when the code does not resolve).</param>
+/// <param name="Detail">A human-readable statement of the discrepancy.</param>
+/// <param name="Amount">The money at stake — the duplicated value, the unbacked balance, or the
+/// header/lines gap.</param>
+public sealed record DataExceptionRow(
+    string Type,
+    string Reference,
+    string CustomerName,
+    string Detail,
+    decimal Amount);
+
+/// <param name="DuplicatePayments">Invoices still carrying a duplicate payment group.</param>
+/// <param name="PaidNoPayment">Invoices marked paid with no payment record behind them.</param>
+/// <param name="LinesNotHeader">Invoices whose line items do not sum to the header.</param>
+public sealed record DataExceptionsResponse(
+    int DuplicatePayments,
+    int PaidNoPayment,
+    int LinesNotHeader,
+    int Total,
+    IReadOnlyList<DataExceptionRow> Rows);
+
 /// <summary>One outstanding invoice — the per-invoice drill-down behind the "export selected" list,
 /// the legacy outstanding-invoice sheet for the chosen customers.</summary>
 public sealed record OutstandingDetailRow(

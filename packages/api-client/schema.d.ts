@@ -3354,6 +3354,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reports/data-exceptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    company?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DataExceptionsResponse"];
+                        "application/json": components["schemas"]["DataExceptionsResponse"];
+                        "text/json": components["schemas"]["DataExceptionsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/data-exceptions/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    company?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reports/supplier-purchase": {
         parameters: {
             query?: never;
@@ -5698,6 +5772,25 @@ export interface components {
             /** Format: int64 */
             selectedCompanyId?: number | null;
             companies: components["schemas"]["DashboardCompanyOption"][];
+        };
+        DataExceptionRow: {
+            type: string;
+            reference: string;
+            customerName: string;
+            detail: string;
+            /** Format: double */
+            amount: number;
+        };
+        DataExceptionsResponse: {
+            /** Format: int32 */
+            duplicatePayments: number;
+            /** Format: int32 */
+            paidNoPayment: number;
+            /** Format: int32 */
+            linesNotHeader: number;
+            /** Format: int32 */
+            total: number;
+            rows: components["schemas"]["DataExceptionRow"][];
         };
         DeletedInvoiceDetail: {
             number: string;

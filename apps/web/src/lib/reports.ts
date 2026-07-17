@@ -12,6 +12,7 @@ import type {
   SupplierOption,
   SupplierPaymentResponse,
   ProfitLossResponse,
+  DataExceptionsResponse,
   SupplierPurchaseResponse,
   SupplierVatResponse,
   TrialBalanceResponse,
@@ -49,6 +50,8 @@ export type {
   ProfitLossResponse,
   ProfitLossLine,
   ProfitLossReconciliation,
+  DataExceptionsResponse,
+  DataExceptionRow,
 } from "@smartnet/api-client";
 
 /** The company a report is scoped to: a specific company id, or "all" (every accessible one). */
@@ -154,6 +157,14 @@ export const getTrialBalanceReport = (period: ReportPeriod, company: CompanyFilt
 
 export const trialBalanceReportExportUrl = (period: ReportPeriod, company: CompanyFilter) =>
   `/api/reports/trial-balance/export${periodQuery(period, { company: companyParam(company) })}`;
+
+// --- Data exceptions (LEGACY-DATA-POLICY §4) -------------------------------------------------
+
+export const getDataExceptions = (company: CompanyFilter) =>
+  api<DataExceptionsResponse>(`/api/reports/data-exceptions${periodQuery({}, { company: companyParam(company) })}`);
+
+export const dataExceptionsExportUrl = (company: CompanyFilter) =>
+  `/api/reports/data-exceptions/export${periodQuery({}, { company: companyParam(company) })}`;
 
 // --- Profit & loss (general ledger) ----------------------------------------------------------
 

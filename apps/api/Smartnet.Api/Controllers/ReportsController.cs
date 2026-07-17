@@ -469,6 +469,37 @@ public sealed class ReportsController : ControllerBase
         return rows;
     }
 
+    // --- Data exceptions (LEGACY-DATA-POLICY §4) ---------------------------------------------
+
+    [HttpGet("data-exceptions")]
+    [RequirePermission(Permissions.GeneralLedger)]
+    public async Task<ActionResult<DataExceptionsResponse>> DataExceptions(
+        [FromQuery] string? company,
+        CancellationToken cancellationToken) =>
+        Ok(await BuildDataExceptions(company, cancellationToken).ConfigureAwait(false));
+
+    [HttpGet("data-exceptions/export")]
+    [RequirePermission(Permissions.GeneralLedger)]
+    public async Task<IActionResult> DataExceptionsExport(
+        [FromQuery] string? company,
+        CancellationToken cancellationToken)
+    {
+        var report = await BuildDataExceptions(company, cancellationToken).ConfigureAwait(false);
+
+        var workbook = _excel.Export<DataExceptionRow>(
+            "Data exceptions",
+            [
+                new("Type", r => r.Type),
+                new("Invoice No", r => r.Reference),
+                new("Customer", r => r.CustomerName),
+                new("Discrepancy", r => r.Detail),
+                new("Amount", r => r.Amount, ExcelFormat.Money),
+            ],
+            report.Rows);
+
+        return await Download(workbook, "data-exceptions", report.Rows.Count, cancellationToken).ConfigureAwait(false);
+    }
+
     // --- Supplier purchase summary (supplierpurchase_rpt) ------------------------------------
 
     [HttpGet("supplier-purchase")]
@@ -836,6 +867,47 @@ public sealed class ReportsController : ControllerBase
             GrossInvoicedSales: invoiceNet + invoiceVat,
             OutputVat: invoiceVat,
             SalesReturns: creditNoteNet);
+    }
+
+    /// <summary>
+    /// The Data Exceptions list — every known legacy-data defect for the scoped companies, detected live from
+    /// the legacy tables (LEGACY-DATA-POLICY §4). Loads the scoped invoices, then the payments and lines for
+    /// those invoices, and classifies them in the pure <see cref="DataExceptionsReport"/>. Read-only.
+    /// </summary>
+    private async Task<DataExceptionsResponse> BuildDataExceptions(string? company, CancellationToken cancellationToken)
+    {
+        var scope = CompanyScope(company);
+        if (scope.Count == 0)
+        {
+            return new DataExceptionsResponse(0, 0, 0, 0, []);
+        }
+
+        // No soft-delete filter: invoice_h holds only live rows (deletes move to del_invoice_h), exactly as
+        // the sales/outstanding reports read it.
+        var invoices = await _legacy.InvoiceHs
+            .Where(h => scope.Contains(h.Company!))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var invoiceNos = invoices
+            .Where(h => !string.IsNullOrEmpty(h.Invoiceno))
+            .Select(h => h.Invoiceno!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        // Payments and lines carry no company, so scope them by membership of the scoped invoices. Both legacy
+        // tables are small enough to read whole and filter in memory (payments ~2k, lines ~13k), which avoids a
+        // multi-thousand-parameter IN and naturally drops orphaned lines whose header no longer exists.
+        var payments = (await _legacy.Payments.ToListAsync(cancellationToken).ConfigureAwait(false))
+            .Where(p => p.Invoiceno != null && invoiceNos.Contains(p.Invoiceno))
+            .ToList();
+
+        var lines = (await _legacy.InvoiceLs.ToListAsync(cancellationToken).ConfigureAwait(false))
+            .Where(l => l.Inno != null && invoiceNos.Contains(l.Inno))
+            .ToList();
+
+        var customerNames = await CustomerNames(cancellationToken).ConfigureAwait(false);
+
+        return DataExceptionsReport.Build(invoices, payments, lines, customerNames);
     }
 
     private async Task<SalesReportResponse> BuildSales(ReportPeriod period, string? company, CancellationToken cancellationToken)
