@@ -225,15 +225,20 @@ public sealed class CustomerReceiptsController : ControllerBase
             : null;
 
         var invoiceIds = receipt.Allocations.Select(a => a.InvoiceId).Distinct().ToList();
-        var numbers = (await _legacy.InvoiceHs
+        var invInfo = (await _legacy.InvoiceHs
             .Where(h => invoiceIds.Contains(h.Id))
-            .Select(h => new { h.Id, h.Invoiceno })
+            .Select(h => new { h.Id, h.Invoiceno, h.Indate, h.Totamount })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false))
-            .ToDictionary(h => h.Id, h => h.Invoiceno);
+            .ToDictionary(h => h.Id);
 
         var allocations = receipt.Allocations
-            .Select(a => new ReceiptAllocationLine(a.InvoiceId, numbers.GetValueOrDefault(a.InvoiceId), a.Amount))
+            .Select(a =>
+            {
+                invInfo.TryGetValue(a.InvoiceId, out var info);
+                return new ReceiptAllocationLine(
+                    a.InvoiceId, info?.Invoiceno, LegacyValue.Date(info?.Indate), LegacyValue.Money(info?.Totamount), a.Amount);
+            })
             .ToList();
 
         return Ok(new CustomerReceiptDetail(
@@ -259,7 +264,7 @@ public sealed class CustomerReceiptsController : ControllerBase
 
         var inv = await _legacy.InvoiceHs
             .Where(h => h.Invoiceno == pay.Invoiceno)
-            .Select(h => new { h.Id, h.Customer, h.Company })
+            .Select(h => new { h.Id, h.Customer, h.Company, h.Indate, h.Totamount })
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         if (inv is null || inv.Company is null || !accessibleText.Contains(inv.Company))
@@ -275,7 +280,10 @@ public sealed class CustomerReceiptsController : ControllerBase
             : null;
 
         var amount = LegacyValue.Money(pay.Amount);
-        var allocations = new List<ReceiptAllocationLine> { new(inv.Id, pay.Invoiceno, amount) };
+        var allocations = new List<ReceiptAllocationLine>
+        {
+            new(inv.Id, pay.Invoiceno, LegacyValue.Date(inv.Indate), LegacyValue.Money(inv.Totamount), amount),
+        };
 
         return Ok(new CustomerReceiptDetail(
             -paymentId, LegacyValue.Date(pay.Paymentrecdate) ?? DateOnly.MinValue, companyName,

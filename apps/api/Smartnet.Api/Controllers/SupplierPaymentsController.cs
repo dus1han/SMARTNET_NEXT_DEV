@@ -182,25 +182,30 @@ public sealed class SupplierPaymentsController : ControllerBase
             : null;
 
         var invoiceIds = payment.Allocations.Select(a => a.SupplierInvoiceId).Distinct().ToList();
-        var references = (await _legacy.SupplierInvoices
+        var legacyInfo = (await _legacy.SupplierInvoices
             .Where(h => invoiceIds.Contains(h.Id))
-            .Select(h => new { h.Id, h.Invno })
+            .Select(h => new { h.Id, h.Invno, h.Invdate, h.Amount })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false))
-            .ToDictionary(h => h.Id, h => h.Invno);
-        var newRefs = (await _db.SupplierInvoices
+            .ToDictionary(h => h.Id);
+        var newInfo = (await _db.SupplierInvoices
             .IgnoreQueryFilters()
-            .Where(s => invoiceIds.Contains(s.Id) && s.SupplierReference != null)
-            .Select(s => new { s.Id, s.SupplierReference })
+            .Where(s => invoiceIds.Contains(s.Id) && s.DataOrigin == "new")
+            .Select(s => new { s.Id, s.SupplierReference, s.Date, s.Amount })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false))
-            .ToDictionary(s => s.Id, s => s.SupplierReference);
+            .ToDictionary(s => s.Id);
 
         var allocations = payment.Allocations
-            .Select(a => new SupplierPaymentAllocationLine(
-                a.SupplierInvoiceId,
-                newRefs.GetValueOrDefault(a.SupplierInvoiceId) ?? references.GetValueOrDefault(a.SupplierInvoiceId),
-                a.Amount))
+            .Select(a =>
+            {
+                newInfo.TryGetValue(a.SupplierInvoiceId, out var ni);
+                legacyInfo.TryGetValue(a.SupplierInvoiceId, out var li);
+                var reference = ni?.SupplierReference ?? li?.Invno;
+                DateOnly? invoiceDate = ni is not null ? ni.Date : LegacyValue.Date(li?.Invdate);
+                var invoiceAmount = ni is not null ? ni.Amount : LegacyValue.Money(li?.Amount);
+                return new SupplierPaymentAllocationLine(a.SupplierInvoiceId, reference, invoiceDate, invoiceAmount, a.Amount);
+            })
             .ToList();
 
         return Ok(new SupplierPaymentDetail(
@@ -226,7 +231,7 @@ public sealed class SupplierPaymentsController : ControllerBase
 
         var inv = await _legacy.SupplierInvoices
             .Where(h => h.Id == invId)
-            .Select(h => new { h.Id, h.Invno, h.Supcode, h.Amount, h.Company })
+            .Select(h => new { h.Id, h.Invno, h.Invdate, h.Supcode, h.Amount, h.Company })
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
         if (inv is null || inv.Company is null || !accessibleText.Contains(inv.Company))
@@ -242,7 +247,10 @@ public sealed class SupplierPaymentsController : ControllerBase
             : null;
 
         var amount = LegacyValue.Money(inv.Amount);
-        var allocations = new List<SupplierPaymentAllocationLine> { new(inv.Id, inv.Invno, amount) };
+        var allocations = new List<SupplierPaymentAllocationLine>
+        {
+            new(inv.Id, inv.Invno, LegacyValue.Date(inv.Invdate), amount, amount),
+        };
 
         return Ok(new SupplierPaymentDetail(
             -payId, LegacyValue.Date(pay.Paiddate) ?? DateOnly.MinValue, companyName,

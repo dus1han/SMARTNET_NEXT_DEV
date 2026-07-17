@@ -9415,6 +9415,7 @@
       "ReceiptAllocationLine": {
         "required": [
           "amount",
+          "invoiceAmount",
           "invoiceId"
         ],
         "type": "object",
@@ -9426,6 +9427,15 @@
           "invoiceNumber": {
             "type": "string",
             "nullable": true
+          },
+          "invoiceDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "invoiceAmount": {
+            "type": "number",
+            "format": "double"
           },
           "amount": {
             "type": "number",
@@ -10295,6 +10305,7 @@
       "SupplierPaymentAllocationLine": {
         "required": [
           "amount",
+          "invoiceAmount",
           "supplierInvoiceId"
         ],
         "type": "object",
@@ -10306,6 +10317,15 @@
           "reference": {
             "type": "string",
             "nullable": true
+          },
+          "invoiceDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "invoiceAmount": {
+            "type": "number",
+            "format": "double"
           },
           "amount": {
             "type": "number",

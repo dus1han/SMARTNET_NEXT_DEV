@@ -36,8 +36,13 @@ public sealed record CustomerReceiptSummary(
     int Invoices,
     string Origin);
 
-/// <summary>One allocation, for the read view.</summary>
-public sealed record ReceiptAllocationLine(long InvoiceId, string? InvoiceNumber, decimal Amount);
+/// <summary>One allocation, for the read view — the invoice it settled (its date and total) and how much went to it.</summary>
+public sealed record ReceiptAllocationLine(
+    long InvoiceId,
+    string? InvoiceNumber,
+    DateOnly? InvoiceDate,
+    decimal InvoiceAmount,
+    decimal Amount);
 
 /// <summary>One receipt, in full — the read view, with its per-invoice allocations.</summary>
 /// <param name="Origin"><c>new</c> for a receipt this app recorded (voidable); <c>legacy</c> for a pre-cutover one (read-only).</param>
@@ -113,8 +118,13 @@ public sealed record SupplierPaymentSummary(
     int Invoices,
     string Origin);
 
-/// <summary>One allocation, for the read view.</summary>
-public sealed record SupplierPaymentAllocationLine(long SupplierInvoiceId, string? Reference, decimal Amount);
+/// <summary>One allocation, for the read view — the invoice it settled (its date and total) and how much went to it.</summary>
+public sealed record SupplierPaymentAllocationLine(
+    long SupplierInvoiceId,
+    string? Reference,
+    DateOnly? InvoiceDate,
+    decimal InvoiceAmount,
+    decimal Amount);
 
 /// <summary>One supplier payment, in full — the read view, with its per-invoice allocations.</summary>
 /// <param name="Origin"><c>new</c> for a payment this app recorded (voidable); <c>legacy</c> for a pre-cutover one (read-only).</param>

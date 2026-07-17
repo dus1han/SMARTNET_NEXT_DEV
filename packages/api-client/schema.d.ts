@@ -5752,6 +5752,10 @@ export interface components {
             /** Format: int64 */
             invoiceId: number;
             invoiceNumber?: string | null;
+            /** Format: date */
+            invoiceDate?: string | null;
+            /** Format: double */
+            invoiceAmount: number;
             /** Format: double */
             amount: number;
         };
@@ -6013,6 +6017,10 @@ export interface components {
             /** Format: int64 */
             supplierInvoiceId: number;
             reference?: string | null;
+            /** Format: date */
+            invoiceDate?: string | null;
+            /** Format: double */
+            invoiceAmount: number;
             /** Format: double */
             amount: number;
         };

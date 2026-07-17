@@ -174,9 +174,22 @@ const allocationColumns: ColumnDef<ReceiptAllocationLine, unknown>[] = [
     cell: ({ row }) => <span className="font-medium text-text">{row.original.invoiceNumber || `#${row.original.invoiceId}`}</span>,
   },
   {
+    id: "invoiceDate",
+    accessorFn: (row) => row.invoiceDate ?? "",
+    header: "Invoice date",
+    cell: ({ row }) => <span className="whitespace-nowrap text-muted">{row.original.invoiceDate ? formatReportDate(row.original.invoiceDate) : "—"}</span>,
+  },
+  {
+    id: "invoiceAmount",
+    accessorFn: (row) => row.invoiceAmount,
+    header: "Invoice total",
+    meta: { align: "right" },
+    cell: ({ row }) => <span className="tabular text-muted">{formatMoney(row.original.invoiceAmount)}</span>,
+  },
+  {
     id: "amount",
     accessorFn: (row) => row.amount,
-    header: "Amount",
+    header: "Allocated",
     meta: { align: "right" },
     cell: ({ row }) => <span className="tabular font-medium text-text">{formatMoney(row.original.amount)}</span>,
   },
