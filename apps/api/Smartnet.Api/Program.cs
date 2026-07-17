@@ -126,6 +126,9 @@ builder.Services.AddScoped<IReceivablesLedger, ReceivablesLedger>();
 // (never stored). Phase 6, slice 2.
 builder.Services.AddScoped<IPayablesLedger, PayablesLedger>();
 
+// The general ledger: posts each money event as a balanced double-entry, idempotently.
+builder.Services.AddScoped<IGeneralLedger, GeneralLedger>();
+
 // Resolves a business rule (rounding mode, credit-limit enforcement) for a company — override, global,
 // then default.
 builder.Services.AddScoped<IBusinessRuleReader, BusinessRuleReader>();

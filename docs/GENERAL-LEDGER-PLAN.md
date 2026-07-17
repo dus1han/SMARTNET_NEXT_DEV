@@ -60,7 +60,8 @@ Bank account. (A cheque still does not post — its *payment/expense* posts to B
 - **Trial balance** — every account with its debit/credit balance; total debits = total credits (the proof
   the ledger is consistent).
 - **Profit & loss** — Income − Expenses for a period.
-- **Cash/bank position** — the running balance of the cash and bank accounts.
+
+(A cash/bank position report is **not** required — the Cash/Bank accounts still appear on the trial balance.)
 
 ---
 
@@ -70,7 +71,7 @@ Bank account. (A cheque still does not post — its *payment/expense* posts to B
 2. **Posting engine** — `gl_entries`/`gl_lines`, a `IGeneralLedger.Post(...)` that writes one balanced entry
    idempotently (keyed on source_type+source_id), wired into each money-event service. **Backfill** the
    historical events (a migration deriving postings from the existing documents/sub-ledgers).
-3. **Reports** — trial balance, P&L, cash position (web + export).
+3. **Reports** — trial balance, then P&L (web + export).
 
 ---
 

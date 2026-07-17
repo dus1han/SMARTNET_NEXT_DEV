@@ -107,6 +107,15 @@ public class SmartnetDbContext : DbContext
     /// <summary>The receivables ledger. A customer's balance is the sum of these — see <see cref="LedgerEntry"/>.</summary>
     public DbSet<LedgerEntry> ReceivablesLedger => Set<LedgerEntry>();
 
+    /// <summary>The general-ledger chart of accounts (per company).</summary>
+    public DbSet<GlAccount> GlAccounts => Set<GlAccount>();
+
+    /// <summary>General-ledger journal entries — one per money event, append-only.</summary>
+    public DbSet<GlEntry> GlEntries => Set<GlEntry>();
+
+    /// <summary>The debit/credit lines of the journal entries.</summary>
+    public DbSet<GlLine> GlLines => Set<GlLine>();
+
     // --- Purchasing (Phase 6) ----------------------------------------------------------------
 
     /// <summary>Purchase orders, on the adopted legacy <c>po_h</c>. An order — no ledger, no stock.</summary>
