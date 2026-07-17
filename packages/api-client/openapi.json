@@ -6980,6 +6980,7 @@
           "amount",
           "date",
           "id",
+          "origin",
           "rowVersion"
         ],
         "type": "object",
@@ -7025,6 +7026,9 @@
             "items": {
               "$ref": "#/components/schemas/ReceiptAllocationLine"
             }
+          },
+          "origin": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -10338,6 +10342,7 @@
           "amount",
           "date",
           "id",
+          "origin",
           "rowVersion"
         ],
         "type": "object",
@@ -10383,6 +10388,9 @@
             "items": {
               "$ref": "#/components/schemas/SupplierPaymentAllocationLine"
             }
+          },
+          "origin": {
+            "type": "string"
           }
         },
         "additionalProperties": false

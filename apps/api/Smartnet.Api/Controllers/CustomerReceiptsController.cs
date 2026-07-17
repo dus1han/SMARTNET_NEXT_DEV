@@ -197,6 +197,12 @@ public sealed class CustomerReceiptsController : ControllerBase
     {
         var accessible = _company.Accessible.ToList();
 
+        // A legacy payment is listed with a negative id (payments.id); it settled a single invoice.
+        if (id < 0)
+        {
+            return await LegacyReceiptDetail(-id, accessible, cancellationToken).ConfigureAwait(false);
+        }
+
         var receipt = await _db.CustomerReceipts
             .Include(r => r.Allocations)
             .FirstOrDefaultAsync(
@@ -232,7 +238,48 @@ public sealed class CustomerReceiptsController : ControllerBase
 
         return Ok(new CustomerReceiptDetail(
             receipt.Id, receipt.Date, companyName, customer?.Name, customer?.Code,
-            receipt.Amount, receipt.Method, receipt.Reference, receipt.RowVersion, allocations));
+            receipt.Amount, receipt.Method, receipt.Reference, receipt.RowVersion, allocations, "new"));
+    }
+
+    /// <summary>A pre-cutover legacy payment (one <c>payments</c> row) as a receipt detail — the single invoice it settled.</summary>
+    private async Task<ActionResult<CustomerReceiptDetail>> LegacyReceiptDetail(
+        long paymentId, List<long> accessible, CancellationToken cancellationToken)
+    {
+        var accessibleText = accessible.Select(x => x.ToString(CultureInfo.InvariantCulture)).ToHashSet();
+
+        var pay = await _legacy.Payments
+            .Where(p => p.Id == (int)paymentId)
+            .Select(p => new { p.Invoiceno, p.Amount, p.Paymentrecdate, p.Paym, p.Payref })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (pay is null || pay.Invoiceno is null)
+        {
+            return NotFound();
+        }
+
+        var inv = await _legacy.InvoiceHs
+            .Where(h => h.Invoiceno == pay.Invoiceno)
+            .Select(h => new { h.Id, h.Customer, h.Company })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (inv is null || inv.Company is null || !accessibleText.Contains(inv.Company))
+        {
+            return NotFound();
+        }
+
+        var customerName = inv.Customer is null
+            ? null
+            : await _db.Customers.Where(c => c.Code == inv.Customer).Select(c => c.Name).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        var companyName = long.TryParse(inv.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cid)
+            ? await _db.Companies.Where(c => c.Id == cid).Select(c => c.Name).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+            : null;
+
+        var amount = LegacyValue.Money(pay.Amount);
+        var allocations = new List<ReceiptAllocationLine> { new(inv.Id, pay.Invoiceno, amount) };
+
+        return Ok(new CustomerReceiptDetail(
+            -paymentId, LegacyValue.Date(pay.Paymentrecdate) ?? DateOnly.MinValue, companyName,
+            customerName, inv.Customer, amount, pay.Paym, pay.Payref, 0, allocations, "legacy"));
     }
 
     /// <summary>Record a receipt — allocated across open invoices; posts Payment entries and dual-writes the legacy shadow.</summary>

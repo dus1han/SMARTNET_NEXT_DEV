@@ -154,6 +154,12 @@ public sealed class SupplierPaymentsController : ControllerBase
     {
         var accessible = _company.Accessible.ToList();
 
+        // A legacy payment is listed with a negative id (supplier_inv_pay.id); it settled a single invoice.
+        if (id < 0)
+        {
+            return await LegacyPaymentDetail(-id, accessible, cancellationToken).ConfigureAwait(false);
+        }
+
         var payment = await _db.SupplierPayments
             .Include(p => p.Allocations)
             .FirstOrDefaultAsync(
@@ -199,7 +205,48 @@ public sealed class SupplierPaymentsController : ControllerBase
 
         return Ok(new SupplierPaymentDetail(
             payment.Id, payment.Date, companyName, supplier?.Name, supplier?.Code,
-            payment.Amount, payment.Method, payment.Reference, payment.RowVersion, allocations));
+            payment.Amount, payment.Method, payment.Reference, payment.RowVersion, allocations, "new"));
+    }
+
+    /// <summary>A pre-cutover legacy supplier payment (one <c>supplier_inv_pay</c> row) as a payment detail — the single invoice it settled.</summary>
+    private async Task<ActionResult<SupplierPaymentDetail>> LegacyPaymentDetail(
+        long payId, List<long> accessible, CancellationToken cancellationToken)
+    {
+        var accessibleText = accessible.Select(x => x.ToString(CultureInfo.InvariantCulture)).ToHashSet();
+
+        var pay = await _legacy.SupplierInvPays
+            .Where(p => p.Id == (int)payId)
+            .Select(p => new { p.Supinvid, p.Paiddate, p.Referenceno, p.PayMethod })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (pay is null || !long.TryParse(pay.Supinvid, NumberStyles.Integer, CultureInfo.InvariantCulture, out var invId))
+        {
+            return NotFound();
+        }
+
+        var inv = await _legacy.SupplierInvoices
+            .Where(h => h.Id == invId)
+            .Select(h => new { h.Id, h.Invno, h.Supcode, h.Amount, h.Company })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (inv is null || inv.Company is null || !accessibleText.Contains(inv.Company))
+        {
+            return NotFound();
+        }
+
+        var supplier = inv.Supcode is null
+            ? null
+            : await _db.Suppliers.Where(s => s.Code == inv.Supcode).Select(s => new { s.Name, s.Code }).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        var companyName = long.TryParse(inv.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var cid)
+            ? await _db.Companies.Where(c => c.Id == cid).Select(c => c.Name).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+            : null;
+
+        var amount = LegacyValue.Money(inv.Amount);
+        var allocations = new List<SupplierPaymentAllocationLine> { new(inv.Id, inv.Invno, amount) };
+
+        return Ok(new SupplierPaymentDetail(
+            -payId, LegacyValue.Date(pay.Paiddate) ?? DateOnly.MinValue, companyName,
+            supplier?.Name ?? inv.Supcode, supplier?.Code ?? inv.Supcode, amount, pay.PayMethod, pay.Referenceno, 0, allocations, "legacy"));
     }
 
     /// <summary>The pre-cutover legacy supplier payments (supplier_inv_pay, data_origin NULL), joined for supplier + amount.</summary>

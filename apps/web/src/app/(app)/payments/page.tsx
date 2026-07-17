@@ -45,7 +45,7 @@ export default function PaymentsPage() {
             Record a receipt
           </Button>
         }
-        onRowClick={(row) => row.origin === "new" && router.push(`/payments/${row.id}`)}
+        onRowClick={(row) => router.push(`/payments/${row.id}`)}
         empty={{
           title: "No receipts yet",
           description: "Money received from customers — this app's own and the legacy ones — appears here.",

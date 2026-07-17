@@ -19,7 +19,7 @@ import { me } from "@/lib/auth";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
-import { Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
+import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 import type { SupplierPaymentAllocationLine } from "@/lib/supplier-payments";
 
 export default function SupplierPaymentViewPage() {
@@ -38,7 +38,8 @@ export default function SupplierPaymentViewPage() {
   const [voiding, setVoiding] = useState(false);
   const error = payment.error as ApiError | null;
   const data = payment.data;
-  const canModify = data != null && (user.data?.permissions.includes("supplier_in") ?? false);
+  const isLegacy = data?.origin === "legacy";
+  const canModify = data != null && !isLegacy && (user.data?.permissions.includes("supplier_in") ?? false);
 
   return (
     <FadeIn className="space-y-6">
@@ -51,10 +52,13 @@ export default function SupplierPaymentViewPage() {
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <PageHeader
-          title={data ? `Payment · ${formatMoney(data.amount)}` : "Payment"}
-          description={data ? `${data.supplierName ?? "—"} · ${formatReportDate(data.date)}` : undefined}
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <PageHeader
+            title={data ? `Payment · ${formatMoney(data.amount)}` : "Payment"}
+            description={data ? `${data.supplierName ?? "—"} · ${formatReportDate(data.date)}` : undefined}
+          />
+          {isLegacy && <Badge tone="neutral">Legacy</Badge>}
+        </div>
         {canModify && (
           <Button variant="secondary" onClick={() => setVoiding(true)}>
             <Trash2 />

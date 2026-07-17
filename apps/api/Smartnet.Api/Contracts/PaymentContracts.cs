@@ -40,6 +40,7 @@ public sealed record CustomerReceiptSummary(
 public sealed record ReceiptAllocationLine(long InvoiceId, string? InvoiceNumber, decimal Amount);
 
 /// <summary>One receipt, in full — the read view, with its per-invoice allocations.</summary>
+/// <param name="Origin"><c>new</c> for a receipt this app recorded (voidable); <c>legacy</c> for a pre-cutover one (read-only).</param>
 public sealed record CustomerReceiptDetail(
     long Id,
     DateOnly Date,
@@ -50,7 +51,8 @@ public sealed record CustomerReceiptDetail(
     string? Method,
     string? Reference,
     int RowVersion,
-    IReadOnlyList<ReceiptAllocationLine> Allocations);
+    IReadOnlyList<ReceiptAllocationLine> Allocations,
+    string Origin);
 
 /// <summary>One of a customer's open invoices — the picker a receipt is allocated over (new and legacy alike).</summary>
 public sealed record OutstandingInvoiceLine(
@@ -115,6 +117,7 @@ public sealed record SupplierPaymentSummary(
 public sealed record SupplierPaymentAllocationLine(long SupplierInvoiceId, string? Reference, decimal Amount);
 
 /// <summary>One supplier payment, in full — the read view, with its per-invoice allocations.</summary>
+/// <param name="Origin"><c>new</c> for a payment this app recorded (voidable); <c>legacy</c> for a pre-cutover one (read-only).</param>
 public sealed record SupplierPaymentDetail(
     long Id,
     DateOnly Date,
@@ -125,7 +128,8 @@ public sealed record SupplierPaymentDetail(
     string? Method,
     string? Reference,
     int RowVersion,
-    IReadOnlyList<SupplierPaymentAllocationLine> Allocations);
+    IReadOnlyList<SupplierPaymentAllocationLine> Allocations,
+    string Origin);
 
 /// <summary>One of a supplier's open invoices — the picker a payment is allocated over (new and legacy alike).</summary>
 public sealed record OutstandingSupplierInvoiceLine(

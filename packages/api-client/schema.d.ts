@@ -5002,6 +5002,7 @@ export interface components {
             /** Format: int32 */
             rowVersion: number;
             allocations: components["schemas"]["ReceiptAllocationLine"][];
+            origin: string;
         };
         CustomerReceiptSummary: {
             /** Format: int64 */
@@ -6037,6 +6038,7 @@ export interface components {
             /** Format: int32 */
             rowVersion: number;
             allocations: components["schemas"]["SupplierPaymentAllocationLine"][];
+            origin: string;
         };
         SupplierPaymentRecordedResponse: {
             /** Format: int64 */
