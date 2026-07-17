@@ -17,6 +17,7 @@ public sealed class CreditNoteCreator : ICreditNoteCreator
     private readonly ITaxEngine _tax;
     private readonly IDocumentNumberAllocator _numbers;
     private readonly IDocumentVersionWriter _versions;
+    private readonly IGeneralLedger _gl;
     private readonly IBusinessRuleReader _rules;
     private readonly IChangeContext _change;
     private readonly TimeProvider _time;
@@ -26,6 +27,7 @@ public sealed class CreditNoteCreator : ICreditNoteCreator
         ITaxEngine tax,
         IDocumentNumberAllocator numbers,
         IDocumentVersionWriter versions,
+        IGeneralLedger gl,
         IBusinessRuleReader rules,
         IChangeContext change,
         TimeProvider time)
@@ -34,6 +36,7 @@ public sealed class CreditNoteCreator : ICreditNoteCreator
         _tax = tax;
         _numbers = numbers;
         _versions = versions;
+        _gl = gl;
         _rules = rules;
         _change = change;
         _time = time;
@@ -134,6 +137,16 @@ public sealed class CreditNoteCreator : ICreditNoteCreator
         await _versions
             .WriteAsync(DocumentTypes.CreditNote, creditNote.Id, request.CompanyId, Snapshot(creditNote, calc, customer, company), reason: null, cancellationToken)
             .ConfigureAwait(false);
+
+        // The general-ledger entry: a credit note reverses a sale — Dr Sales + Output VAT, Cr Receivable
+        // (the exact opposite of the invoice's posting), so the receivable falls by the note's amount.
+        await _gl.PostAsync(new GlPosting(
+            request.CompanyId, creditNote.Date, GlSources.CreditNote, creditNote.Id, $"Credit note {number}",
+            [
+                GlChart.Sales(creditNote.NetTotal, 0m),
+                GlChart.OutputVat(creditNote.TaxAmount, 0m),
+                GlChart.Receivable(0m, creditNote.Total),
+            ]), cancellationToken).ConfigureAwait(false);
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 

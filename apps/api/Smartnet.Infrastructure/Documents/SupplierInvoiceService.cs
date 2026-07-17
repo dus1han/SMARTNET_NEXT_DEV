@@ -19,6 +19,7 @@ public sealed class SupplierInvoiceService : ISupplierInvoiceCreator, ISupplierI
 {
     private readonly SmartnetDbContext _db;
     private readonly IPayablesLedger _ledger;
+    private readonly IGeneralLedger _gl;
     private readonly IDocumentVersionWriter _versions;
     private readonly IChangeContext _change;
     private readonly TimeProvider _time;
@@ -26,12 +27,14 @@ public sealed class SupplierInvoiceService : ISupplierInvoiceCreator, ISupplierI
     public SupplierInvoiceService(
         SmartnetDbContext db,
         IPayablesLedger ledger,
+        IGeneralLedger gl,
         IDocumentVersionWriter versions,
         IChangeContext change,
         TimeProvider time)
     {
         _db = db;
         _ledger = ledger;
+        _gl = gl;
         _versions = versions;
         _change = change;
         _time = time;
@@ -87,6 +90,16 @@ public sealed class SupplierInvoiceService : ISupplierInvoiceCreator, ISupplierI
             .WriteAsync(DocumentTypes.SupplierInvoice, invoice.Id, request.CompanyId, Snapshot(invoice, supplier, company), reason: null, cancellationToken)
             .ConfigureAwait(false);
 
+        // The general-ledger entry for the purchase: Dr Purchases + Input VAT, Cr Accounts Payable (what we
+        // now owe). A later supplier payment moves it from AP to Cash/Bank. Zero VAT lines are dropped.
+        await _gl.PostAsync(new GlPosting(
+            request.CompanyId, invoice.Date, GlSources.SupplierInvoice, invoice.Id, invoice.SupplierReference,
+            [
+                GlChart.Purchases(invoice.NetTotal, 0m),
+                GlChart.InputVat(invoice.TaxAmount, 0m),
+                GlChart.Payable(0m, invoice.Amount),
+            ]), cancellationToken).ConfigureAwait(false);
+
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return new SupplierInvoiceCreated(invoice.Id, invoice.SupplierReference, invoice.Amount);
@@ -117,7 +130,7 @@ public sealed class SupplierInvoiceService : ISupplierInvoiceCreator, ISupplierI
             .ConfigureAwait(false);
 
         // The payment reduces what we owe — a negative payable entry, tied to the invoice.
-        _db.PayablesLedger.Add(new PayablesLedgerEntry
+        var payableEntry = new PayablesLedgerEntry
         {
             SupplierId = supplierId,
             Type = PayablesLedgerEntryType.Payment,
@@ -125,7 +138,8 @@ public sealed class SupplierInvoiceService : ISupplierInvoiceCreator, ISupplierI
             SupplierInvoiceId = supplierInvoiceId,
             OccurredAt = payment.Date.ToDateTime(TimeOnly.MinValue),
             Note = payment.Reference,
-        });
+        };
+        _db.PayablesLedger.Add(payableEntry);
 
         // Dual-write the legacy supplier_inv_pay row so the legacy supplier-payment report keeps reading.
         await _db.Database.ExecuteSqlAsync(
@@ -148,7 +162,25 @@ public sealed class SupplierInvoiceService : ISupplierInvoiceCreator, ISupplierI
                 cancellationToken).ConfigureAwait(false);
         }
 
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false); // the ledger entry + audit
+        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false); // the ledger entry + audit; assigns id
+
+        // The general-ledger entry for the payment: Dr Accounts Payable, Cr Cash/Bank — settling what we
+        // owe. Keyed on the payables entry id (this path writes no payment header), so it posts exactly once.
+        var companyId = await _db.SupplierInvoices
+            .Where(s => s.Id == supplierInvoiceId)
+            .Select(s => s.CompanyId)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (companyId is { } company)
+        {
+            await _gl.PostAsync(new GlPosting(
+                company, payment.Date, GlSources.PayablesPayment, payableEntry.Id, payment.Reference,
+                [
+                    GlChart.Payable(payment.Amount, 0m),
+                    GlChart.CashOrBank(payment.Method, 0m, payment.Amount),
+                ]), cancellationToken).ConfigureAwait(false);
+        }
+
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return new SupplierPaymentRecorded(supplierInvoiceId, payment.Amount, newOutstanding);
@@ -185,6 +217,23 @@ public sealed class SupplierInvoiceService : ISupplierInvoiceCreator, ISupplierI
                 OccurredAt = _time.GetUtcNow().UtcDateTime,
                 Note = "Supplier invoice voided",
             });
+
+            // Reverse the purchase in the GL for the unpaid portion only — Dr Accounts Payable, Cr Purchases +
+            // Input VAT (split pro-rata to what is still outstanding). Any amount already paid stays: real
+            // money changed hands and its payment entries remain. Nothing outstanding → nothing to reverse.
+            if (invoice.CompanyId is { } companyId)
+            {
+                var proportion = invoice.Amount == 0m ? 0m : outstanding / invoice.Amount;
+                var vatPortion = Math.Round(invoice.TaxAmount * proportion, 4, MidpointRounding.AwayFromZero);
+                await _gl.PostAsync(new GlPosting(
+                    companyId, DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime), GlSources.SupplierInvoiceVoid, invoice.Id,
+                    $"Supplier invoice {invoice.Id} voided",
+                    [
+                        GlChart.Payable(outstanding, 0m),
+                        GlChart.Purchases(0m, outstanding - vatPortion),
+                        GlChart.InputVat(0m, vatPortion),
+                    ]), cancellationToken).ConfigureAwait(false);
+            }
         }
 
         // Soft delete — set deleted_at directly (not Remove(), whose FK-nulling cascade would fight the

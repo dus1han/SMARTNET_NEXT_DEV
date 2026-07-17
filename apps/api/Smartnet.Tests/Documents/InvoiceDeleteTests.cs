@@ -154,7 +154,7 @@ public sealed class InvoiceDeleteTests
         await using var db = _fixture.CreateContext(change);
         return await new InvoiceCreator(
             db, new TaxEngine(), new DocumentNumberAllocator(db),
-            new DocumentVersionWriter(db, change, Clock), new ReceivablesLedger(db),
+            new DocumentVersionWriter(db, change, Clock), new ReceivablesLedger(db), new GeneralLedger(db),
             new BusinessRuleReader(db), change, Clock)
             .CreateAsync(new NewInvoice(
                 companyId, customerId, InvoiceType.Credit, new DateOnly(2026, 7, 15), "PO-99", null,

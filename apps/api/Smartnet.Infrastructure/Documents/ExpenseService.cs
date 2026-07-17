@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Documents;
+using Smartnet.Domain.Ledger;
 using Smartnet.Infrastructure.Persistence;
 using Smartnet.Infrastructure.Persistence.Configurations;
 
@@ -20,13 +21,15 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
 {
     private readonly SmartnetDbContext _db;
     private readonly IChequeCreator _cheques;
+    private readonly IGeneralLedger _gl;
     private readonly IChangeContext _change;
     private readonly TimeProvider _time;
 
-    public ExpenseService(SmartnetDbContext db, IChequeCreator cheques, IChangeContext change, TimeProvider time)
+    public ExpenseService(SmartnetDbContext db, IChequeCreator cheques, IGeneralLedger gl, IChangeContext change, TimeProvider time)
     {
         _db = db;
         _cheques = cheques;
+        _gl = gl;
         _change = change;
         _time = time;
     }
@@ -38,7 +41,7 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Company {request.CompanyId} does not exist.");
 
-        _ = await _db.ExpenseCategories
+        var category = await _db.ExpenseCategories
             .FirstOrDefaultAsync(c => c.Id == request.CategoryId, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Expense category {request.CategoryId} does not exist.");
@@ -76,6 +79,16 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
                 ChequeSource.Expense, expense.Id), cancellationToken).ConfigureAwait(false);
         }
 
+        // The general-ledger entry: Dr the category's expense account + Input VAT, Cr Cash/Bank — money out.
+        // The expense account is created on demand for a category first seen since the chart was seeded.
+        await _gl.PostAsync(new GlPosting(
+            request.CompanyId, request.Date, GlSources.Expense, expense.Id, request.Description,
+            [
+                GlChart.ExpenseCategory(request.CategoryId, category.Name ?? $"Category {request.CategoryId}", expense.NetAmount, 0m),
+                GlChart.InputVat(expense.TaxAmount, 0m),
+                GlChart.CashOrBank(request.Method, 0m, expense.Amount),
+            ]), cancellationToken).ConfigureAwait(false);
+
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return new ExpenseCreated(expense.Id, expense.Amount);
@@ -97,11 +110,30 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
                 "This expense was changed by someone else while you were viewing it.");
         }
 
+        var now = _time.GetUtcNow().UtcDateTime;
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
         // Soft delete — the legacy delete hard-removed the row; here its history is kept.
-        expense.DeletedAt = _time.GetUtcNow().UtcDateTime;
+        expense.DeletedAt = now;
         expense.DeletedBy = _change.UserId;
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // Reverse the expense's GL entry — Dr Cash/Bank, Cr the category account + Input VAT (money back).
+        if (expense.CompanyId is { } companyId)
+        {
+            await _gl.PostAsync(new GlPosting(
+                companyId, DateOnly.FromDateTime(now), GlSources.ExpenseVoid, expense.Id,
+                $"Expense {expense.Id} voided",
+                [
+                    GlChart.CashOrBank(expense.Method, expense.Amount, 0m),
+                    GlChart.ExpenseCategory(expense.CategoryId, $"Category {expense.CategoryId}", 0m, expense.NetAmount),
+                    GlChart.InputVat(0m, expense.TaxAmount),
+                ]), cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Writes the legacy varchar columns beside the typed ones so the surviving ExpenseReport reads a whole row.</summary>

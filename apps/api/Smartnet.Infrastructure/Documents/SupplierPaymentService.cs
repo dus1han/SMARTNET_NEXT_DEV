@@ -23,13 +23,15 @@ public sealed class SupplierPaymentService : ISupplierPaymentCreator, ISupplierP
 {
     private readonly SmartnetDbContext _db;
     private readonly IChequeCreator _cheques;
+    private readonly IGeneralLedger _gl;
     private readonly IChangeContext _change;
     private readonly TimeProvider _time;
 
-    public SupplierPaymentService(SmartnetDbContext db, IChequeCreator cheques, IChangeContext change, TimeProvider time)
+    public SupplierPaymentService(SmartnetDbContext db, IChequeCreator cheques, IGeneralLedger gl, IChangeContext change, TimeProvider time)
     {
         _db = db;
         _cheques = cheques;
+        _gl = gl;
         _change = change;
         _time = time;
     }
@@ -126,6 +128,15 @@ public sealed class SupplierPaymentService : ISupplierPaymentCreator, ISupplierP
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false); // the ledger entries + audit
 
+        // The general-ledger entry: money out — Dr Accounts Payable, Cr Cash/Bank for the whole payment
+        // (its allocations settle individual invoices in the payables ledger; the GL sees the movement).
+        await _gl.PostAsync(new GlPosting(
+            request.CompanyId, request.Date, GlSources.SupplierPayment, payment.Id, request.Reference,
+            [
+                GlChart.Payable(total, 0m),
+                GlChart.CashOrBank(request.Method, 0m, total),
+            ]), cancellationToken).ConfigureAwait(false);
+
         // Paid by cheque → raise a printable cheque linked to this payment (the payment is the money event,
         // the cheque only prints it — so it is never double-counted).
         if (string.Equals(request.Method, "Cheque", StringComparison.OrdinalIgnoreCase))
@@ -186,6 +197,19 @@ public sealed class SupplierPaymentService : ISupplierPaymentCreator, ISupplierP
         payment.DeletedBy = _change.UserId;
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // Reverse the payment's GL entry — Dr Cash/Bank, Cr Accounts Payable (money back, we owe it again).
+        if (payment.CompanyId is { } companyId)
+        {
+            await _gl.PostAsync(new GlPosting(
+                companyId, DateOnly.FromDateTime(now), GlSources.SupplierPaymentVoid, payment.Id,
+                $"Supplier payment {payment.Id} voided",
+                [
+                    GlChart.CashOrBank(payment.Method, payment.Amount, 0m),
+                    GlChart.Payable(0m, payment.Amount),
+                ]), cancellationToken).ConfigureAwait(false);
+        }
+
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 

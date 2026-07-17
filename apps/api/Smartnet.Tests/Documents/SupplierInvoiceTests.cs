@@ -157,6 +157,7 @@ public sealed class SupplierInvoiceTests
     private static SupplierInvoiceService ServiceFor(TestDbContext db, FakeChangeContext change) => new(
         db,
         new PayablesLedger(db),
+        new GeneralLedger(db),
         new DocumentVersionWriter(db, change, Clock),
         change,
         Clock);

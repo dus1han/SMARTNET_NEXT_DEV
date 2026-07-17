@@ -172,7 +172,7 @@ public sealed class QuotationEditDeleteTests
     private QuotationConverter ConverterFor(TestDbContext db, FakeChangeContext change) => new(
         db, LegacyContext(),
         new InvoiceCreator(db, new TaxEngine(), new DocumentNumberAllocator(db),
-            new DocumentVersionWriter(db, change, Clock), new ReceivablesLedger(db),
+            new DocumentVersionWriter(db, change, Clock), new ReceivablesLedger(db), new GeneralLedger(db),
             new BusinessRuleReader(db), change, Clock),
         change, Clock);
 

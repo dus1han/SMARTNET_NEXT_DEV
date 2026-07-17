@@ -37,7 +37,7 @@ public sealed class SupplierPaymentTests
         SupplierPaymentCreated created;
         await using (var db = _fixture.CreateContext(change))
         {
-            created = await new SupplierPaymentService(db, new ChequeService(db, change, Clock), change, Clock).CreateAsync(new NewSupplierPayment(
+            created = await new SupplierPaymentService(db, new ChequeService(db, change, Clock), new GeneralLedger(db), change, Clock).CreateAsync(new NewSupplierPayment(
                 companyId, supplierId, new DateOnly(2026, 7, 17), "BANK", "TT-100", "sidem-A",
                 new[] { new NewSupplierPaymentAllocation(inv1, 100m), new NewSupplierPaymentAllocation(inv2, 25m) }));
         }
@@ -70,13 +70,13 @@ public sealed class SupplierPaymentTests
         SupplierPaymentCreated first, second;
         await using (var db = _fixture.CreateContext(change))
         {
-            first = await new SupplierPaymentService(db, new ChequeService(db, change, Clock), change, Clock).CreateAsync(new NewSupplierPayment(
+            first = await new SupplierPaymentService(db, new ChequeService(db, change, Clock), new GeneralLedger(db), change, Clock).CreateAsync(new NewSupplierPayment(
                 companyId, supplierId, new DateOnly(2026, 7, 17), "CASH", "R-1", "sidem-B",
                 new[] { new NewSupplierPaymentAllocation(inv, 40m) }));
         }
         await using (var db = _fixture.CreateContext(change))
         {
-            second = await new SupplierPaymentService(db, new ChequeService(db, change, Clock), change, Clock).CreateAsync(new NewSupplierPayment(
+            second = await new SupplierPaymentService(db, new ChequeService(db, change, Clock), new GeneralLedger(db), change, Clock).CreateAsync(new NewSupplierPayment(
                 companyId, supplierId, new DateOnly(2026, 7, 17), "CASH", "R-1", "sidem-B",
                 new[] { new NewSupplierPaymentAllocation(inv, 40m) }));
         }
@@ -103,7 +103,7 @@ public sealed class SupplierPaymentTests
         long paymentId;
         await using (var db = _fixture.CreateContext(change))
         {
-            paymentId = (await new SupplierPaymentService(db, new ChequeService(db, change, Clock), change, Clock).CreateAsync(new NewSupplierPayment(
+            paymentId = (await new SupplierPaymentService(db, new ChequeService(db, change, Clock), new GeneralLedger(db), change, Clock).CreateAsync(new NewSupplierPayment(
                 companyId, supplierId, new DateOnly(2026, 7, 17), "Cheque", "600321", "sidem-E",
                 new[] { new NewSupplierPaymentAllocation(inv1, 100m), new NewSupplierPaymentAllocation(inv2, 50m) },
                 ChequeBank: "NTB", ChequeNumber: "600321", ChequeDate: new DateOnly(2026, 7, 17), ChequeDueDate: new DateOnly(2026, 7, 31)))).Id;
@@ -127,7 +127,7 @@ public sealed class SupplierPaymentTests
         var inv = await SeedSupplierInvoice(companyId, supplierId, code, "SINV-C1", 100m);
 
         await using var db = _fixture.CreateContext(change);
-        var act = () => new SupplierPaymentService(db, new ChequeService(db, change, Clock), change, Clock).CreateAsync(new NewSupplierPayment(
+        var act = () => new SupplierPaymentService(db, new ChequeService(db, change, Clock), new GeneralLedger(db), change, Clock).CreateAsync(new NewSupplierPayment(
             companyId, supplierId, new DateOnly(2026, 7, 17), "CASH", null, "sidem-C",
             new[] { new NewSupplierPaymentAllocation(inv, 150m) }));
 
@@ -145,7 +145,7 @@ public sealed class SupplierPaymentTests
         int rowVersion;
         await using (var db = _fixture.CreateContext(change))
         {
-            paymentId = (await new SupplierPaymentService(db, new ChequeService(db, change, Clock), change, Clock).CreateAsync(new NewSupplierPayment(
+            paymentId = (await new SupplierPaymentService(db, new ChequeService(db, change, Clock), new GeneralLedger(db), change, Clock).CreateAsync(new NewSupplierPayment(
                 companyId, supplierId, new DateOnly(2026, 7, 17), "CASH", "R-1", "sidem-D",
                 new[] { new NewSupplierPaymentAllocation(inv, 100m) }))).Id;
             rowVersion = await db.SupplierPayments.Where(p => p.Id == paymentId).Select(p => p.RowVersion).SingleAsync();
@@ -155,7 +155,7 @@ public sealed class SupplierPaymentTests
         await using (var db = _fixture.CreateContext(change))
         {
             (await PaymentStat(db, inv)).Should().Be("Paid");
-            await new SupplierPaymentService(db, new ChequeService(db, change, Clock), change, Clock).VoidAsync(paymentId, rowVersion);
+            await new SupplierPaymentService(db, new ChequeService(db, change, Clock), new GeneralLedger(db), change, Clock).VoidAsync(paymentId, rowVersion);
         }
 
         await using (var db = _fixture.CreateContext(change))

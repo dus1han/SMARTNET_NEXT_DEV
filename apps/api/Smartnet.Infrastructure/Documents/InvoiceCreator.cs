@@ -18,6 +18,7 @@ public sealed class InvoiceCreator : IInvoiceCreator
     private readonly IDocumentNumberAllocator _numbers;
     private readonly IDocumentVersionWriter _versions;
     private readonly IReceivablesLedger _ledger;
+    private readonly IGeneralLedger _gl;
     private readonly IBusinessRuleReader _rules;
     private readonly IChangeContext _change;
     private readonly TimeProvider _time;
@@ -28,6 +29,7 @@ public sealed class InvoiceCreator : IInvoiceCreator
         IDocumentNumberAllocator numbers,
         IDocumentVersionWriter versions,
         IReceivablesLedger ledger,
+        IGeneralLedger gl,
         IBusinessRuleReader rules,
         IChangeContext change,
         TimeProvider time)
@@ -37,6 +39,7 @@ public sealed class InvoiceCreator : IInvoiceCreator
         _numbers = numbers;
         _versions = versions;
         _ledger = ledger;
+        _gl = gl;
         _rules = rules;
         _change = change;
         _time = time;
@@ -162,6 +165,17 @@ public sealed class InvoiceCreator : IInvoiceCreator
         await _versions
             .WriteAsync(DocumentTypes.Invoice, invoice.Id, request.CompanyId, Snapshot(invoice, calc, customer, company), reason: null, cancellationToken)
             .ConfigureAwait(false);
+
+        // The general-ledger entry for the sale: Dr Cash/Receivable, Cr Sales + Output VAT. A cash invoice
+        // is settled at issue, so its debit lands on Cash; a credit invoice's on Accounts Receivable (a later
+        // receipt then moves it from AR to Cash/Bank). Zero VAT lines are dropped by the posting engine.
+        await _gl.PostAsync(new GlPosting(
+            request.CompanyId, invoice.Date, GlSources.Invoice, invoice.Id, $"Invoice {number}",
+            [
+                invoice.Type == InvoiceType.Cash ? GlChart.Cash(invoice.Total, 0m) : GlChart.Receivable(invoice.Total, 0m),
+                GlChart.Sales(0m, invoice.NetTotal),
+                GlChart.OutputVat(0m, invoice.TaxAmount),
+            ]), cancellationToken).ConfigureAwait(false);
 
         // Outstanding = what the ledger now holds for this invoice: the full amount on credit, zero on
         // cash (the cash-at-issue payment settles it).

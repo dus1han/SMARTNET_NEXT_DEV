@@ -253,7 +253,7 @@ public sealed class InvoiceCreationTests
         new TaxEngine(),
         new DocumentNumberAllocator(db),
         new DocumentVersionWriter(db, change, Clock),
-        new ReceivablesLedger(db),
+        new ReceivablesLedger(db), new GeneralLedger(db),
         new BusinessRuleReader(db),
         change,
         Clock);

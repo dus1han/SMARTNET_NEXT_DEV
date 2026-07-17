@@ -24,17 +24,20 @@ public sealed class CustomerReceiptService : ICustomerReceiptCreator, ICustomerR
 {
     private readonly SmartnetDbContext _db;
     private readonly SmartnetLegacyDbContext _legacy;
+    private readonly IGeneralLedger _gl;
     private readonly IChangeContext _change;
     private readonly TimeProvider _time;
 
     public CustomerReceiptService(
         SmartnetDbContext db,
         SmartnetLegacyDbContext legacy,
+        IGeneralLedger gl,
         IChangeContext change,
         TimeProvider time)
     {
         _db = db;
         _legacy = legacy;
+        _gl = gl;
         _change = change;
         _time = time;
     }
@@ -133,6 +136,16 @@ public sealed class CustomerReceiptService : ICustomerReceiptCreator, ICustomerR
         }
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false); // the ledger entries + audit
+
+        // The general-ledger entry: money in — Dr Cash/Bank, Cr Accounts Receivable for the whole receipt
+        // (its allocations settle individual invoices in the receivables ledger; the GL sees the movement).
+        await _gl.PostAsync(new GlPosting(
+            request.CompanyId, request.Date, GlSources.CustomerReceipt, receipt.Id, request.Reference,
+            [
+                GlChart.CashOrBank(request.Method, total, 0m),
+                GlChart.Receivable(0m, total),
+            ]), cancellationToken).ConfigureAwait(false);
+
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return new CustomerReceiptCreated(receipt.Id, receipt.Amount, AlreadyExisted: false);
@@ -191,6 +204,20 @@ public sealed class CustomerReceiptService : ICustomerReceiptCreator, ICustomerR
         receipt.DeletedBy = _change.UserId;
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // Reverse the receipt's GL entry — Dr Receivable, Cr Cash/Bank (money back out of Cash, back onto
+        // the receivable). A distinct source so it posts once and never collides with the original.
+        if (receipt.CompanyId is { } companyId)
+        {
+            await _gl.PostAsync(new GlPosting(
+                companyId, DateOnly.FromDateTime(now), GlSources.CustomerReceiptVoid, receipt.Id,
+                $"Receipt {receipt.Id} voided",
+                [
+                    GlChart.Receivable(receipt.Amount, 0m),
+                    GlChart.CashOrBank(receipt.Method, 0m, receipt.Amount),
+                ]), cancellationToken).ConfigureAwait(false);
+        }
+
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 

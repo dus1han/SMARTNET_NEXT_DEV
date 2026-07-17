@@ -156,7 +156,7 @@ public sealed class CustomerReceiptTests
     // --- Helpers ---------------------------------------------------------------------------------
 
     private static CustomerReceiptService ServiceFor(TestDbContext db, SmartnetLegacyDbContext legacy, FakeChangeContext change) =>
-        new(db, legacy, change, Clock);
+        new(db, legacy, new GeneralLedger(db), change, Clock);
 
     private SmartnetLegacyDbContext CreateLegacy() =>
         new(new DbContextOptionsBuilder<SmartnetLegacyDbContext>()
