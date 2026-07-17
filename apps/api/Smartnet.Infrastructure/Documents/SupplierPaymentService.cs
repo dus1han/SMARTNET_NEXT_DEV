@@ -194,11 +194,12 @@ public sealed class SupplierPaymentService : ISupplierPaymentCreator, ISupplierP
     {
         await _db.Database.ExecuteSqlAsync(
             $"""
-            INSERT INTO `supplier_inv_pay` (`supinvid`, `paiddate`, `referenceno`, `pay_method`)
+            INSERT INTO `supplier_inv_pay` (`supinvid`, `paiddate`, `referenceno`, `pay_method`, `data_origin`)
             VALUES ({supplierInvoiceId.ToString(CultureInfo.InvariantCulture)},
                     {date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)},
                     {reference},
-                    {method ?? "CASH"})
+                    {method ?? "CASH"},
+                    'new')
             """,
             cancellationToken).ConfigureAwait(false);
     }

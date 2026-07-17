@@ -130,11 +130,12 @@ public sealed class SupplierInvoiceService : ISupplierInvoiceCreator, ISupplierI
         // Dual-write the legacy supplier_inv_pay row so the legacy supplier-payment report keeps reading.
         await _db.Database.ExecuteSqlAsync(
             $"""
-            INSERT INTO `supplier_inv_pay` (`supinvid`, `paiddate`, `referenceno`, `pay_method`)
+            INSERT INTO `supplier_inv_pay` (`supinvid`, `paiddate`, `referenceno`, `pay_method`, `data_origin`)
             VALUES ({supplierInvoiceId.ToString(CultureInfo.InvariantCulture)},
                     {payment.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)},
                     {payment.Reference},
-                    {payment.Method ?? "CASH"})
+                    {payment.Method ?? "CASH"},
+                    'new')
             """,
             cancellationToken).ConfigureAwait(false);
 

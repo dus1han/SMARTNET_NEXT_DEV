@@ -1360,6 +1360,9 @@ public partial class SmartnetLegacyDbContext : DbContext
             entity.Property(e => e.Supinvid)
                 .HasMaxLength(100)
                 .HasColumnName("supinvid");
+            entity.Property(e => e.DataOrigin)
+                .HasMaxLength(16)
+                .HasColumnName("data_origin");
         });
 
         modelBuilder.Entity<SupplierInvoice>(entity =>

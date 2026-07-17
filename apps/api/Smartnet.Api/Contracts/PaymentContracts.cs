@@ -98,6 +98,7 @@ public sealed record CreateSupplierPaymentRequest(
 public sealed record SupplierPaymentCreatedResponse(long Id, decimal Amount, bool AlreadyExisted);
 
 /// <summary>One row of the supplier-payments list.</summary>
+/// <param name="Origin"><c>new</c> for a payment this app recorded; <c>legacy</c> for a pre-cutover one from supplier_inv_pay.</param>
 public sealed record SupplierPaymentSummary(
     long Id,
     DateOnly Date,
@@ -105,7 +106,8 @@ public sealed record SupplierPaymentSummary(
     decimal Amount,
     string? Method,
     string? Reference,
-    int Invoices);
+    int Invoices,
+    string Origin);
 
 /// <summary>One allocation, for the read view.</summary>
 public sealed record SupplierPaymentAllocationLine(long SupplierInvoiceId, string? Reference, decimal Amount);

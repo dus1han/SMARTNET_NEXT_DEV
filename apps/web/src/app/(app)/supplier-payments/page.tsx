@@ -16,7 +16,7 @@ import { getSupplierPayments, type SupplierPaymentSummary } from "@/lib/supplier
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
-import { Button, ErrorBanner, FadeIn } from "@/components/ui";
+import { Badge, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function SupplierPaymentsPage() {
   const router = useRouter();
@@ -45,10 +45,10 @@ export default function SupplierPaymentsPage() {
             Record a payment
           </Button>
         }
-        onRowClick={(row) => router.push(`/supplier-payments/${row.id}`)}
+        onRowClick={(row) => row.origin === "new" && router.push(`/supplier-payments/${row.id}`)}
         empty={{
           title: "No supplier payments yet",
-          description: "Money paid to suppliers appears here once recorded.",
+          description: "Money paid to suppliers — this app's own and the legacy ones — appears here.",
         }}
       />
     </FadeIn>
@@ -66,7 +66,12 @@ const columns: ColumnDef<SupplierPaymentSummary, unknown>[] = [
     id: "supplier",
     accessorFn: (row) => row.supplierName ?? "",
     header: "Supplier",
-    cell: ({ row }) => <span className="font-medium text-text">{row.original.supplierName ?? "—"}</span>,
+    cell: ({ row }) => (
+      <span className="flex items-center gap-2">
+        <span className="font-medium text-text">{row.original.supplierName ?? "—"}</span>
+        {row.original.origin === "legacy" && <Badge tone="neutral">Legacy</Badge>}
+      </span>
+    ),
   },
   {
     id: "method",

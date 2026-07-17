@@ -132,12 +132,19 @@ public sealed class SupplierPaymentsController : ControllerBase
 
         var rows = payments
             .Select(p => new SupplierPaymentSummary(
-                p.Id, p.Date, names.GetValueOrDefault(p.SupplierId), p.Amount, p.Method, p.Reference, p.Invoices))
-            .OrderByDescending(p => p.Date)
-            .ThenByDescending(p => p.Id)
+                p.Id, p.Date, names.GetValueOrDefault(p.SupplierId), p.Amount, p.Method, p.Reference, p.Invoices, "new"))
             .ToList();
 
-        return Ok(rows);
+        // --- Legacy supplier payments -------------------------------------------------------------
+        // Pre-cutover payments live in supplier_inv_pay (data_origin NULL); the new path writes 'new', so
+        // this shows the legacy history without double-counting. No stored amount there — the invoice's is
+        // the best available (the legacy report shows the same), so a legacy row's amount is its invoice's.
+        rows.AddRange(await LegacySupplierPayments(cancellationToken).ConfigureAwait(false));
+
+        return Ok(rows
+            .OrderByDescending(p => p.Date)
+            .ThenByDescending(p => p.Id)
+            .ToList());
     }
 
     /// <summary>One supplier payment in full — its per-invoice allocations.</summary>
@@ -193,6 +200,70 @@ public sealed class SupplierPaymentsController : ControllerBase
         return Ok(new SupplierPaymentDetail(
             payment.Id, payment.Date, companyName, supplier?.Name, supplier?.Code,
             payment.Amount, payment.Method, payment.Reference, payment.RowVersion, allocations));
+    }
+
+    /// <summary>The pre-cutover legacy supplier payments (supplier_inv_pay, data_origin NULL), joined for supplier + amount.</summary>
+    private async Task<List<SupplierPaymentSummary>> LegacySupplierPayments(CancellationToken cancellationToken)
+    {
+        var accessibleText = _company.Accessible.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToHashSet();
+
+        // != "new" is null-aware in EF (matches NULL and 'legacy'), so it is exactly the pre-cutover rows.
+        var legacyPays = await _legacy.SupplierInvPays
+            .Where(p => p.DataOrigin != "new")
+            .Select(p => new { p.Id, p.Supinvid, p.Paiddate, p.Referenceno, p.PayMethod })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (legacyPays.Count == 0)
+        {
+            return [];
+        }
+
+        var pays = legacyPays
+            .Select(p => new
+            {
+                p.Id,
+                InvId = long.TryParse(p.Supinvid, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : (long?)null,
+                p.Paiddate,
+                p.Referenceno,
+                p.PayMethod,
+            })
+            .Where(p => p.InvId != null)
+            .ToList();
+
+        var invIds = pays.Select(p => p.InvId!.Value).Distinct().ToList();
+        var invoices = await _legacy.SupplierInvoices
+            .Where(h => invIds.Contains(h.Id))
+            .Select(h => new { h.Id, h.Supcode, h.Amount, h.Company })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var invById = invoices.ToDictionary(i => i.Id);
+
+        var supcodes = invoices.Select(i => i.Supcode).Where(c => c != null).Distinct().ToList();
+        var namesByCode = (await _db.Suppliers
+            .Where(s => s.Code != null && supcodes.Contains(s.Code))
+            .Select(s => new { s.Code, s.Name })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false))
+            .ToDictionary(s => s.Code!, s => s.Name);
+
+        var rows = new List<SupplierPaymentSummary>();
+        foreach (var p in pays)
+        {
+            if (!invById.TryGetValue(p.InvId!.Value, out var inv)) continue;
+            if (inv.Company is null || !accessibleText.Contains(inv.Company)) continue;
+
+            rows.Add(new SupplierPaymentSummary(
+                -p.Id, // negative id: legacy rows are display-only, and it avoids colliding with a new payment's id
+                LegacyValue.Date(p.Paiddate) ?? DateOnly.MinValue,
+                inv.Supcode is not null ? namesByCode.GetValueOrDefault(inv.Supcode) : null,
+                LegacyValue.Money(inv.Amount),
+                p.PayMethod,
+                p.Referenceno,
+                1,
+                "legacy"));
+        }
+
+        return rows;
     }
 
     /// <summary>Record a supplier payment — allocated across open invoices; posts Payment entries and dual-writes the legacy shadow.</summary>

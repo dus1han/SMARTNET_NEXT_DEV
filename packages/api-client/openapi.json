@@ -10484,7 +10484,8 @@
           "amount",
           "date",
           "id",
-          "invoices"
+          "invoices",
+          "origin"
         ],
         "type": "object",
         "properties": {
@@ -10515,6 +10516,9 @@
           "invoices": {
             "type": "integer",
             "format": "int32"
+          },
+          "origin": {
+            "type": "string"
           }
         },
         "additionalProperties": false
