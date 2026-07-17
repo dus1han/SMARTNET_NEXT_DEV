@@ -6936,6 +6936,10 @@
             "type": "string",
             "format": "date"
           },
+          "invoiceNo": {
+            "type": "string",
+            "nullable": true
+          },
           "description": {
             "type": "string"
           },
@@ -8731,6 +8735,10 @@
           "date": {
             "type": "string",
             "format": "date"
+          },
+          "invoiceNo": {
+            "type": "string",
+            "nullable": true
           },
           "categoryId": {
             "type": "integer",

@@ -11,6 +11,7 @@ public sealed record CreateExpenseRequest(
     long CompanyId,
     long CategoryId,
     DateOnly Date,
+    string? InvoiceNo,
     string Description,
     decimal NetAmount,
     decimal TaxRatePercentage,
@@ -30,6 +31,7 @@ public sealed record ExpenseCreatedResponse(long Id, decimal Amount);
 public sealed record ExpenseSummary(
     long Id,
     DateOnly Date,
+    string? InvoiceNo,
     long CategoryId,
     string? Category,
     string Description,

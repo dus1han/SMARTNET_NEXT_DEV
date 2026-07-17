@@ -48,6 +48,7 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
             CompanyId = request.CompanyId,
             CategoryId = request.CategoryId,
             Date = request.Date,
+            InvoiceNo = request.InvoiceNo,
             Description = request.Description,
             NetAmount = request.NetAmount,
             TaxRatePercentage = request.TaxRatePercentage,

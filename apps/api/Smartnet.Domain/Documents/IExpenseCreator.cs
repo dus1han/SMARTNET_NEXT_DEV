@@ -8,6 +8,7 @@ public sealed record NewExpense(
     long CompanyId,
     long CategoryId,
     DateOnly Date,
+    string? InvoiceNo,
     string Description,
     decimal NetAmount,
     decimal TaxRatePercentage,

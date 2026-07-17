@@ -697,8 +697,34 @@ public sealed class ReportsController : ControllerBase
             .ConfigureAwait(false);
 
         var suppliers = await SupplierParties(cancellationToken).ConfigureAwait(false);
+        var report = SupplierVatReport.Build(invoices, suppliers, period);
 
-        return SupplierVatReport.Build(invoices, suppliers, period);
+        // An expense with VAT is input VAT too, so it belongs in this report alongside the supplier invoices.
+        var scopeIds = scope.Select(s => long.Parse(s, CultureInfo.InvariantCulture)).ToHashSet();
+        var vatExpenses = await _db.Expenses
+            .Where(e => e.CompanyId != null && scopeIds.Contains(e.CompanyId.Value) && e.Amount > e.NetAmount)
+            .Select(e => new { e.Date, e.InvoiceNo, e.Description, e.NetAmount, e.Amount })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var expenseRows = vatExpenses
+            .Where(e => (period.From is null || e.Date >= period.From) && (period.To is null || e.Date <= period.To))
+            .Select(e => new SupplierVatRow(
+                e.Date, e.InvoiceNo ?? string.Empty, $"Expense — {e.Description}", null, e.NetAmount, e.Amount - e.NetAmount, false))
+            .ToList();
+
+        if (expenseRows.Count == 0)
+        {
+            return report;
+        }
+
+        var rows = report.Rows.Concat(expenseRows)
+            .OrderBy(r => r.Date ?? DateOnly.MaxValue)
+            .ThenBy(r => r.InvoiceNo, StringComparer.Ordinal)
+            .ToList();
+
+        return new SupplierVatResponse(
+            rows.Sum(r => r.Value), rows.Sum(r => r.Vat), rows.Count, rows.Count(r => r.HasDataIssue), rows);
     }
 
     private async Task<SupplierPurchaseResponse> BuildSupplierPurchase(ReportPeriod period, string? company, CancellationToken cancellationToken)

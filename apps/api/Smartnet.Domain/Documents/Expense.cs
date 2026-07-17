@@ -26,6 +26,9 @@ public class Expense : IAuditable, ISoftDeletable
     /// <summary>The date the expense was incurred.</summary>
     public DateOnly Date { get; set; }
 
+    /// <summary>The bill/invoice number the expense was raised against (the supplier's or vendor's number).</summary>
+    public string? InvoiceNo { get; set; }
+
     /// <summary>What it was for.</summary>
     public string Description { get; set; } = null!;
 

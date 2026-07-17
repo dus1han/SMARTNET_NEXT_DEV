@@ -58,6 +58,7 @@ public class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
         builder.Property(e => e.Amount).HasColumnName("amount").HasColumnType("decimal(18,4)");
         builder.Ignore(e => e.TaxAmount); // derived (Amount − NetAmount), not stored
         builder.Property(e => e.Date).HasColumnName("spent_on");
+        builder.Property(e => e.InvoiceNo).HasColumnName("invoice_no").HasMaxLength(100);
         builder.Property(e => e.DataOrigin).HasColumnName("data_origin").HasMaxLength(16);
 
         // Legacy shadow columns, written alongside on save so the surviving ExpenseReport reads a whole row.

@@ -42,6 +42,12 @@ export default function ExpensesPage() {
       cell: ({ row }) => <span className="whitespace-nowrap text-muted">{formatReportDate(row.original.date)}</span>,
     },
     {
+      id: "invoiceNo",
+      accessorFn: (row) => row.invoiceNo ?? "",
+      header: "Invoice no.",
+      cell: ({ row }) => <span className="tabular text-muted">{row.original.invoiceNo || "—"}</span>,
+    },
+    {
       id: "category",
       accessorFn: (row) => row.category ?? "",
       header: "Category",
@@ -164,6 +170,7 @@ function ExpenseDetailDialog({ expense, onClose, onVoid }: { expense: ExpenseSum
         <Detail label="Company" value={expense.companyName ?? "—"} />
         <Detail label="Category" value={expense.category ?? "—"} />
         <Detail label="Date" value={formatReportDate(expense.date)} />
+        <Detail label="Invoice no." value={expense.invoiceNo || "—"} />
         <Detail label="Method" value={expense.method || "—"} />
         <Detail label="Net (before VAT)" value={formatMoney(expense.netAmount)} />
         <Detail label="VAT" value={formatMoney(expense.taxAmount)} />

@@ -5170,6 +5170,7 @@ export interface components {
             categoryId: number;
             /** Format: date */
             date: string;
+            invoiceNo?: string | null;
             description: string;
             /** Format: double */
             netAmount: number;
@@ -5725,6 +5726,7 @@ export interface components {
             id: number;
             /** Format: date */
             date: string;
+            invoiceNo?: string | null;
             /** Format: int64 */
             categoryId: number;
             category?: string | null;

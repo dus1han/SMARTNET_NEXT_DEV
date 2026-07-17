@@ -27,6 +27,7 @@ export default function NewExpensePage() {
   const [companyId, setCompanyId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [date, setDate] = useState(today);
+  const [invoiceNo, setInvoiceNo] = useState("");
   const [description, setDescription] = useState("");
   const [net, setNet] = useState("");
   const [vat, setVat] = useState("");
@@ -63,6 +64,7 @@ export default function NewExpensePage() {
         companyId: Number(companyId),
         categoryId: Number(categoryId),
         date,
+        invoiceNo: invoiceNo.trim() || null,
         description: description.trim(),
         netAmount: net !== "" ? netValue : amountValue,
         taxRatePercentage: vat !== "" ? Number(vat) : 0,
@@ -111,6 +113,8 @@ export default function NewExpensePage() {
         </Select>
 
         <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+
+        <Input label="Invoice no." value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="Bill / invoice number" />
 
         <Input label="Description" value={description} onChange={(e) => setDescription(e.target.value)} className="sm:col-span-2 lg:col-span-1" />
 
