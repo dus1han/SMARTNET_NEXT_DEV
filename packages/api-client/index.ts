@@ -100,6 +100,7 @@ export type TrialBalanceResponse = Schemas["TrialBalanceResponse"];
 export type TrialBalanceRow = Schemas["TrialBalanceRow"];
 export type ProfitLossResponse = Schemas["ProfitLossResponse"];
 export type ProfitLossLine = Schemas["ProfitLossLine"];
+export type ProfitLossReconciliation = Schemas["ProfitLossReconciliation"];
 export type SupplierPurchaseResponse = Schemas["SupplierPurchaseResponse"];
 export type SupplierPurchaseRow = Schemas["SupplierPurchaseRow"];
 export type SupplierPaymentResponse = Schemas["SupplierPaymentResponse"];

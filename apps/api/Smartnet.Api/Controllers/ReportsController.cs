@@ -423,6 +423,8 @@ public sealed class ReportsController : ControllerBase
     {
         var report = await BuildProfitLoss(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false);
 
+        var rows = ProfitLossExportRows(report);
+
         var workbook = _excel.Export<ProfitLossLine>(
             "Profit and loss",
             [
@@ -431,9 +433,40 @@ public sealed class ReportsController : ControllerBase
                 new("Account", r => r.Name),
                 new("Amount", r => r.Amount, ExcelFormat.Money),
             ],
-            report.Lines);
+            rows);
 
-        return await Download(workbook, "profit-loss", report.Lines.Count, cancellationToken).ConfigureAwait(false);
+        return await Download(workbook, "profit-loss", rows.Count, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The P&amp;L export laid out exactly as the on-screen statement: each section's account lines followed by
+    /// its subtotal, then Gross profit, then Net profit, and finally the dashboard reconciliation — so the
+    /// downloaded sheet reads as the same statement, not a raw list of accounts. Reconciliation deductions are
+    /// signed negative so that block sums to Revenue in Excel.
+    /// </summary>
+    private static List<ProfitLossLine> ProfitLossExportRows(ProfitLossResponse report)
+    {
+        var recon = report.SalesReconciliation;
+        var rows = new List<ProfitLossLine>();
+
+        void Section(string section, decimal subtotal)
+        {
+            rows.AddRange(report.Lines.Where(l => l.Section == section));
+            rows.Add(new ProfitLossLine(section, "", $"Total {section.ToLowerInvariant()}", subtotal));
+        }
+
+        Section("Revenue", report.Revenue);
+        Section("Cost of Sales", report.CostOfSales);
+        rows.Add(new ProfitLossLine("", "", "Gross profit", report.GrossProfit));
+        Section("Expenses", report.Expenses);
+        rows.Add(new ProfitLossLine("", "", "Net profit", report.NetProfit));
+
+        rows.Add(new ProfitLossLine("Reconciliation", "", "Gross invoiced sales (incl. VAT) — matches the dashboard", recon.GrossInvoicedSales));
+        rows.Add(new ProfitLossLine("Reconciliation", "", "Less VAT collected", -recon.OutputVat));
+        rows.Add(new ProfitLossLine("Reconciliation", "", "Less sales returns (credit notes)", -recon.SalesReturns));
+        rows.Add(new ProfitLossLine("Reconciliation", "", "Revenue", report.Revenue));
+
+        return rows;
     }
 
     // --- Supplier purchase summary (supplierpurchase_rpt) ------------------------------------
@@ -693,7 +726,7 @@ public sealed class ReportsController : ControllerBase
             .ToList();
         if (scope.Count == 0)
         {
-            return new ProfitLossResponse(0m, 0m, 0m, 0m, 0m, []);
+            return new ProfitLossResponse(0m, 0m, 0m, 0m, 0m, new ProfitLossReconciliation(0m, 0m, 0m), []);
         }
 
         var grouped = await (
@@ -754,7 +787,55 @@ public sealed class ReportsController : ControllerBase
         var grossProfit = revenue - costOfSales;
         var netProfit = grossProfit - expenses;
 
-        return new ProfitLossResponse(revenue, costOfSales, grossProfit, expenses, netProfit, ordered);
+        var reconciliation = await BuildSalesReconciliation(scope, period, cancellationToken).ConfigureAwait(false);
+
+        return new ProfitLossResponse(revenue, costOfSales, grossProfit, expenses, netProfit, reconciliation, ordered);
+    }
+
+    /// <summary>
+    /// The bridge from the dashboard's gross invoiced sales down to the P&amp;L's Revenue, computed from the
+    /// same GL the statement reads so it always ties. Invoice postings credit Sales (net) and Output VAT
+    /// (vat), so the gross invoiced figure is those two together — which equals the dashboard's Σ totamount
+    /// for the same period and scope. Credit-note postings debit Sales, so the returns figure is that debit.
+    /// The identity <c>GrossInvoicedSales − OutputVat − SalesReturns = Revenue</c> holds because Sales is the
+    /// only income account (Revenue = invoice Sales − credit-note Sales).
+    /// </summary>
+    private async Task<ProfitLossReconciliation> BuildSalesReconciliation(
+        List<long> scope,
+        ReportPeriod period,
+        CancellationToken cancellationToken)
+    {
+        var parts = await (
+            from l in _db.GlLines
+            join a in _db.GlAccounts on l.AccountId equals a.Id
+            join e in _db.GlEntries on l.GlEntryId equals e.Id
+            where scope.Contains(a.CompanyId)
+                && (e.SourceType == GlSources.Invoice || e.SourceType == GlSources.CreditNote)
+                && (a.Code == GlAccountCodes.Sales || a.Code == GlAccountCodes.OutputVat)
+                && (period.From == null || e.Date >= period.From)
+                && (period.To == null || e.Date <= period.To)
+            group new { l.Debit, l.Credit } by new { e.SourceType, a.Code } into g
+            select new
+            {
+                g.Key.SourceType,
+                g.Key.Code,
+                Debit = g.Sum(x => x.Debit),
+                Credit = g.Sum(x => x.Credit),
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        decimal Net(string source, string code) =>
+            parts.Where(p => p.SourceType == source && p.Code == code).Sum(p => p.Credit - p.Debit);
+
+        var invoiceNet = Net(GlSources.Invoice, GlAccountCodes.Sales);       // Sales credited on invoices
+        var invoiceVat = Net(GlSources.Invoice, GlAccountCodes.OutputVat);   // Output VAT credited on invoices
+        var creditNoteNet = -Net(GlSources.CreditNote, GlAccountCodes.Sales); // Sales debited on credit notes (returns)
+
+        return new ProfitLossReconciliation(
+            GrossInvoicedSales: invoiceNet + invoiceVat,
+            OutputVat: invoiceVat,
+            SalesReturns: creditNoteNet);
     }
 
     private async Task<SalesReportResponse> BuildSales(ReportPeriod period, string? company, CancellationToken cancellationToken)

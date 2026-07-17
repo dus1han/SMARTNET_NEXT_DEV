@@ -10048,6 +10048,29 @@
         },
         "additionalProperties": false
       },
+      "ProfitLossReconciliation": {
+        "required": [
+          "grossInvoicedSales",
+          "outputVat",
+          "salesReturns"
+        ],
+        "type": "object",
+        "properties": {
+          "grossInvoicedSales": {
+            "type": "number",
+            "format": "double"
+          },
+          "outputVat": {
+            "type": "number",
+            "format": "double"
+          },
+          "salesReturns": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
       "ProfitLossResponse": {
         "required": [
           "costOfSales",
@@ -10055,7 +10078,8 @@
           "grossProfit",
           "lines",
           "netProfit",
-          "revenue"
+          "revenue",
+          "salesReconciliation"
         ],
         "type": "object",
         "properties": {
@@ -10078,6 +10102,13 @@
           "netProfit": {
             "type": "number",
             "format": "double"
+          },
+          "salesReconciliation": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProfitLossReconciliation"
+              }
+            ]
           },
           "lines": {
             "type": "array",

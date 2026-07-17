@@ -6237,6 +6237,14 @@ export interface components {
             /** Format: double */
             amount: number;
         };
+        ProfitLossReconciliation: {
+            /** Format: double */
+            grossInvoicedSales: number;
+            /** Format: double */
+            outputVat: number;
+            /** Format: double */
+            salesReturns: number;
+        };
         ProfitLossResponse: {
             /** Format: double */
             revenue: number;
@@ -6248,6 +6256,7 @@ export interface components {
             expenses: number;
             /** Format: double */
             netProfit: number;
+            salesReconciliation: components["schemas"]["ProfitLossReconciliation"];
             lines: components["schemas"]["ProfitLossLine"][];
         };
         ProfitPercentDto: {

@@ -48,6 +48,7 @@ export type {
   TrialBalanceRow,
   ProfitLossResponse,
   ProfitLossLine,
+  ProfitLossReconciliation,
 } from "@smartnet/api-client";
 
 /** The company a report is scoped to: a specific company id, or "all" (every accessible one). */

@@ -226,14 +226,35 @@ public sealed record ProfitLossLine(
     string Name,
     decimal Amount);
 
+/// <summary>
+/// The bridge from the dashboard's headline sales figure to this statement's Revenue, so the two
+/// screens can be seen to be the same money rather than a mystery variance. The dashboard totals
+/// <b>gross invoiced sales</b> (net + VAT, before returns); Revenue is what a P&amp;L recognises —
+/// VAT is a liability collected for the tax authority, and credit notes reduce the sale. The identity
+/// holds to the cent: <c>GrossInvoicedSales − OutputVat − SalesReturns = Revenue</c>.
+/// </summary>
+/// <param name="GrossInvoicedSales">Σ of the period's invoices, VAT included — the figure the
+/// dashboard "Total Sales" shows for the same period and company.</param>
+/// <param name="OutputVat">The VAT charged on those invoices; collected for the tax authority, not
+/// earned, so it is not revenue.</param>
+/// <param name="SalesReturns">Credit notes (net) raised in the period — returns that lower recognised
+/// revenue but never appeared in the gross invoiced figure.</param>
+public sealed record ProfitLossReconciliation(
+    decimal GrossInvoicedSales,
+    decimal OutputVat,
+    decimal SalesReturns);
+
 /// <param name="GrossProfit">Revenue − Cost of Sales.</param>
 /// <param name="NetProfit">Gross Profit − Expenses: the bottom line for the period.</param>
+/// <param name="SalesReconciliation">The bridge from gross invoiced sales (what the dashboard shows) to
+/// Revenue — see <see cref="ProfitLossReconciliation"/>.</param>
 public sealed record ProfitLossResponse(
     decimal Revenue,
     decimal CostOfSales,
     decimal GrossProfit,
     decimal Expenses,
     decimal NetProfit,
+    ProfitLossReconciliation SalesReconciliation,
     IReadOnlyList<ProfitLossLine> Lines);
 
 // --- Supplier purchase summary (supplierpurchase_rpt) --------------------------------------
