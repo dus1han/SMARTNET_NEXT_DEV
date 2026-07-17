@@ -904,6 +904,212 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ExpenseSummary"][];
+                        "application/json": components["schemas"]["ExpenseSummary"][];
+                        "text/json": components["schemas"]["ExpenseSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateExpenseRequest"];
+                    "text/json": components["schemas"]["CreateExpenseRequest"];
+                    "application/*+json": components["schemas"]["CreateExpenseRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ExpenseCreatedResponse"];
+                        "application/json": components["schemas"]["ExpenseCreatedResponse"];
+                        "text/json": components["schemas"]["ExpenseCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expenses/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expenses/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ExpenseCategoryDto"][];
+                        "application/json": components["schemas"]["ExpenseCategoryDto"][];
+                        "text/json": components["schemas"]["ExpenseCategoryDto"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SaveExpenseCategoryRequest"];
+                    "text/json": components["schemas"]["SaveExpenseCategoryRequest"];
+                    "application/*+json": components["schemas"]["SaveExpenseCategoryRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ExpenseCategoryDto"];
+                        "application/json": components["schemas"]["ExpenseCategoryDto"];
+                        "text/json": components["schemas"]["ExpenseCategoryDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expenses/categories/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SaveExpenseCategoryRequest"];
+                    "text/json": components["schemas"]["SaveExpenseCategoryRequest"];
+                    "application/*+json": components["schemas"]["SaveExpenseCategoryRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/history/records/{entityType}/{entityId}": {
         parameters: {
             query?: never;
@@ -4955,6 +5161,19 @@ export interface components {
             id: number;
             code: string;
         };
+        CreateExpenseRequest: {
+            /** Format: int64 */
+            companyId: number;
+            /** Format: int64 */
+            categoryId: number;
+            /** Format: date */
+            date: string;
+            description: string;
+            /** Format: double */
+            amount: number;
+            method?: string | null;
+            reference?: string | null;
+        };
         CreateInvoiceLineRequest: {
             /** Format: int64 */
             itemId?: number | null;
@@ -5453,6 +5672,12 @@ export interface components {
             id: number;
             name: string;
         };
+        ExpenseCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            /** Format: double */
+            amount: number;
+        };
         ExpenseReportResponse: {
             /** Format: double */
             total: number;
@@ -5475,6 +5700,24 @@ export interface components {
             reference?: string | null;
             addedBy?: string | null;
             hasDataIssue: boolean;
+        };
+        ExpenseSummary: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            date: string;
+            /** Format: int64 */
+            categoryId: number;
+            category?: string | null;
+            description: string;
+            /** Format: double */
+            amount: number;
+            method?: string | null;
+            reference?: string | null;
+            companyName?: string | null;
+            /** Format: int32 */
+            rowVersion: number;
+            origin: string;
         };
         InvoiceCreatedResponse: {
             /** Format: int64 */
@@ -6032,6 +6275,9 @@ export interface components {
         SaveEmailTemplateRequest: {
             subject: string;
             body: string;
+        };
+        SaveExpenseCategoryRequest: {
+            name: string;
         };
         SaveItemRequest: {
             name: string;

@@ -217,6 +217,8 @@ transactional, ledger + legacy shadow in step — proven by unit + integration t
 
 ## Slice 3 — Expenses & categories · ~0.4 week
 
+> **Built and shipped.** Adopted expense_tr (dropped its all-zero id for a real surrogate; typed amount/date + category_id beside the legacy varchars; company_id existed) and exp_cat_m (id promoted to PK, audit added). ExpenseService dual-writes the legacy row for ExpenseReport; soft void; categories add/rename. /expenses web (list new+legacy, form, category manager). Tests green (484).
+
 - **Adopt `expense_tr` + `exp_cat_m`** additively (typed `decimal` amount + `date`, `data_origin`, audit;
   `company_id` exists). An `Expense` aggregate and an `ExpenseCategory` mini-master.
 - **Write path + categories.** Validated, audited expense create dual-writing the legacy row for

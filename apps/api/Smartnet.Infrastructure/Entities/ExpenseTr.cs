@@ -5,7 +5,7 @@ namespace Smartnet.Infrastructure.Entities;
 
 public partial class ExpenseTr
 {
-    public int Id { get; set; }
+    public long Id { get; set; }
 
     public string ExpCat { get; set; } = null!;
 
@@ -24,4 +24,7 @@ public partial class ExpenseTr
     public string Addeddt { get; set; } = null!;
 
     public string Company { get; set; } = null!;
+
+    /// <summary>The Phase 7 adoption discriminator: <c>new</c> for an expense this app raised, <c>legacy</c> for an adopted one.</summary>
+    public string? DataOrigin { get; set; }
 }

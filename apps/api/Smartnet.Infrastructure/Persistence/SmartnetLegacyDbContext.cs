@@ -632,7 +632,6 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .HasMaxLength(100)
                 .HasColumnName("expense_desc");
             entity.Property(e => e.Id)
-                .HasColumnType("int(100)")
                 .HasColumnName("id");
             entity.Property(e => e.PaymentRef)
                 .HasMaxLength(100)
@@ -640,6 +639,9 @@ public partial class SmartnetLegacyDbContext : DbContext
             entity.Property(e => e.Paymentm)
                 .HasMaxLength(100)
                 .HasColumnName("paymentm");
+            entity.Property(e => e.DataOrigin)
+                .HasMaxLength(16)
+                .HasColumnName("data_origin");
         });
 
         modelBuilder.Entity<InvoiceH>(entity =>

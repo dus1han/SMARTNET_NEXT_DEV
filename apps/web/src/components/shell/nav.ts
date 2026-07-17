@@ -72,6 +72,7 @@ export const NAVIGATION: NavSection[] = [
       { href: "/supplier-invoices", label: "Supplier invoices", icon: FileStack, permission: "supplier_in" },
       { href: "/supplier-payments", label: "Supplier payments", icon: HandCoins, permission: "supplier_in" },
       { href: "/cheques", label: "Cheques", icon: ScrollText, permission: "cheques" },
+      { href: "/expenses", label: "Expenses", icon: Banknote, permission: "expenses" },
     ],
   },
   {

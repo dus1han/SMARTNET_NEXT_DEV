@@ -185,6 +185,14 @@ export type ChequeCreatedResponse = Schemas["ChequeCreatedResponse"];
 export type ChequeSummary = Schemas["ChequeSummary"];
 export type ChequeDetail = Schemas["ChequeDetail"];
 
+// --- Expenses & categories (Phase 7) ----------------------------------------------------------
+
+export type CreateExpenseRequest = Schemas["CreateExpenseRequest"];
+export type ExpenseCreatedResponse = Schemas["ExpenseCreatedResponse"];
+export type ExpenseSummary = Schemas["ExpenseSummary"];
+export type ExpenseCategoryDto = Schemas["ExpenseCategoryDto"];
+export type SaveExpenseCategoryRequest = Schemas["SaveExpenseCategoryRequest"];
+
 // --- History ---------------------------------------------------------------------------------
 
 export type AuditEntry = Schemas["AuditEntry"];

@@ -139,7 +139,10 @@ public static class LegacySchema
         // Company-aware but unnumbered by the legacy app. cheques is now ADOPTED (Phase 7, slice 2), so it
         // carries its full pre-adoption shape (id under a non-unique key, all-varchar) rather than the stub.
         Cheques,
-        Document("expense_tr"),
+        // expense_tr and exp_cat_m are now ADOPTED (Phase 7, slice 3), so they carry their full pre-adoption
+        // shapes rather than the stub. exp_cat_m is a new legacy table in this list (categories).
+        ExpenseTr,
+        ExpCatM,
         Document("del_invoice_h"),
 
         // NOT company-aware: these hang off an invoice and inherit its company through invoiceno.
@@ -220,6 +223,38 @@ public static class LegacySchema
           `chkno` varchar(100) NOT NULL,
           `entry` varchar(100) NOT NULL,
           `supcode` varchar(100) NOT NULL,
+          KEY `id` (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>expense_tr</c> in its full pre-adoption shape — every column <c>varchar NOT NULL</c>, and an
+    /// <c>id int</c> that is <c>0</c> on every row (never a usable key), which the Phase 7 adoption drops for
+    /// a real surrogate. <c>company_id</c> is NOT here: the multi-company migration adds it (and its index).
+    /// </summary>
+    public const string ExpenseTr = """
+        CREATE TABLE `expense_tr` (
+          `id` int(100) NOT NULL,
+          `exp_cat` varchar(100) NOT NULL,
+          `expense_date` varchar(100) NOT NULL,
+          `expense_desc` varchar(100) NOT NULL,
+          `expense_amount` varchar(100) NOT NULL,
+          `paymentm` varchar(100) NOT NULL,
+          `payment_ref` varchar(100) NOT NULL,
+          `addedby` varchar(100) NOT NULL,
+          `addeddt` varchar(100) NOT NULL,
+          `company` varchar(100) NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>exp_cat_m</c> — expense categories, an AUTO_INCREMENT <c>id</c> under a non-unique key (Finding 6,
+    /// promoted to a PK by the Phase 7 adoption). Shared across companies.
+    /// </summary>
+    public const string ExpCatM = """
+        CREATE TABLE `exp_cat_m` (
+          `id` int(100) NOT NULL AUTO_INCREMENT,
+          `expcatname` varchar(100) DEFAULT NULL,
           KEY `id` (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """;

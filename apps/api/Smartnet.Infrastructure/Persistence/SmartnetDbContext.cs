@@ -136,6 +136,12 @@ public class SmartnetDbContext : DbContext
     /// <summary>Cheques (Phase 7), on the adopted legacy <c>cheques</c>. A standalone written record — no ledger, no balance.</summary>
     public DbSet<Cheque> Cheques => Set<Cheque>();
 
+    /// <summary>Expenses (Phase 7), on the adopted legacy <c>expense_tr</c>. A flat log — no ledger, no balance.</summary>
+    public DbSet<Expense> Expenses => Set<Expense>();
+
+    /// <summary>Expense categories (Phase 7), on the adopted legacy <c>exp_cat_m</c>. Shared across companies.</summary>
+    public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
+
     /// <summary>Job cards, on the adopted legacy <c>jobs_m</c>. A service/repair document — no tax, ledger or stock.</summary>
     public DbSet<JobCard> JobCards => Set<JobCard>();
 

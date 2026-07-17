@@ -103,6 +103,12 @@ public static class DependencyInjection
         services.AddScoped<IChequeCreator>(sp => sp.GetRequiredService<ChequeService>());
         services.AddScoped<IChequeVoider>(sp => sp.GetRequiredService<ChequeService>());
 
+        // Expenses (Phase 7, slice 3): a flat adopted log (no ledger, no balance) that dual-writes the legacy
+        // expense_tr row for the surviving ExpenseReport. One service; categories are managed on the controller.
+        services.AddScoped<ExpenseService>();
+        services.AddScoped<IExpenseCreator>(sp => sp.GetRequiredService<ExpenseService>());
+        services.AddScoped<IExpenseVoider>(sp => sp.GetRequiredService<ExpenseService>());
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));
