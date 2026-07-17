@@ -83,6 +83,13 @@ public static class DependencyInjection
         services.AddScoped<IJobCardCreator>(sp => sp.GetRequiredService<JobCardService>());
         services.AddScoped<IJobCardWorkflow>(sp => sp.GetRequiredService<JobCardService>());
 
+        // Customer receipts (Phase 7, slice 1): money received, allocated across open invoices — Payment
+        // entries on the receivables ledger, dual-writing the legacy payments rows + invoice_h.balance,
+        // idempotent, with a soft void that reverses. One service behind create and void.
+        services.AddScoped<CustomerReceiptService>();
+        services.AddScoped<ICustomerReceiptCreator>(sp => sp.GetRequiredService<CustomerReceiptService>());
+        services.AddScoped<ICustomerReceiptVoider>(sp => sp.GetRequiredService<CustomerReceiptService>());
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));

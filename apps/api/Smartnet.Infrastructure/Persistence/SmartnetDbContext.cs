@@ -121,6 +121,12 @@ public class SmartnetDbContext : DbContext
     /// <summary>The payables ledger. A supplier's balance is the sum of these — see <see cref="PayablesLedgerEntry"/>.</summary>
     public DbSet<PayablesLedgerEntry> PayablesLedger => Set<PayablesLedgerEntry>();
 
+    /// <summary>Customer receipts (Phase 7) — money received, allocated across invoices; the settlement is the ledger.</summary>
+    public DbSet<CustomerReceipt> CustomerReceipts => Set<CustomerReceipt>();
+
+    /// <summary>Receipt allocations — one per invoice a receipt settles.</summary>
+    public DbSet<ReceiptAllocation> ReceiptAllocations => Set<ReceiptAllocation>();
+
     /// <summary>Job cards, on the adopted legacy <c>jobs_m</c>. A service/repair document — no tax, ledger or stock.</summary>
     public DbSet<JobCard> JobCards => Set<JobCard>();
 

@@ -142,7 +142,9 @@ public static class LegacySchema
         Document("del_invoice_h"),
 
         // NOT company-aware: these hang off an invoice and inherit its company through invoiceno.
-        Child("payments", numberColumn: null),
+        // payments carries its full legacy shape — the customer-receipt dual-write (Phase 7, slice 1) writes
+        // every column the old savePay did, so the stub invoiceno-only shape no longer suffices.
+        Payments,
         Child("del_cn_h", numberColumn: null),
     ];
 
@@ -172,6 +174,27 @@ public static class LegacySchema
           `discountper` varchar(50) NOT NULL,
           `beforedisctot` varchar(100) NOT NULL,
           `contactperson` varchar(100) NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """;
+
+    /// <summary>
+    /// <c>payments</c> — a customer invoice's receipts, keyed to the invoice by <c>invoiceno</c>. An
+    /// AUTO_INCREMENT <c>id</c> (the legacy <c>deletepay</c> deletes <c>WHERE id=…</c>), all data columns
+    /// <c>varchar DEFAULT NULL</c> — faithful to production, where several legacy INSERTs omit <c>paym</c>/
+    /// <c>payref</c>. Retained (not adopted): the new app's receipts live in the receivables ledger and a row
+    /// is dual-written here for the surviving legacy outstanding report.
+    /// </summary>
+    public const string Payments = """
+        CREATE TABLE `payments` (
+          `id` int(11) NOT NULL AUTO_INCREMENT,
+          `invoiceno` varchar(100) DEFAULT NULL,
+          `amount` varchar(100) DEFAULT NULL,
+          `paymentrecdate` varchar(100) DEFAULT NULL,
+          `enteredby` varchar(100) DEFAULT NULL,
+          `entereddt` varchar(100) DEFAULT NULL,
+          `paym` varchar(100) DEFAULT NULL,
+          `payref` varchar(100) DEFAULT NULL,
+          PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """;
 
