@@ -37,6 +37,13 @@ appear to have overpaid. Statements and the outstanding report sent to customers
 **This is not a migration problem — it is wrong today, in production.** It needs an accounting
 decision, not just a code fix.
 
+> **✅ REMEDIATED (2026-07-17).** The business chose the direct cleanup. Migration
+> `Phase8RemediateDuplicatePayments` deletes the 49 duplicate rows, recomputes the affected balances
+> (45 negatives → 0), and clears the matching GL / receivables entries. **SI-35** — a duplicate that
+> masked a real Rs. 50,000 receivable rather than a negative — was **confirmed owed by the business** and
+> remediated to a 50,000 balance. Applied and verified on the dev copy; **must still be run on live** (with
+> a pre-run snapshot). Full record and cutover steps in [remediation/RECONCILIATION.md](remediation/RECONCILIATION.md).
+
 ---
 
 ## 🔴 FINDING 2 — An invoice marked paid with no payment behind it

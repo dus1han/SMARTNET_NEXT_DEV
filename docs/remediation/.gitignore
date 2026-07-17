@@ -1,0 +1,4 @@
+# Row-level pre-run snapshots hold customer payment data and staff names — kept locally as the
+# rollback artifact for a remediation run, never committed. Regenerate one before each live run.
+finding1-backup-dev.txt
+*-backup-*.txt
