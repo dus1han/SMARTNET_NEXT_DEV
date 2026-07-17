@@ -73,8 +73,8 @@ public sealed class ExpensesController : ControllerBase
             .ToList();
 
         var legacyExpenses = (await _legacy.ExpenseTrs
-            .Where(e => e.DataOrigin != "new")
-            .Select(e => new { e.Id, e.ExpCat, e.ExpenseDate, e.ExpenseDesc, e.ExpenseAmount, e.Paymentm, e.PaymentRef, e.Company })
+            .Where(e => e.DataOrigin != "new" && e.DeletedAt == null)
+            .Select(e => new { e.Id, e.ExpCat, e.ExpenseDate, e.ExpenseDesc, e.ExpenseAmount, e.Paymentm, e.PaymentRef, e.Company, e.RowVersion })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false))
             .Where(e => e.Company != null && accessibleText.Contains(e.Company));
@@ -86,7 +86,7 @@ public sealed class ExpensesController : ControllerBase
                 ? companyNames.GetValueOrDefault(co) : null;
             return new ExpenseSummary(
                 e.Id, LegacyValue.Date(e.ExpenseDate) ?? DateOnly.MinValue, catId, categoryNames.GetValueOrDefault(catId),
-                e.ExpenseDesc, LegacyValue.Money(e.ExpenseAmount), e.Paymentm, e.PaymentRef, companyName, 0, "legacy");
+                e.ExpenseDesc, LegacyValue.Money(e.ExpenseAmount), e.Paymentm, e.PaymentRef, companyName, e.RowVersion, "legacy");
         }));
 
         return Ok(rows

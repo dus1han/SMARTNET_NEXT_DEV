@@ -642,6 +642,8 @@ public partial class SmartnetLegacyDbContext : DbContext
             entity.Property(e => e.DataOrigin)
                 .HasMaxLength(16)
                 .HasColumnName("data_origin");
+            entity.Property(e => e.RowVersion).HasColumnName("row_version");
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
         });
 
         modelBuilder.Entity<InvoiceH>(entity =>

@@ -27,4 +27,10 @@ public partial class ExpenseTr
 
     /// <summary>The Phase 7 adoption discriminator: <c>new</c> for an expense this app raised, <c>legacy</c> for an adopted one.</summary>
     public string? DataOrigin { get; set; }
+
+    /// <summary>The concurrency token (Phase 7 adoption), so a legacy expense can be voided with its version guarded.</summary>
+    public int RowVersion { get; set; }
+
+    /// <summary>Set when the expense has been voided (soft delete) — filtered out of the list and the report.</summary>
+    public DateTime? DeletedAt { get; set; }
 }

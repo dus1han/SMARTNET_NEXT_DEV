@@ -75,20 +75,19 @@ export default function ExpensesPage() {
       id: "actions",
       header: "",
       enableSorting: false,
-      cell: ({ row }) =>
-        row.original.origin === "new" ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Void expense"
-            onClick={(e) => {
-              e.stopPropagation();
-              setVoiding(row.original);
-            }}
-          >
-            <Trash2 className="text-muted" />
-          </Button>
-        ) : null,
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Void expense"
+          onClick={(e) => {
+            e.stopPropagation();
+            setVoiding(row.original);
+          }}
+        >
+          <Trash2 className="text-muted" />
+        </Button>
+      ),
     },
   ];
 
@@ -153,12 +152,10 @@ function ExpenseDetailDialog({ expense, onClose, onVoid }: { expense: ExpenseSum
       description={`${expense.description} · ${formatReportDate(expense.date)}`}
       footer={
         <>
-          {expense.origin === "new" && (
-            <Button variant="secondary" onClick={onVoid}>
-              <Trash2 />
-              Void
-            </Button>
-          )}
+          <Button variant="secondary" onClick={onVoid}>
+            <Trash2 />
+            Void
+          </Button>
           <Button onClick={onClose}>Close</Button>
         </>
       }

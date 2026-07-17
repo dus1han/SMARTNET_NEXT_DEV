@@ -62,8 +62,11 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
 
     public async Task VoidAsync(long expenseId, int expectedRowVersion, CancellationToken cancellationToken = default)
     {
+        // IgnoreQueryFilters so a legacy expense (data_origin='legacy') can be voided too — the legacy app let
+        // you delete one, and an expense is a flat log with nothing downstream. Soft delete, not the legacy hard one.
         var expense = await _db.Expenses
-            .FirstOrDefaultAsync(e => e.Id == expenseId, cancellationToken)
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(e => e.Id == expenseId && e.DeletedAt == null, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Expense {expenseId} does not exist.");
 

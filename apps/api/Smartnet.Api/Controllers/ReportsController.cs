@@ -596,7 +596,7 @@ public sealed class ReportsController : ControllerBase
             return new ExpenseReportResponse(0m, 0, 0, []);
         }
 
-        var query = _legacy.ExpenseTrs.Where(e => scope.Contains(e.Company));
+        var query = _legacy.ExpenseTrs.Where(e => scope.Contains(e.Company) && e.DeletedAt == null);
 
         if (category is { } categoryId)
         {
