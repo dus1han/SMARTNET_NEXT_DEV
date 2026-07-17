@@ -98,12 +98,15 @@ export function parseContacts(field: string | null | undefined): string[] {
  * when it has them, otherwise the legacy `;`-separated string parsed the old way — so a customer that has
  * not been backfilled yet still offers its contacts.
  */
-export function customerContactNames(customer: { contacts?: readonly { name?: string | null }[] | null; contactPerson?: string | null } | null | undefined): string[] {
+export function customerContactNames(customer: { contacts?: readonly { name?: string | null; usage?: string | null }[] | null; contactPerson?: string | null } | null | undefined): string[] {
   if (!customer) return [];
+  // Only document contacts are offered as a document's contact person — notification-only contacts are not.
   const structured = (customer.contacts ?? [])
+    .filter((c) => c.usage !== "NotificationsOnly")
     .map((c) => c.name?.trim())
     .filter((n): n is string => Boolean(n));
-  return structured.length > 0 ? structured : parseContacts(customer.contactPerson);
+  const anyStructured = (customer.contacts ?? []).some((c) => (c.name ?? "").trim());
+  return anyStructured ? structured : parseContacts(customer.contactPerson);
 }
 
 export const clampPercent = (value: number) =>

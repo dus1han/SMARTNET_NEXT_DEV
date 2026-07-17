@@ -11,7 +11,7 @@ namespace Smartnet.Api.Contracts;
 /// default when raising a document and nothing filters on it.
 /// </param>
 /// <summary>One structured contact (Phase 6, slice 4) — a real row behind the legacy <c>;</c>-separated strings.</summary>
-public sealed record CustomerContactDto(long Id, string? Name, string? Role, string? Phone, string? Email, bool IsPrimary);
+public sealed record CustomerContactDto(long Id, string? Name, string? Role, string? Phone, string? Email, string Usage);
 
 public sealed record CustomerSummary(
     long Id,

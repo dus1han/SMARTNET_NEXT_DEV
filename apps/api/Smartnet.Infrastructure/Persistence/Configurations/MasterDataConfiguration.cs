@@ -79,7 +79,7 @@ public class CustomerContactConfiguration : IEntityTypeConfiguration<CustomerCon
         builder.Property(c => c.Role).HasColumnName("role").HasMaxLength(100);
         builder.Property(c => c.Phone).HasColumnName("phone").HasMaxLength(100);
         builder.Property(c => c.Email).HasColumnName("email").HasMaxLength(200);
-        builder.Property(c => c.IsPrimary).HasColumnName("is_primary");
+        builder.Property(c => c.Usage).HasColumnName("contact_usage").HasMaxLength(32);
 
         builder.ConfigureAuditColumns();
 

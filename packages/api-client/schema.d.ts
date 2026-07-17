@@ -5159,7 +5159,7 @@ export interface components {
             role?: string | null;
             phone?: string | null;
             email?: string | null;
-            isPrimary: boolean;
+            usage: string;
         };
         CustomerReceiptCreatedResponse: {
             /** Format: int64 */

@@ -7267,7 +7267,7 @@
       "CustomerContactDto": {
         "required": [
           "id",
-          "isPrimary"
+          "usage"
         ],
         "type": "object",
         "properties": {
@@ -7291,8 +7291,8 @@
             "type": "string",
             "nullable": true
           },
-          "isPrimary": {
-            "type": "boolean"
+          "usage": {
+            "type": "string"
           }
         },
         "additionalProperties": false

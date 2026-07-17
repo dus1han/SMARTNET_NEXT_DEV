@@ -30,8 +30,8 @@ public sealed class CustomerContactTests
                 Name = "Acme",
                 Contacts =
                 [
-                    new CustomerContact { Name = "Priya", Role = "Accounts", Email = "priya@acme.test", IsPrimary = true },
-                    new CustomerContact { Name = "Sam", Phone = "0771234567" },
+                    new CustomerContact { Name = "Priya", Role = "Accounts", Email = "priya@acme.test", Usage = ContactUsage.DocumentsAndNotifications },
+                    new CustomerContact { Name = "Sam", Phone = "0771234567", Usage = ContactUsage.NotificationsOnly },
                 ],
             };
             db.Customers.Add(customer);
@@ -43,7 +43,7 @@ public sealed class CustomerContactTests
         {
             var customer = await db.Customers.Include(c => c.Contacts).FirstAsync(c => c.Id == customerId);
             customer.Contacts.Should().HaveCount(2);
-            customer.Contacts.Should().ContainSingle(c => c.IsPrimary).Which.Name.Should().Be("Priya");
+            customer.Contacts.Should().ContainSingle(c => c.Usage == ContactUsage.DocumentsAndNotifications).Which.Name.Should().Be("Priya");
             customer.Contacts.Single(c => c.Name == "Sam").Phone.Should().Be("0771234567");
         }
 
@@ -53,7 +53,7 @@ public sealed class CustomerContactTests
         {
             var customer = await db.Customers.Include(c => c.Contacts).FirstAsync(c => c.Id == customerId);
             customer.Contacts.Clear();
-            customer.Contacts.Add(new CustomerContact { Name = "Nadia", Email = "nadia@acme.test", IsPrimary = true });
+            customer.Contacts.Add(new CustomerContact { Name = "Nadia", Email = "nadia@acme.test", Usage = ContactUsage.DocumentsAndNotifications });
             await db.SaveChangesAsync();
         }
 

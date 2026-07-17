@@ -251,7 +251,8 @@ public sealed class CustomersController : ControllerBase
 
             for (var i = pair ? emails.Count : 0; i < emails.Count; i++)
             {
-                rows.Add(new CustomerContact { CustomerId = customer.Id, Email = emails[i] }); // unpaired email
+                // An unpaired email has no name — a notification target only, not a document contact.
+                rows.Add(new CustomerContact { CustomerId = customer.Id, Email = emails[i], Usage = ContactUsage.NotificationsOnly });
                 emailOnly++;
             }
 
@@ -260,7 +261,6 @@ public sealed class CustomersController : ControllerBase
                 continue;
             }
 
-            rows[0].IsPrimary = true;
             foreach (var row in rows)
             {
                 customer.Contacts.Add(row);
@@ -358,9 +358,8 @@ public sealed class CustomersController : ControllerBase
             c.ProfitPercentId,
             c.CreditLimit,
             c.Contacts
-                .OrderByDescending(ct => ct.IsPrimary)
-                .ThenBy(ct => ct.Id)
-                .Select(ct => new CustomerContactDto(ct.Id, ct.Name, ct.Role, ct.Phone, ct.Email, ct.IsPrimary))
+                .OrderBy(ct => ct.Id)
+                .Select(ct => new CustomerContactDto(ct.Id, ct.Name, ct.Role, ct.Phone, ct.Email, ct.Usage))
                 .ToList());
 
     /// <summary>
@@ -385,7 +384,7 @@ public sealed class CustomersController : ControllerBase
                 Role = contact.Role,
                 Phone = contact.Phone,
                 Email = contact.Email,
-                IsPrimary = contact.IsPrimary,
+                Usage = contact.Usage is ContactUsage.NotificationsOnly ? ContactUsage.NotificationsOnly : ContactUsage.DocumentsAndNotifications,
             });
         }
 

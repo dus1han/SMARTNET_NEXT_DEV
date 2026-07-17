@@ -422,25 +422,28 @@ function toForm(c: CustomerSummary): CustomerForm {
 
 // --- Structured contacts (Phase 6, slice 4) -----------------------------------------------------
 
-interface ContactRow { name: string; role: string; phone: string; email: string; isPrimary: boolean }
-const blankContactRow: ContactRow = { name: "", role: "", phone: "", email: "", isPrimary: false };
+// A contact is either printed on documents (and notified) or notified only — see ContactUsage on the API.
+const DOCUMENTS_AND_NOTIFICATIONS = "DocumentsAndNotifications";
+const NOTIFICATIONS_ONLY = "NotificationsOnly";
+
+interface ContactRow { name: string; role: string; phone: string; email: string; usage: string }
+const blankContactRow: ContactRow = { name: "", role: "", phone: "", email: "", usage: DOCUMENTS_AND_NOTIFICATIONS };
 
 function toContactRow(c: CustomerContactDto): ContactRow {
-  return { name: c.name ?? "", role: c.role ?? "", phone: c.phone ?? "", email: c.email ?? "", isPrimary: c.isPrimary };
+  return { name: c.name ?? "", role: c.role ?? "", phone: c.phone ?? "", email: c.email ?? "", usage: c.usage };
 }
 
-/** The rows the user filled, as DTOs — one primary guaranteed, blank rows dropped. Id 0: the server allocates. */
+/** The rows the user filled, as DTOs — blank rows dropped. Id 0: the server allocates. */
 function toContactDtos(rows: ContactRow[]): CustomerContactDto[] {
   const filled = rows.filter((r) => r.name.trim() || r.email.trim() || r.phone.trim());
-  const hasPrimary = filled.some((r) => r.isPrimary);
   const blankToNull = (s: string) => (s.trim() !== "" ? s.trim() : null);
-  return filled.map((r, i) => ({
+  return filled.map((r) => ({
     id: 0,
     name: blankToNull(r.name),
     role: blankToNull(r.role),
     phone: blankToNull(r.phone),
     email: blankToNull(r.email),
-    isPrimary: hasPrimary ? r.isPrimary : i === 0,
+    usage: r.usage === NOTIFICATIONS_ONLY ? NOTIFICATIONS_ONLY : DOCUMENTS_AND_NOTIFICATIONS,
   }));
 }
 
@@ -460,7 +463,7 @@ function ContactsEditor({ contacts, onChange }: { contacts: ContactRow[]; onChan
           type="button"
           variant="secondary"
           size="sm"
-          onClick={() => onChange([...contacts, { ...blankContactRow, isPrimary: contacts.length === 0 }])}
+          onClick={() => onChange([...contacts, { ...blankContactRow }])}
         >
           <Plus />
           Add contact
@@ -468,7 +471,7 @@ function ContactsEditor({ contacts, onChange }: { contacts: ContactRow[]; onChan
       </div>
 
       {contacts.length === 0 && (
-        <p className="text-sm text-muted">No contacts yet. Add one — the first is the default on new documents.</p>
+        <p className="text-sm text-muted">No contacts yet. Add one — choose whether it appears on documents or is for notifications only.</p>
       )}
 
       {contacts.map((c, i) => (
@@ -477,15 +480,16 @@ function ContactsEditor({ contacts, onChange }: { contacts: ContactRow[]; onChan
           <input placeholder="Role" value={c.role} onChange={(e) => set(i, { role: e.target.value })} className={cn(contactInput, "sm:max-w-[8rem]")} />
           <input placeholder="Email" value={c.email} onChange={(e) => set(i, { email: e.target.value })} className={contactInput} />
           <input placeholder="Phone" value={c.phone} onChange={(e) => set(i, { phone: e.target.value })} className={cn(contactInput, "sm:max-w-[9rem]")} />
-          <label className="flex shrink-0 items-center gap-1 text-xs text-muted">
-            <input
-              type="radio"
-              name="primary-contact"
-              checked={c.isPrimary}
-              onChange={() => onChange(contacts.map((x, idx) => ({ ...x, isPrimary: idx === i })))}
-            />
-            Primary
-          </label>
+          <select
+            value={c.usage}
+            onChange={(e) => set(i, { usage: e.target.value })}
+            className={cn(contactInput, "shrink-0 sm:max-w-52")}
+            aria-label="Contact usage"
+            title="Where this contact is used"
+          >
+            <option value={DOCUMENTS_AND_NOTIFICATIONS}>Documents &amp; notifications</option>
+            <option value={NOTIFICATIONS_ONLY}>Notifications only</option>
+          </select>
           <button
             type="button"
             onClick={() => onChange(contacts.filter((_, idx) => idx !== i))}

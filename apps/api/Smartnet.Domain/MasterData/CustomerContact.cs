@@ -2,6 +2,16 @@ using Smartnet.Domain.Auditing;
 
 namespace Smartnet.Domain.MasterData;
 
+/// <summary>What a <see cref="CustomerContact"/> is for.</summary>
+public static class ContactUsage
+{
+    /// <summary>Appears on sales documents (as the document's contact person) and receives notifications.</summary>
+    public const string DocumentsAndNotifications = "DocumentsAndNotifications";
+
+    /// <summary>Receives notifications only — never printed on a document.</summary>
+    public const string NotificationsOnly = "NotificationsOnly";
+}
+
 /// <summary>
 /// One structured contact for a customer — a real row, replacing the legacy <c>;</c>-separated strings
 /// (Phase 6, slice 4).
@@ -36,8 +46,12 @@ public class CustomerContact : IAuditable, ISoftDeletable
     /// <summary>Their email — the value the legacy <c>email</c> string held one of.</summary>
     public string? Email { get; set; }
 
-    /// <summary>The default contact for the customer — the one a new document picks first.</summary>
-    public bool IsPrimary { get; set; }
+    /// <summary>
+    /// What the contact is for: <see cref="ContactUsage.DocumentsAndNotifications"/> — appears on sales
+    /// documents and receives notifications — or <see cref="ContactUsage.NotificationsOnly"/> — receives
+    /// notifications but is never printed on a document.
+    /// </summary>
+    public string Usage { get; set; } = ContactUsage.DocumentsAndNotifications;
 
     public Customer Customer { get; set; } = null!;
 
