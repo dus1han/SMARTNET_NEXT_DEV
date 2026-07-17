@@ -62,7 +62,11 @@ public class ChequeConfiguration : IEntityTypeConfiguration<Cheque>
         builder.Property(c => c.ChequeDate).HasColumnName("cheque_date");
         builder.Property(c => c.DueDate).HasColumnName("due_date");
         builder.Property(c => c.PrintedAt).HasColumnName("printed_at");
+        builder.Property(c => c.SourceType).HasColumnName("source_type").HasMaxLength(24);
+        builder.Property(c => c.SourceId).HasColumnName("source_id");
         builder.Property(c => c.DataOrigin).HasColumnName("data_origin").HasMaxLength(16);
+
+        builder.HasIndex(c => new { c.SourceType, c.SourceId });
 
         // Legacy shadow columns, written alongside on save so the surviving ChequeReport reads a whole row.
         foreach (var (name, column, length) in ChequeLegacyShadow.All)

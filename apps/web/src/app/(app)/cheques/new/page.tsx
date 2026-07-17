@@ -15,21 +15,16 @@ import { ArrowLeft } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { createCheque } from "@/lib/cheques";
 import { listCompanies } from "@/lib/customers";
-import { listSuppliers } from "@/lib/suppliers";
 import { today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
-import { SupplierCombobox } from "@/components/documents/supplier-combobox";
 import { formatMoney } from "@/components/reports";
 import { Button, Card, ErrorBanner, FadeIn, Input, Select, toast } from "@/components/ui";
 
 export default function NewChequePage() {
   const router = useRouter();
   const companies = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
-  const suppliers = useQuery({ queryKey: ["suppliers"], queryFn: listSuppliers });
 
   const [companyId, setCompanyId] = useState("");
-  const [entryType, setEntryType] = useState("Manual");
-  const [supplierId, setSupplierId] = useState("");
   const [payTo, setPayTo] = useState("");
   const [bank, setBank] = useState("");
   const [chequeNumber, setChequeNumber] = useState("");
@@ -40,25 +35,18 @@ export default function NewChequePage() {
   const [error, setError] = useState<ApiError | null>(null);
 
   const amountValue = amount !== "" ? Number(amount) : 0;
-  const isSupplier = entryType === "Supplier";
-  const canSubmit =
-    companyId !== "" && payTo.trim() !== "" && amountValue > 0 && (!isSupplier || supplierId !== "") && !submitting;
-
-  function pickSupplier(id: string) {
-    setSupplierId(id);
-    const supplier = suppliers.data?.find((s) => String(s.id) === id);
-    if (supplier) setPayTo(supplier.name ?? "");
-  }
+  const canSubmit = companyId !== "" && payTo.trim() !== "" && amountValue > 0 && !submitting;
 
   async function submit() {
     setSubmitting(true);
     setError(null);
     try {
+      // A standalone cheque is always Manual — a cheque to a supplier is raised from a supplier payment.
       const created = await createCheque({
         companyId: Number(companyId),
-        entryType,
+        entryType: "Manual",
         payTo: payTo.trim(),
-        supplierId: isSupplier && supplierId !== "" ? Number(supplierId) : null,
+        supplierId: null,
         bank: bank || null,
         chequeNumber: chequeNumber || null,
         amount: amountValue,
@@ -81,7 +69,7 @@ export default function NewChequePage() {
         All cheques
       </Link>
 
-      <PageHeader title="Record a cheque" description="A standalone written record. No ledger, no balance — printing arrives in Phase 8." />
+      <PageHeader title="Record a cheque" description="A standalone cheque to any payee. A cheque to a supplier is raised from a supplier payment; an expense cheque from an expense — those appear here automatically." />
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
 
@@ -92,17 +80,6 @@ export default function NewChequePage() {
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </Select>
-
-        <Select label="Entry" value={entryType} onChange={(e) => { setEntryType(e.target.value); setSupplierId(""); }}>
-          <option value="Manual">Manual</option>
-          <option value="Supplier">Supplier</option>
-        </Select>
-
-        {isSupplier ? (
-          <SupplierCombobox suppliers={suppliers.data ?? []} value={supplierId} onChange={pickSupplier} />
-        ) : (
-          <div />
-        )}
 
         <Input label="Pay to" value={payTo} onChange={(e) => setPayTo(e.target.value)} placeholder="Payee" />
         <Input label="Bank" value={bank} onChange={(e) => setBank(e.target.value)} />

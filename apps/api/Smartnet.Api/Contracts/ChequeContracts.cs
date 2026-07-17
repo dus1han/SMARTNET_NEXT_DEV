@@ -22,6 +22,7 @@ public sealed record ChequeCreatedResponse(long Id, decimal Amount);
 
 /// <summary>One row of the cheque list.</summary>
 /// <param name="Origin"><c>new</c> for a cheque this app raised; <c>legacy</c> for an adopted one.</param>
+/// <param name="Source">Where it came from — <c>Manual</c>, <c>Supplier payment</c> or <c>Expense</c>.</param>
 public sealed record ChequeSummary(
     long Id,
     DateOnly? ChequeDate,
@@ -31,6 +32,7 @@ public sealed record ChequeSummary(
     string? ChequeNumber,
     decimal Amount,
     string? CompanyName,
+    string Source,
     string Origin);
 
 /// <summary>One cheque, in full — the read view.</summary>
@@ -46,6 +48,7 @@ public sealed record ChequeDetail(
     string? ChequeNumber,
     decimal Amount,
     string? CompanyName,
+    string Source,
     int RowVersion,
     string Origin);
 

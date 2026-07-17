@@ -6,7 +6,7 @@ namespace Smartnet.Api.Contracts;
 //
 // A flat log of money spent, on the adopted legacy expense_tr, against a shared exp_cat_m category.
 
-/// <summary>A new expense to record.</summary>
+/// <summary>A new expense to record. When <c>Method</c> is <c>Cheque</c>, the cheque fields raise a printable cheque linked to it.</summary>
 public sealed record CreateExpenseRequest(
     long CompanyId,
     long CategoryId,
@@ -14,7 +14,12 @@ public sealed record CreateExpenseRequest(
     string Description,
     decimal Amount,
     string? Method,
-    string? Reference);
+    string? Reference,
+    string? ChequePayee = null,
+    string? ChequeBank = null,
+    string? ChequeNumber = null,
+    DateOnly? ChequeDate = null,
+    DateOnly? ChequeDueDate = null);
 
 public sealed record ExpenseCreatedResponse(long Id, decimal Amount);
 

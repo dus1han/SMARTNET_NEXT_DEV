@@ -34,6 +34,10 @@ export default function NewSupplierPaymentPage() {
   const [date, setDate] = useState(today);
   const [method, setMethod] = useState("BANK");
   const [reference, setReference] = useState("");
+  const [chequeBank, setChequeBank] = useState("");
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [chequeDate, setChequeDate] = useState(today);
+  const [chequeDueDate, setChequeDueDate] = useState(today);
   const [allocations, setAllocations] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
@@ -88,6 +92,7 @@ export default function NewSupplierPaymentPage() {
         }))
         .filter((a) => a.amount > 0);
 
+      const byCheque = method.toUpperCase() === "CHEQUE";
       const created = await createSupplierPayment({
         companyId: Number(companyId),
         supplierId: supplierKey!,
@@ -96,6 +101,10 @@ export default function NewSupplierPaymentPage() {
         reference: reference || null,
         idempotencyKey,
         allocations: lines,
+        chequeBank: byCheque ? chequeBank || null : null,
+        chequeNumber: byCheque ? chequeNumber || null : null,
+        chequeDate: byCheque ? chequeDate || null : null,
+        chequeDueDate: byCheque ? chequeDueDate || null : null,
       });
       toast.success(
         created.alreadyExisted
@@ -145,6 +154,16 @@ export default function NewSupplierPaymentPage() {
           <option value="CHEQUE">Cheque</option>
           <option value="ONLINE">Online</option>
         </Select>
+
+        {method.toUpperCase() === "CHEQUE" && (
+          <>
+            <Input label="Bank" value={chequeBank} onChange={(e) => setChequeBank(e.target.value)} />
+            <Input label="Cheque no." value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} />
+            <Input label="Cheque date" type="date" value={chequeDate} onChange={(e) => setChequeDate(e.target.value)} />
+            <Input label="Due date" type="date" value={chequeDueDate} onChange={(e) => setChequeDueDate(e.target.value)} />
+            <p className="text-xs text-muted sm:col-span-2 lg:col-span-4">A cheque for the payment total will appear in the cheque register, ready to print.</p>
+          </>
+        )}
       </Card>
 
       <Card className="p-5">

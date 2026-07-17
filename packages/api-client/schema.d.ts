@@ -5020,6 +5020,7 @@ export interface components {
             /** Format: double */
             amount: number;
             companyName?: string | null;
+            source: string;
             /** Format: int32 */
             rowVersion: number;
             origin: string;
@@ -5064,6 +5065,7 @@ export interface components {
             /** Format: double */
             amount: number;
             companyName?: string | null;
+            source: string;
             origin: string;
         };
         CloseJobCardRequest: {
@@ -5173,6 +5175,13 @@ export interface components {
             amount: number;
             method?: string | null;
             reference?: string | null;
+            chequePayee?: string | null;
+            chequeBank?: string | null;
+            chequeNumber?: string | null;
+            /** Format: date */
+            chequeDate?: string | null;
+            /** Format: date */
+            chequeDueDate?: string | null;
         };
         CreateInvoiceLineRequest: {
             /** Format: int64 */
@@ -5300,6 +5309,12 @@ export interface components {
             reference?: string | null;
             idempotencyKey: string;
             allocations: components["schemas"]["CreateSupplierPaymentAllocationRequest"][];
+            chequeBank?: string | null;
+            chequeNumber?: string | null;
+            /** Format: date */
+            chequeDate?: string | null;
+            /** Format: date */
+            chequeDueDate?: string | null;
         };
         CreateSupplierResponse: {
             /** Format: int64 */

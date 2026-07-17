@@ -106,7 +106,8 @@ public sealed class ExpensesController : ControllerBase
         }
 
         var created = await _creator.CreateAsync(
-            new NewExpense(request.CompanyId, request.CategoryId, request.Date, request.Description, request.Amount, request.Method, request.Reference),
+            new NewExpense(request.CompanyId, request.CategoryId, request.Date, request.Description, request.Amount, request.Method, request.Reference,
+                request.ChequePayee, request.ChequeBank, request.ChequeNumber, request.ChequeDate, request.ChequeDueDate),
             cancellationToken).ConfigureAwait(false);
 
         return Ok(new ExpenseCreatedResponse(created.Id, created.Amount));

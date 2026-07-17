@@ -338,7 +338,8 @@ public sealed class SupplierPaymentsController : ControllerBase
                 new NewSupplierPayment(
                     request.CompanyId, request.SupplierId, request.Date, request.Method, request.Reference,
                     request.IdempotencyKey,
-                    request.Allocations.Select(a => new NewSupplierPaymentAllocation(a.SupplierInvoiceId, a.Amount)).ToList()),
+                    request.Allocations.Select(a => new NewSupplierPaymentAllocation(a.SupplierInvoiceId, a.Amount)).ToList(),
+                    request.ChequeBank, request.ChequeNumber, request.ChequeDate, request.ChequeDueDate),
                 cancellationToken).ConfigureAwait(false);
 
             return Ok(new SupplierPaymentCreatedResponse(created.Id, created.Amount, created.AlreadyExisted));

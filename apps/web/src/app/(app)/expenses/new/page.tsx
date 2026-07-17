@@ -31,6 +31,10 @@ export default function NewExpensePage() {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("Cash");
   const [reference, setReference] = useState("");
+  const [chequePayee, setChequePayee] = useState("");
+  const [chequeBank, setChequeBank] = useState("");
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [chequeDueDate, setChequeDueDate] = useState(today);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
@@ -41,6 +45,7 @@ export default function NewExpensePage() {
     setSubmitting(true);
     setError(null);
     try {
+      const byCheque = method.toUpperCase() === "CHEQUE";
       const created = await createExpense({
         companyId: Number(companyId),
         categoryId: Number(categoryId),
@@ -49,6 +54,11 @@ export default function NewExpensePage() {
         amount: amountValue,
         method: method || null,
         reference: reference || null,
+        chequePayee: byCheque ? chequePayee || null : null,
+        chequeBank: byCheque ? chequeBank || null : null,
+        chequeNumber: byCheque ? chequeNumber || null : null,
+        chequeDate: byCheque ? date : null,
+        chequeDueDate: byCheque ? chequeDueDate || null : null,
       });
       toast.success(`Expense recorded — ${formatMoney(created.amount)}.`);
       router.push("/expenses");
@@ -98,6 +108,16 @@ export default function NewExpensePage() {
 
         <Input label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} />
         <Input label="Amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
+
+        {method.toUpperCase() === "CHEQUE" && (
+          <>
+            <Input label="Cheque payee" value={chequePayee} onChange={(e) => setChequePayee(e.target.value)} placeholder="Defaults to the description" />
+            <Input label="Bank" value={chequeBank} onChange={(e) => setChequeBank(e.target.value)} />
+            <Input label="Cheque no." value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} />
+            <Input label="Cheque due date" type="date" value={chequeDueDate} onChange={(e) => setChequeDueDate(e.target.value)} />
+            <p className="text-xs text-muted sm:col-span-2 lg:col-span-3">A cheque for this expense will appear in the cheque register, ready to print.</p>
+          </>
+        )}
       </Card>
 
       <div className="flex justify-end">

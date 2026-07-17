@@ -1,6 +1,9 @@
 namespace Smartnet.Domain.Documents;
 
-/// <summary>A new expense to record.</summary>
+/// <summary>
+/// A new expense to record. When <paramref name="Method"/> is <c>Cheque</c>, the cheque fields raise a
+/// printable cheque linked to this expense (so the cheque is not a second money event).
+/// </summary>
 public sealed record NewExpense(
     long CompanyId,
     long CategoryId,
@@ -8,7 +11,12 @@ public sealed record NewExpense(
     string Description,
     decimal Amount,
     string? Method,
-    string? Reference);
+    string? Reference,
+    string? ChequePayee = null,
+    string? ChequeBank = null,
+    string? ChequeNumber = null,
+    DateOnly? ChequeDate = null,
+    DateOnly? ChequeDueDate = null);
 
 /// <summary>What the caller gets back after recording an expense.</summary>
 public sealed record ExpenseCreated(long Id, decimal Amount);

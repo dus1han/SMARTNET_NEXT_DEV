@@ -51,6 +51,16 @@ public class Cheque : IAuditable, ISoftDeletable
     /// <summary>When it was printed, if it has been (printing itself is Phase 8).</summary>
     public DateTime? PrintedAt { get; set; }
 
+    /// <summary>
+    /// Where the cheque came from: <c>SupplierPayment</c> or <c>Expense</c> when it was raised as the payment
+    /// method of one of those (so it is <b>not</b> a separate money event — the payment/expense is), or
+    /// <c>null</c> for a standalone/manual cheque written to anyone.
+    /// </summary>
+    public string? SourceType { get; set; }
+
+    /// <summary>The id of the supplier payment or expense this cheque was raised for; <c>null</c> for a manual cheque.</summary>
+    public long? SourceId { get; set; }
+
     /// <summary><c>new</c> for cheques this app raised; <c>legacy</c> for the adopted rows.</summary>
     public string DataOrigin { get; set; } = "new";
 

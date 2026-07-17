@@ -30,7 +30,7 @@ public sealed class ExpenseTests
         ExpenseCreated created;
         await using (var db = _fixture.CreateContext(change))
         {
-            created = await new ExpenseService(db, change, Clock).CreateAsync(new NewExpense(
+            created = await new ExpenseService(db, new ChequeService(db, change, Clock), change, Clock).CreateAsync(new NewExpense(
                 companyId, categoryId, new DateOnly(2026, 7, 17), "Petrol", 5000m, "Cash", "R-9"));
         }
 
@@ -62,7 +62,7 @@ public sealed class ExpenseTests
         var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
 
         await using var db = _fixture.CreateContext(change);
-        var act = () => new ExpenseService(db, change, Clock).CreateAsync(new NewExpense(
+        var act = () => new ExpenseService(db, new ChequeService(db, change, Clock), change, Clock).CreateAsync(new NewExpense(
             companyId, CategoryId: 999999, new DateOnly(2026, 7, 17), "Bad", 10m, "Cash", null));
 
         await act.Should().ThrowAsync<InvalidOperationException>();
@@ -78,14 +78,14 @@ public sealed class ExpenseTests
         int rowVersion;
         await using (var db = _fixture.CreateContext(change))
         {
-            id = (await new ExpenseService(db, change, Clock).CreateAsync(new NewExpense(
+            id = (await new ExpenseService(db, new ChequeService(db, change, Clock), change, Clock).CreateAsync(new NewExpense(
                 companyId, categoryId, new DateOnly(2026, 7, 17), "Stationery", 200m, "Cash", null))).Id;
             rowVersion = await db.Expenses.Where(e => e.Id == id).Select(e => e.RowVersion).SingleAsync();
         }
 
         await using (var db = _fixture.CreateContext(change))
         {
-            await new ExpenseService(db, change, Clock).VoidAsync(id, rowVersion);
+            await new ExpenseService(db, new ChequeService(db, change, Clock), change, Clock).VoidAsync(id, rowVersion);
         }
 
         await using (var db = _fixture.CreateContext(change))

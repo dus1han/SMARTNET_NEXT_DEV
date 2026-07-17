@@ -57,14 +57,14 @@ public sealed class ChequesController : ControllerBase
 
         var newCheques = await _db.Cheques
             .Where(c => c.CompanyId != null && accessible.Contains(c.CompanyId.Value))
-            .Select(c => new { c.Id, c.ChequeDate, c.DueDate, c.PayTo, c.Bank, c.ChequeNumber, c.Amount, c.CompanyId })
+            .Select(c => new { c.Id, c.ChequeDate, c.DueDate, c.PayTo, c.Bank, c.ChequeNumber, c.Amount, c.CompanyId, c.SourceType })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var rows = newCheques
             .Select(c => new ChequeSummary(
                 c.Id, c.ChequeDate, c.DueDate, c.PayTo, c.Bank, c.ChequeNumber, c.Amount,
-                c.CompanyId is { } cid ? companyNames.GetValueOrDefault(cid) : null, "new"))
+                c.CompanyId is { } cid ? companyNames.GetValueOrDefault(cid) : null, SourceLabel(c.SourceType), "new"))
             .ToList();
 
         var legacyCheques = (await _legacy.Cheques
@@ -78,7 +78,7 @@ public sealed class ChequesController : ControllerBase
             c.Id, LegacyValue.Date(c.Chequedate), LegacyValue.Date(c.Duedate), c.Payto, c.Bank, c.Chkno,
             LegacyValue.Money(c.Amount),
             long.TryParse(c.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var lc) ? companyNames.GetValueOrDefault(lc) : null,
-            "legacy")));
+            SourceLabel(null), "legacy")));
 
         return Ok(rows
             .OrderByDescending(r => r.ChequeDate ?? DateOnly.MinValue)
@@ -108,11 +108,19 @@ public sealed class ChequesController : ControllerBase
 
             return Ok(new ChequeDetail(
                 cheque.Id, cheque.ChequeDate, cheque.DueDate, cheque.PayTo, cheque.EntryType, supplierName, cheque.SupplierCode,
-                cheque.Bank, cheque.ChequeNumber, cheque.Amount, companyName, cheque.RowVersion, "new"));
+                cheque.Bank, cheque.ChequeNumber, cheque.Amount, companyName, SourceLabel(cheque.SourceType), cheque.RowVersion, "new"));
         }
 
         return await LegacyChequeDetail(id, accessible, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>A friendly label for where a cheque came from.</summary>
+    private static string SourceLabel(string? sourceType) => sourceType switch
+    {
+        ChequeSource.SupplierPayment => "Supplier payment",
+        ChequeSource.Expense => "Expense",
+        _ => "Manual",
+    };
 
     private async Task<ActionResult<ChequeDetail>> LegacyChequeDetail(long id, List<long> accessible, CancellationToken cancellationToken)
     {
@@ -139,7 +147,7 @@ public sealed class ChequesController : ControllerBase
         return Ok(new ChequeDetail(
             c.Id, LegacyValue.Date(c.Chequedate), LegacyValue.Date(c.Duedate), c.Payto, c.Entry, supplierName,
             string.IsNullOrEmpty(c.Supcode) ? null : c.Supcode, c.Bank, c.Chkno, LegacyValue.Money(c.Amount),
-            companyName, 0, "legacy"));
+            companyName, SourceLabel(null), 0, "legacy"));
     }
 
     /// <summary>Record a cheque — a standalone written record; dual-writes the legacy row for the ChequeReport.</summary>

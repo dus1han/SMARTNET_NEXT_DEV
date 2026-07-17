@@ -3,7 +3,11 @@ namespace Smartnet.Domain.Documents;
 /// <summary>One allocation of a supplier payment — how much goes against which supplier invoice.</summary>
 public sealed record NewSupplierPaymentAllocation(long SupplierInvoiceId, decimal Amount);
 
-/// <summary>A whole supplier payment, posted at once — the total is the sum of its allocations.</summary>
+/// <summary>
+/// A whole supplier payment, posted at once — the total is the sum of its allocations. When
+/// <paramref name="Method"/> is <c>Cheque</c>, the cheque fields are used to raise a printable cheque linked
+/// to this payment (so the cheque is not a second money event).
+/// </summary>
 public sealed record NewSupplierPayment(
     long CompanyId,
     long SupplierId,
@@ -11,7 +15,11 @@ public sealed record NewSupplierPayment(
     string? Method,
     string? Reference,
     string IdempotencyKey,
-    IReadOnlyList<NewSupplierPaymentAllocation> Allocations);
+    IReadOnlyList<NewSupplierPaymentAllocation> Allocations,
+    string? ChequeBank = null,
+    string? ChequeNumber = null,
+    DateOnly? ChequeDate = null,
+    DateOnly? ChequeDueDate = null);
 
 /// <summary>What the caller gets back. <paramref name="AlreadyExisted"/> is true when the idempotency key matched an existing payment.</summary>
 public sealed record SupplierPaymentCreated(long Id, decimal Amount, bool AlreadyExisted);

@@ -6385,7 +6385,8 @@
           "id",
           "origin",
           "payTo",
-          "rowVersion"
+          "rowVersion",
+          "source"
         ],
         "type": "object",
         "properties": {
@@ -6432,6 +6433,9 @@
           "companyName": {
             "type": "string",
             "nullable": true
+          },
+          "source": {
+            "type": "string"
           },
           "rowVersion": {
             "type": "integer",
@@ -6538,7 +6542,8 @@
           "amount",
           "id",
           "origin",
-          "payTo"
+          "payTo",
+          "source"
         ],
         "type": "object",
         "properties": {
@@ -6574,6 +6579,9 @@
           "companyName": {
             "type": "string",
             "nullable": true
+          },
+          "source": {
+            "type": "string"
           },
           "origin": {
             "type": "string"
@@ -6939,6 +6947,28 @@
           },
           "reference": {
             "type": "string",
+            "nullable": true
+          },
+          "chequePayee": {
+            "type": "string",
+            "nullable": true
+          },
+          "chequeBank": {
+            "type": "string",
+            "nullable": true
+          },
+          "chequeNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "chequeDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "chequeDueDate": {
+            "type": "string",
+            "format": "date",
             "nullable": true
           }
         },
@@ -7344,6 +7374,24 @@
             "items": {
               "$ref": "#/components/schemas/CreateSupplierPaymentAllocationRequest"
             }
+          },
+          "chequeBank": {
+            "type": "string",
+            "nullable": true
+          },
+          "chequeNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "chequeDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "chequeDueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
           }
         },
         "additionalProperties": false

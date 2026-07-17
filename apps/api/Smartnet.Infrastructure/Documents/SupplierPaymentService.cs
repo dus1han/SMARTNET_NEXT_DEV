@@ -22,12 +22,14 @@ namespace Smartnet.Infrastructure.Documents;
 public sealed class SupplierPaymentService : ISupplierPaymentCreator, ISupplierPaymentVoider
 {
     private readonly SmartnetDbContext _db;
+    private readonly IChequeCreator _cheques;
     private readonly IChangeContext _change;
     private readonly TimeProvider _time;
 
-    public SupplierPaymentService(SmartnetDbContext db, IChangeContext change, TimeProvider time)
+    public SupplierPaymentService(SmartnetDbContext db, IChequeCreator cheques, IChangeContext change, TimeProvider time)
     {
         _db = db;
+        _cheques = cheques;
         _change = change;
         _time = time;
     }
@@ -50,7 +52,7 @@ public sealed class SupplierPaymentService : ISupplierPaymentCreator, ISupplierP
 
         _ = await _db.Companies.FirstOrDefaultAsync(c => c.Id == request.CompanyId, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Company {request.CompanyId} does not exist.");
-        _ = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == request.SupplierId, cancellationToken).ConfigureAwait(false)
+        var supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == request.SupplierId, cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Supplier {request.SupplierId} does not exist.");
 
         var invoiceIds = request.Allocations.Select(a => a.SupplierInvoiceId).Distinct().ToList();
@@ -123,6 +125,18 @@ public sealed class SupplierPaymentService : ISupplierPaymentCreator, ISupplierP
         }
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false); // the ledger entries + audit
+
+        // Paid by cheque → raise a printable cheque linked to this payment (the payment is the money event,
+        // the cheque only prints it — so it is never double-counted).
+        if (string.Equals(request.Method, "Cheque", StringComparison.OrdinalIgnoreCase))
+        {
+            await _cheques.CreateAsync(new NewCheque(
+                request.CompanyId, "Supplier", supplier.Name ?? "Supplier", request.SupplierId,
+                request.ChequeBank, request.ChequeNumber, total,
+                request.ChequeDate ?? request.Date, request.ChequeDueDate ?? request.Date,
+                ChequeSource.SupplierPayment, payment.Id), cancellationToken).ConfigureAwait(false);
+        }
+
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return new SupplierPaymentCreated(payment.Id, payment.Amount, AlreadyExisted: false);

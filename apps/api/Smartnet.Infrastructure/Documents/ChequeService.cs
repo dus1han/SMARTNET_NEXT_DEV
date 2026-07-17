@@ -62,6 +62,8 @@ public sealed class ChequeService : IChequeCreator, IChequeVoider
             ChequeDate = request.ChequeDate,
             DueDate = request.DueDate,
             PrintedAt = null,
+            SourceType = request.SourceType,
+            SourceId = request.SourceId,
             DataOrigin = "new",
         };
 

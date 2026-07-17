@@ -73,6 +73,14 @@ const columns: ColumnDef<ChequeSummary, unknown>[] = [
     ),
   },
   {
+    id: "source",
+    accessorFn: (row) => row.source,
+    header: "Source",
+    cell: ({ row }) => (
+      <Badge tone={row.original.source === "Manual" ? "neutral" : "success"}>{row.original.source}</Badge>
+    ),
+  },
+  {
     id: "bank",
     accessorFn: (row) => row.bank ?? "",
     header: "Bank",

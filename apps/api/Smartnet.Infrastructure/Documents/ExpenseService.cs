@@ -19,12 +19,14 @@ namespace Smartnet.Infrastructure.Documents;
 public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
 {
     private readonly SmartnetDbContext _db;
+    private readonly IChequeCreator _cheques;
     private readonly IChangeContext _change;
     private readonly TimeProvider _time;
 
-    public ExpenseService(SmartnetDbContext db, IChangeContext change, TimeProvider time)
+    public ExpenseService(SmartnetDbContext db, IChequeCreator cheques, IChangeContext change, TimeProvider time)
     {
         _db = db;
+        _cheques = cheques;
         _change = change;
         _time = time;
     }
@@ -53,9 +55,25 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
             DataOrigin = "new",
         };
 
+        var paidByCheque = string.Equals(request.Method, "Cheque", StringComparison.OrdinalIgnoreCase);
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
         _db.Expenses.Add(expense);
         SetLegacyShadow(expense, await ActingUserNameAsync(cancellationToken).ConfigureAwait(false));
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // Paid by cheque → raise a printable cheque linked to this expense (the expense is the money event).
+        if (paidByCheque)
+        {
+            await _cheques.CreateAsync(new NewCheque(
+                request.CompanyId, "Manual", request.ChequePayee ?? request.Description, null,
+                request.ChequeBank, request.ChequeNumber, request.Amount,
+                request.ChequeDate ?? request.Date, request.ChequeDueDate ?? request.Date,
+                ChequeSource.Expense, expense.Id), cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return new ExpenseCreated(expense.Id, expense.Amount);
     }

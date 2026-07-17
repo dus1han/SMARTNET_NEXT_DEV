@@ -1,6 +1,20 @@
 namespace Smartnet.Domain.Documents;
 
-/// <summary>A new cheque to record. <paramref name="SupplierId"/> is set only for a <c>Supplier</c> entry.</summary>
+/// <summary>Where a cheque was raised from — so it is not counted as a money event twice.</summary>
+public static class ChequeSource
+{
+    /// <summary>Raised as the method of a supplier payment; the payment is the money event, this prints it.</summary>
+    public const string SupplierPayment = "SupplierPayment";
+
+    /// <summary>Raised as the method of an expense; the expense is the money event, this prints it.</summary>
+    public const string Expense = "Expense";
+}
+
+/// <summary>
+/// A new cheque to record. <paramref name="SupplierId"/> is set only for a <c>Supplier</c> entry;
+/// <paramref name="SourceType"/>/<paramref name="SourceId"/> tie it to the supplier payment or expense it was
+/// raised for (both <c>null</c> for a standalone/manual cheque).
+/// </summary>
 public sealed record NewCheque(
     long CompanyId,
     string EntryType,
@@ -10,7 +24,9 @@ public sealed record NewCheque(
     string? ChequeNumber,
     decimal Amount,
     DateOnly? ChequeDate,
-    DateOnly? DueDate);
+    DateOnly? DueDate,
+    string? SourceType = null,
+    long? SourceId = null);
 
 /// <summary>What the caller gets back after recording a cheque.</summary>
 public sealed record ChequeCreated(long Id, decimal Amount);
