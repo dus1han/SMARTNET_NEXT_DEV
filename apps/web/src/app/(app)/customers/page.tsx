@@ -290,11 +290,22 @@ function CustomerDialog({ target, companies, bands, onClose, onSaved }: {
     setLoaded(key);
   }
 
+  // An Individual customer is a person: as soon as the type is Individual, the first contact takes the
+  // customer's own name (and tracks it as the name is typed). Synced during render — guarded so it converges,
+  // the same pattern as the form reset above (AGENTS.md: sync during render, not in an effect).
+  const watchType = form.watch("type");
+  const watchName = (form.watch("name") ?? "").trim();
+  if (watchType === "Individual" && watchName && (contacts.length === 0 || contacts[0].name !== watchName)) {
+    setContacts(
+      contacts.length === 0
+        ? [{ ...blankContactRow, name: watchName }]
+        : contacts.map((r, i) => (i === 0 ? { ...r, name: watchName } : r)),
+    );
+  }
+
   const save = useMutation({
     mutationFn: async (values: CustomerForm): Promise<void> => {
-      // An Individual customer is a person, so their contact takes the customer's own name.
-      const rows = values.type === "Individual" ? withCustomerNameContact(contacts, values.name) : contacts;
-      const request = { ...toRequest(values), contacts: toContactDtos(rows) };
+      const request = { ...toRequest(values), contacts: toContactDtos(contacts) };
       if (editing) await updateCustomer(editing.id, request);
       else await createCustomer(request);
     },
@@ -429,14 +440,6 @@ const blankContactRow: ContactRow = { name: "", phone: "", email: "", usage: DOC
 
 function toContactRow(c: CustomerContactDto): ContactRow {
   return { name: c.name ?? "", phone: c.phone ?? "", email: c.email ?? "", usage: c.usage };
-}
-
-/** For an Individual customer the person is the customer, so the first contact takes the customer's name. */
-function withCustomerNameContact(rows: ContactRow[], customerName: string): ContactRow[] {
-  const name = customerName.trim();
-  if (!name) return rows;
-  if (rows.length === 0) return [{ ...blankContactRow, name }];
-  return rows.map((r, i) => (i === 0 ? { ...r, name } : r));
 }
 
 /** The rows the user filled, as DTOs — blank rows dropped. Id 0: the server allocates. */
