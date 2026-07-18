@@ -117,6 +117,7 @@ public static class DependencyInjection
         services.AddScoped<IInvoiceRenderer, Pdf.InvoiceRenderer>();
         services.AddScoped<IPurchaseOrderRenderer, Pdf.PurchaseOrderRenderer>();
         services.AddScoped<ICreditNoteRenderer, Pdf.CreditNoteRenderer>();
+        services.AddScoped<IChequeRenderer, Pdf.ChequeRenderer>();
 
         // Supplier payments (Phase 7): the payables mirror — money paid, allocated across supplier invoices
         // (new and adopted-legacy alike), Payment entries on the payables ledger dual-writing supplier_inv_pay
