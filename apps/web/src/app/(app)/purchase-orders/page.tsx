@@ -38,7 +38,7 @@ export default function PurchaseOrdersPage() {
         loading={orders.isPending}
         searchable={(row) => `${row.number} ${row.supplierName ?? ""}`}
         searchPlaceholder="Search by number or supplier…"
-        defaultSort={{ id: "number", desc: true }}
+        defaultSort={{ id: "date", desc: true }}
         actions={
           <Button size="sm" onClick={() => router.push("/purchase-orders/new")}>
             <Plus />
@@ -56,6 +56,14 @@ export default function PurchaseOrdersPage() {
 }
 
 const columns: ColumnDef<PurchaseOrderSummary, unknown>[] = [
+  // Date leads and the list opens newest-first: a purchase order is looked for by when it was raised
+  // far more often than by its number.
+  {
+    id: "date",
+    accessorFn: (row) => row.date,
+    header: "Date",
+    cell: ({ row }) => <span className="whitespace-nowrap text-muted">{formatReportDate(row.original.date)}</span>,
+  },
   {
     id: "number",
     accessorFn: (row) => row.number,
@@ -66,12 +74,6 @@ const columns: ColumnDef<PurchaseOrderSummary, unknown>[] = [
         {row.original.origin === "legacy" && <Badge tone="neutral">Legacy</Badge>}
       </span>
     ),
-  },
-  {
-    id: "date",
-    accessorFn: (row) => row.date,
-    header: "Date",
-    cell: ({ row }) => <span className="whitespace-nowrap text-muted">{formatReportDate(row.original.date)}</span>,
   },
   {
     id: "supplier",

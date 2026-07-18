@@ -37,7 +37,7 @@ export default function CreditNotesPage() {
         loading={notes.isPending}
         searchable={(row) => `${row.number} ${row.invoiceNumber} ${row.customerName ?? ""}`}
         searchPlaceholder="Search by number, invoice or customer…"
-        defaultSort={{ id: "number", desc: true }}
+        defaultSort={{ id: "date", desc: true }}
         actions={
           <Button size="sm" onClick={() => router.push("/credit-notes/new")}>
             <Plus />
@@ -55,6 +55,14 @@ export default function CreditNotesPage() {
 }
 
 const columns: ColumnDef<CreditNoteSummary, unknown>[] = [
+  // Date leads and the list opens newest-first: a credit note is looked for by when it was raised far
+  // more often than by its number.
+  {
+    id: "date",
+    accessorFn: (row) => row.date,
+    header: "Date",
+    cell: ({ row }) => <span className="whitespace-nowrap text-muted">{formatReportDate(row.original.date)}</span>,
+  },
   {
     id: "number",
     accessorFn: (row) => row.number,
@@ -65,12 +73,6 @@ const columns: ColumnDef<CreditNoteSummary, unknown>[] = [
         {row.original.origin === "legacy" && <Badge tone="neutral">Legacy</Badge>}
       </span>
     ),
-  },
-  {
-    id: "date",
-    accessorFn: (row) => row.date,
-    header: "Date",
-    cell: ({ row }) => <span className="whitespace-nowrap text-muted">{formatReportDate(row.original.date)}</span>,
   },
   {
     id: "invoice",

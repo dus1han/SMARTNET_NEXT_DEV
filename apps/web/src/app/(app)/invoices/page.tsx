@@ -58,6 +58,14 @@ export default function InvoicesPage() {
 }
 
 const columns: ColumnDef<InvoiceSummary, unknown>[] = [
+  // Date leads and the list opens newest-first: an invoice is looked for by when it was raised far
+  // more often than by its number.
+  {
+    id: "date",
+    accessorFn: (row) => row.date,
+    header: "Date",
+    cell: ({ row }) => <span className="whitespace-nowrap text-muted">{formatReportDate(row.original.date)}</span>,
+  },
   {
     id: "number",
     accessorFn: (row) => row.number,
@@ -69,12 +77,6 @@ const columns: ColumnDef<InvoiceSummary, unknown>[] = [
         {row.original.origin === "legacy" && <Badge tone="neutral">Legacy</Badge>}
       </span>
     ),
-  },
-  {
-    id: "date",
-    accessorFn: (row) => row.date,
-    header: "Date",
-    cell: ({ row }) => <span className="whitespace-nowrap text-muted">{formatReportDate(row.original.date)}</span>,
   },
   {
     id: "customer",
