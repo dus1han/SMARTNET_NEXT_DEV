@@ -13,16 +13,18 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Download, Mail, Pencil, Printer, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
-import { convertQuotation, deleteQuotation, getQuotation } from "@/lib/quotations";
+import { convertQuotation, deleteQuotation, emailQuotation, getQuotation, quotationRecipients } from "@/lib/quotations";
 import { me } from "@/lib/auth";
 import { today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
-import { DataTable, type ColumnDef } from "@/components/data-table";
+import { DataTable, downloadExcel, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Select, Skeleton, toast } from "@/components/ui";
 import { History } from "@/components/history/history";
+import { PrintPreview } from "@/components/print-preview";
+import { EmailDocumentDialog } from "@/components/email-document-dialog";
 import type { InvoiceLineDetail } from "@/lib/invoices";
 
 export default function QuotationViewPage() {
@@ -39,6 +41,9 @@ export default function QuotationViewPage() {
 
   const user = useQuery({ queryKey: ["me"], queryFn: me });
   const [converting, setConverting] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [emailing, setEmailing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [voiding, setVoiding] = useState(false);
   const error = quotation.error as ApiError | null;
   const data = quotation.data;
@@ -67,6 +72,41 @@ export default function QuotationViewPage() {
           {isLegacy && <Badge tone="neutral">Legacy</Badge>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Download, print and email all work on a legacy quotation — the document renders from the
+              stored legacy figures, so none of them waits on the quote being adopted. */}
+          {data && (
+            <Button
+              variant="secondary"
+              pending={downloading}
+              onClick={async () => {
+                setDownloading(true);
+                try {
+                  await downloadExcel(`/api/quotations/${quotationId}/pdf`, `quotation-${data.number}.pdf`);
+                  // The download is recorded as a Print event, so History is now stale.
+                  void queryClient.invalidateQueries({ queryKey: ["history", "Quotation", String(quotationId)] });
+                } catch {
+                  toast.error("The download failed.");
+                } finally {
+                  setDownloading(false);
+                }
+              }}
+            >
+              <Download />
+              Download PDF
+            </Button>
+          )}
+          {data && (
+            <Button variant="secondary" onClick={() => setPrinting(true)}>
+              <Printer />
+              Print
+            </Button>
+          )}
+          {data && (
+            <Button variant="secondary" onClick={() => setEmailing(true)}>
+              <Mail />
+              Email
+            </Button>
+          )}
           {canModify && !converted && (
             <Button variant="secondary" onClick={() => router.push(`/quotations/${quotationId}/edit`)}>
               <Pencil />
@@ -132,17 +172,16 @@ export default function QuotationViewPage() {
 
           <Card className="p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">History</h2>
-            {isLegacy ? (
-              <p className="text-sm text-muted">
-                Imported from the legacy system — it has no change history in the new app.
+            {isLegacy && (
+              <p className="mb-3 text-sm text-muted">
+                Imported from the legacy system — anything before the migration lives in the old app.
               </p>
-            ) : (
-              <History
-                entityType="Quotation"
-                entityId={quotationId}
-                document={{ docType: "QUOTATION", docId: quotationId, title: `Quotation ${data.number}` }}
-              />
             )}
+            <History
+              entityType="Quotation"
+              entityId={quotationId}
+              document={{ docType: "QUOTATION", docId: quotationId, title: `Quotation ${data.number}` }}
+            />
           </Card>
 
           <ConvertDialog
@@ -168,6 +207,26 @@ export default function QuotationViewPage() {
               router.push("/quotations");
             }}
             voidQuotation={(reason) => deleteQuotation(quotationId, data.rowVersion, reason)}
+          />
+
+          <PrintPreview
+            open={printing}
+            onOpenChange={setPrinting}
+            path={`/api/quotations/${quotationId}/pdf`}
+            title={`Quotation ${data.number}`}
+            // Fetching it records a Print event, so the timeline is stale once it loads.
+            onLoaded={() => queryClient.invalidateQueries({ queryKey: ["history", "Quotation", String(quotationId)] })}
+          />
+
+          <EmailDocumentDialog
+            open={emailing}
+            onOpenChange={setEmailing}
+            documentId={quotationId}
+            documentLabel={`Quotation ${data.number}`}
+            queryKey="quotation"
+            fetchRecipients={quotationRecipients}
+            send={(id, contactIds) => emailQuotation(id, { contactIds })}
+            onSent={() => queryClient.invalidateQueries({ queryKey: ["history", "Quotation", String(quotationId)] })}
           />
         </>
       )}

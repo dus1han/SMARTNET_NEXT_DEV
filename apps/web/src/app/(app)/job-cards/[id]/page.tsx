@@ -8,16 +8,19 @@
  * close is refused) and reason-gated. Closing raises no invoice and moves no stock.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Mail, Printer } from "lucide-react";
 import { ApiError } from "@/lib/api";
-import { closeJobCard, getJobCard } from "@/lib/job-cards";
+import { closeJobCard, emailJobSheet, getJobCard, jobSheetRecipients } from "@/lib/job-cards";
 import { me } from "@/lib/auth";
 import { PageHeader } from "@/components/shell/app-shell";
-import { DataTable, type ColumnDef } from "@/components/data-table";
+import { DataTable, downloadExcel, type ColumnDef } from "@/components/data-table";
+import { History } from "@/components/history/history";
+import { PrintPreview } from "@/components/print-preview";
+import { EmailDocumentDialog } from "@/components/email-document-dialog";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 import type { JobCardLineDetail } from "@/lib/job-cards";
@@ -27,6 +30,16 @@ export default function JobCardViewPage() {
   const jobId = Number(id);
   const queryClient = useQueryClient();
 
+  // A job card raised from the new-job form arrives here with ?print=1, so the sheet comes up ready
+  // to print without the user having to go looking for it.
+  //
+  // Read from location rather than useSearchParams(): that hook forces the page under a Suspense
+  // boundary at build time, and this is a one-shot read of a flag, not a subscription to the query.
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("print") === "1") setPrinting(true);
+  }, []);
+
   const job = useQuery({
     queryKey: ["job-card", jobId],
     queryFn: () => getJobCard(jobId),
@@ -35,6 +48,8 @@ export default function JobCardViewPage() {
   const user = useQuery({ queryKey: ["me"], queryFn: me });
 
   const [closing, setClosing] = useState(false);
+  const [emailing, setEmailing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const error = job.error as ApiError | null;
   const data = job.data;
   const isLegacy = data?.origin === "legacy";
@@ -59,12 +74,47 @@ export default function JobCardViewPage() {
           {isLegacy && <Badge tone="neutral">Legacy</Badge>}
           {data && <Badge tone={isClosed ? "success" : "warning"}>{isClosed ? "Closed" : "Pending"}</Badge>}
         </div>
-        {canClose && (
-          <Button onClick={() => setClosing(true)}>
-            <CheckCircle2 />
-            Close job
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {data && (
+            <Button
+              variant="secondary"
+              pending={downloading}
+              onClick={async () => {
+                setDownloading(true);
+                try {
+                  await downloadExcel(`/api/job-cards/${jobId}/pdf`, `job-sheet-${data.number}.pdf`);
+                  // The download is recorded as a Print event, so History is now stale.
+                  void queryClient.invalidateQueries({ queryKey: ["history", "JobCard", String(jobId)] });
+                } catch {
+                  toast.error("The download failed.");
+                } finally {
+                  setDownloading(false);
+                }
+              }}
+            >
+              <Download />
+              Download PDF
+            </Button>
+          )}
+          {data && (
+            <Button variant="secondary" onClick={() => setPrinting(true)}>
+              <Printer />
+              Print
+            </Button>
+          )}
+          {data && (
+            <Button variant="secondary" onClick={() => setEmailing(true)}>
+              <Mail />
+              Email job sheet
+            </Button>
+          )}
+          {canClose && (
+            <Button onClick={() => setClosing(true)}>
+              <CheckCircle2 />
+              Close job
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
@@ -108,6 +158,25 @@ export default function JobCardViewPage() {
             </div>
           )}
 
+          <Card className="p-5">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">History</h2>
+            {/*
+              Shown for legacy cards too, unlike the invoice page. A legacy job card has no creation
+              trail in this app, but what happens to it *now* — the sheet emailed, downloaded, the job
+              closed — is recorded from today onwards, and that is the part staff need to see.
+            */}
+            {isLegacy && (
+              <p className="mb-3 text-sm text-muted">
+                Imported from the legacy system — anything before the migration lives in the old app.
+              </p>
+            )}
+            <History
+              entityType="JobCard"
+              entityId={jobId}
+              document={{ docType: "JOBCARD", docId: jobId, title: `Job card ${data.number}` }}
+            />
+          </Card>
+
           <CloseDialog
             open={closing}
             onOpenChange={setClosing}
@@ -115,9 +184,30 @@ export default function JobCardViewPage() {
             onClosed={() => {
               void queryClient.invalidateQueries({ queryKey: ["job-card", jobId] });
               void queryClient.invalidateQueries({ queryKey: ["job-cards"] });
+              void queryClient.invalidateQueries({ queryKey: ["history", "JobCard", String(jobId)] });
               toast.success(`Job card ${data.number} closed.`);
             }}
             close={(request) => closeJobCard(jobId, request)}
+          />
+
+          <EmailDocumentDialog
+            open={emailing}
+            onOpenChange={setEmailing}
+            documentId={jobId}
+            documentLabel={`Job sheet ${data.number}`}
+            queryKey="job-card"
+            fetchRecipients={jobSheetRecipients}
+            send={(id, contactIds) => emailJobSheet(id, { contactIds })}
+            onSent={() => queryClient.invalidateQueries({ queryKey: ["history", "JobCard", String(jobId)] })}
+          />
+
+          <PrintPreview
+            open={printing}
+            onOpenChange={setPrinting}
+            path={`/api/job-cards/${jobId}/pdf`}
+            title={`Job sheet ${data.number}`}
+            // Fetching the sheet records a Print event, so the timeline is stale once it loads.
+            onLoaded={() => queryClient.invalidateQueries({ queryKey: ["history", "JobCard", String(jobId)] })}
           />
         </>
       )}

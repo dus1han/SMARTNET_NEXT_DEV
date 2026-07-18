@@ -4,8 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using Smartnet.Api.Auditing;
 using Smartnet.Api.Auth;
 using Smartnet.Api.Contracts;
+using Smartnet.Api.Mailing;
+using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Documents;
 using Smartnet.Domain.Identity;
+using Smartnet.Domain.Reporting;
+using Smartnet.Domain.Settings;
 using Smartnet.Infrastructure.Persistence;
 using Smartnet.Infrastructure.Reporting;
 
@@ -33,6 +37,9 @@ public sealed class QuotationsController : ControllerBase
     private readonly SmartnetDbContext _db;
     private readonly SmartnetLegacyDbContext _legacy;
     private readonly ITaxEngine _tax;
+    private readonly IQuotationRenderer _quotationPdf;
+    private readonly IAuditWriter _audit;
+    private readonly DocumentMailer _mailer;
 
     public QuotationsController(
         IQuotationCreator creator,
@@ -42,7 +49,10 @@ public sealed class QuotationsController : ControllerBase
         ICompanyContext company,
         SmartnetDbContext db,
         SmartnetLegacyDbContext legacy,
-        ITaxEngine tax)
+        ITaxEngine tax,
+        IQuotationRenderer quotationPdf,
+        IAuditWriter audit,
+        DocumentMailer mailer)
     {
         _creator = creator;
         _converter = converter;
@@ -52,6 +62,9 @@ public sealed class QuotationsController : ControllerBase
         _db = db;
         _legacy = legacy;
         _tax = tax;
+        _quotationPdf = quotationPdf;
+        _audit = audit;
+        _mailer = mailer;
     }
 
     /// <summary>
@@ -121,6 +134,167 @@ public sealed class QuotationsController : ControllerBase
     /// One quotation in full — the read view. Serves both a <c>new</c> quotation and a <c>legacy</c> one
     /// adopted from the old system (its stored <c>varchar</c> figures).
     /// </summary>
+    /// <summary>This quotation as a printable PDF, in its company's own profile.</summary>
+    /// <remarks>
+    /// Serves a legacy quotation as readily as an adopted one — the renderer reads the legacy columns,
+    /// which are populated either way, so printing never waits on adoption.
+    /// </remarks>
+    [HttpGet("{id:long}/pdf")]
+    [RequirePermission(Permissions.SearchQuotation)]
+    public async Task<IActionResult> Pdf(long id, CancellationToken cancellationToken)
+    {
+        if (await VisibleQuotationAsync(id, cancellationToken).ConfigureAwait(false) is not { } quotation)
+        {
+            return NotFound();
+        }
+
+        var pdf = await _quotationPdf.RenderAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (pdf is null)
+        {
+            return NotFound();
+        }
+
+        await _audit.RecordAsync(
+            AuditAction.Print,
+            nameof(Quotation),
+            id.ToString(CultureInfo.InvariantCulture),
+            details: new { quotationNo = quotation.Number, document = "quotation" },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return File(pdf, "application/pdf", $"quotation-{quotation.Number}.pdf");
+    }
+
+    /// <summary>Who this quotation can be emailed to, and the message that would go with it.</summary>
+    [HttpGet("{id:long}/recipients")]
+    [RequirePermission(Permissions.SearchQuotation)]
+    public async Task<ActionResult<QuotationRecipients>> Recipients(long id, CancellationToken cancellationToken)
+    {
+        if (await VisibleQuotationAsync(id, cancellationToken).ConfigureAwait(false) is not { } quotation)
+        {
+            return NotFound();
+        }
+
+        var contacts = await _mailer.ContactsByCodeAsync(quotation.CustomerCode, cancellationToken).ConfigureAwait(false);
+        var (subject, body) = QuotationMessage(quotation.Number, await CompanyNameAsync(quotation.CompanyId, cancellationToken).ConfigureAwait(false));
+
+        return Ok(new QuotationRecipients(
+            contacts,
+            subject,
+            body,
+            $"quotation-{quotation.Number}.pdf",
+            await _mailer.BlockedReasonAsync(quotation.CompanyId, contacts.Count, cancellationToken).ConfigureAwait(false)));
+    }
+
+    /// <summary>Emails the quotation, as a PDF attachment, to the chosen saved contacts.</summary>
+    [HttpPost("{id:long}/email")]
+    [RequirePermission(Permissions.SearchQuotation)]
+    public async Task<ActionResult<EmailDocumentResponse>> Email(
+        long id,
+        EmailDocumentRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (await VisibleQuotationAsync(id, cancellationToken).ConfigureAwait(false) is not { } quotation)
+        {
+            return NotFound();
+        }
+
+        // Re-resolved against this customer's own contacts: otherwise a posted id could send this
+        // quotation to anybody's contact.
+        var offered = await _mailer.ContactsByCodeAsync(quotation.CustomerCode, cancellationToken).ConfigureAwait(false);
+        var chosen = offered.Where(c => request.ContactIds.Contains(c.Id)).ToList();
+
+        if (chosen.Count == 0)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "None of the chosen contacts belong to this quotation's customer.",
+            });
+        }
+
+        var pdf = await _quotationPdf.RenderAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (pdf is null)
+        {
+            return NotFound();
+        }
+
+        var (subject, body) = QuotationMessage(quotation.Number, await CompanyNameAsync(quotation.CompanyId, cancellationToken).ConfigureAwait(false));
+        var recipients = chosen.Select(c => c.Email).ToList();
+
+        var result = await _mailer.SendAsync(
+            quotation.CompanyId,
+            recipients,
+            subject,
+            body,
+            [new MailAttachment($"quotation-{quotation.Number}.pdf", "application/pdf", pdf)],
+            cancellationToken).ConfigureAwait(false);
+
+        // Recorded either way — a refusal is exactly the event someone looks for when the customer says
+        // the quotation never arrived.
+        await _audit.RecordAsync(
+            AuditAction.Email,
+            nameof(Quotation),
+            id.ToString(CultureInfo.InvariantCulture),
+            details: new
+            {
+                quotationNo = quotation.Number,
+                document = "quotation",
+                to = recipients,
+                sent = result.Sent,
+                error = result.Error,
+            },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return Ok(new EmailDocumentResponse(result.Sent, recipients, result.Error));
+    }
+
+    /// <summary>
+    /// The quotation's identity, only if the caller's companies include the one that owns it.
+    /// </summary>
+    /// <remarks>
+    /// Read off the legacy columns — <c>quotation_h</c> holds this app's quotations and the legacy ones in
+    /// the same table, and an unadopted row has nothing in the typed ones.
+    /// </remarks>
+    private async Task<VisibleQuotation?> VisibleQuotationAsync(long id, CancellationToken cancellationToken)
+    {
+        var meta = await _legacy.QuotationHs
+            .Where(q => q.Id == id)
+            .Select(q => new { q.QNo, q.Company, q.Customer })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (meta is null
+            || !long.TryParse(meta.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var companyId)
+            || !_company.Accessible.Contains(companyId))
+        {
+            return null;
+        }
+
+        return new VisibleQuotation(companyId, (meta.QNo ?? string.Empty).Trim(), meta.Customer);
+    }
+
+    private async Task<string> CompanyNameAsync(long companyId, CancellationToken cancellationToken) =>
+        await _db.Companies
+            .Where(c => c.Id == companyId)
+            .Select(c => c.Name)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false) ?? "SMARTNET";
+
+    /// <summary>The covering message. Fixed, for the reason the job sheet's is.</summary>
+    private static (string Subject, string Body) QuotationMessage(string number, string companyName) =>
+        ($"Quotation {number} — {companyName}",
+         $"""
+          <p>Dear Customer,</p>
+          <p>Please find attached our quotation <strong>{number}</strong>.</p>
+          <p>We would be happy to answer any questions about it.</p>
+          <p>Thank you,<br />{companyName}</p>
+          """);
+
+    /// <summary>A quotation the caller may see: its company, its number and its customer code.</summary>
+    private sealed record VisibleQuotation(long CompanyId, string Number, string? CustomerCode);
+
     [HttpGet("{id:long}")]
     [RequirePermission(Permissions.SearchQuotation)]
     public async Task<ActionResult<QuotationDetail>> Get(long id, CancellationToken cancellationToken)
@@ -432,7 +606,8 @@ public sealed class QuotationsController : ControllerBase
                     request.ExpectedRowVersion, request.ContactPerson, request.Validity, request.DocumentDiscountPercent,
                     [.. request.Lines.Select(l => new EditQuotationLine(
                         l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
-                    request.DocumentCost),
+                    request.DocumentCost,
+                    request.Date),
                 cancellationToken).ConfigureAwait(false);
 
             return Ok(new QuotationEditedResponse(edited.Id, edited.Number, edited.Total, edited.VersionNo));

@@ -1,11 +1,16 @@
 using System.Globalization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Smartnet.Api.Auditing;
 using Smartnet.Api.Auth;
 using Smartnet.Api.Contracts;
+using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Documents;
 using Smartnet.Domain.Identity;
+using Smartnet.Domain.MasterData;
+using Smartnet.Domain.Reporting;
+using Smartnet.Domain.Settings;
 using Smartnet.Infrastructure.Persistence;
 using Smartnet.Infrastructure.Reporting;
 
@@ -29,19 +34,31 @@ public sealed class JobCardsController : ControllerBase
     private readonly ICompanyContext _company;
     private readonly SmartnetDbContext _db;
     private readonly SmartnetLegacyDbContext _legacy;
+    private readonly IJobSheetRenderer _jobSheet;
+    private readonly IAuditWriter _audit;
+    private readonly IMailSender _mail;
+    private readonly IDataProtectionProvider _protection;
 
     public JobCardsController(
         IJobCardCreator creator,
         IJobCardWorkflow workflow,
         ICompanyContext company,
         SmartnetDbContext db,
-        SmartnetLegacyDbContext legacy)
+        SmartnetLegacyDbContext legacy,
+        IJobSheetRenderer jobSheet,
+        IAuditWriter audit,
+        IMailSender mail,
+        IDataProtectionProvider protection)
     {
         _creator = creator;
         _workflow = workflow;
         _company = company;
         _db = db;
         _legacy = legacy;
+        _jobSheet = jobSheet;
+        _audit = audit;
+        _mail = mail;
+        _protection = protection;
     }
 
     /// <summary>Every job card the caller may see, newest first — this app's own and the legacy ones.</summary>
@@ -124,6 +141,259 @@ public sealed class JobCardsController : ControllerBase
             card.Cost, card.Sell, card.CompletionRemarks, card.RowVersion, "new",
             [.. card.Lines.OrderBy(l => l.Sort).Select(l => new JobCardLineDetail(l.ItemId, l.Description, l.Serial))]));
     }
+
+    /// <summary>The job sheet for this card as a downloadable PDF, rendered in its company's own layout.</summary>
+    [HttpGet("{id:long}/pdf")]
+    [RequirePermission(Permissions.JobCards)]
+    public async Task<IActionResult> Pdf(long id, CancellationToken cancellationToken)
+    {
+        // Guard visibility by the job's company (jobs_m holds both this app's and legacy cards) before rendering.
+        var meta = await _legacy.JobsMs
+            .Where(j => j.Id == id)
+            .Select(j => new { j.Company, j.Jobno })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (meta is null
+            || !long.TryParse(meta.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var companyId)
+            || !_company.Accessible.Contains(companyId))
+        {
+            return NotFound();
+        }
+
+        var pdf = await _jobSheet.RenderAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (pdf is null)
+        {
+            return NotFound();
+        }
+
+        // "Was this sheet ever given to the customer?" is a question the History tab has to answer, and
+        // a download is how it leaves the building on paper. Recorded like the send, not like a read.
+        await _audit.RecordAsync(
+            AuditAction.Print,
+            nameof(JobCard),
+            id.ToString(CultureInfo.InvariantCulture),
+            details: new { jobNo = meta.Jobno, document = "job-sheet" },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return File(pdf, "application/pdf", $"job-sheet-{meta.Jobno}.pdf");
+    }
+
+    /// <summary>
+    /// Who this job sheet can be emailed to — the customer's saved contacts that have an address — plus
+    /// the message that would be sent, so the dialog can show it before anything leaves.
+    /// </summary>
+    [HttpGet("{id:long}/recipients")]
+    [RequirePermission(Permissions.JobCards)]
+    public async Task<ActionResult<JobSheetRecipients>> Recipients(long id, CancellationToken cancellationToken)
+    {
+        var job = await VisibleJobAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (job is null)
+        {
+            return NotFound();
+        }
+
+        var contacts = await CustomerContactsAsync(job.Customer, cancellationToken).ConfigureAwait(false);
+        var (subject, body) = JobSheetMessage(job.Jobno, await CompanyNameAsync(job.CompanyId, cancellationToken).ConfigureAwait(false));
+
+        return Ok(new JobSheetRecipients(
+            contacts,
+            subject,
+            body,
+            $"job-sheet-{job.Jobno}.pdf",
+            await SendBlockedReasonAsync(job.CompanyId, contacts, cancellationToken).ConfigureAwait(false)));
+    }
+
+    /// <summary>Emails the job sheet, as a PDF attachment, to the chosen saved contacts.</summary>
+    [HttpPost("{id:long}/email")]
+    [RequirePermission(Permissions.JobCards)]
+    public async Task<ActionResult<EmailDocumentResponse>> Email(
+        long id,
+        EmailDocumentRequest request,
+        CancellationToken cancellationToken)
+    {
+        var job = await VisibleJobAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (job is null)
+        {
+            return NotFound();
+        }
+
+        // Re-resolve from the customer's own contacts rather than trusting the posted ids: otherwise the
+        // endpoint would mail this customer's job sheet to any contact id the caller cared to name.
+        var offered = await CustomerContactsAsync(job.Customer, cancellationToken).ConfigureAwait(false);
+        var chosen = offered.Where(c => request.ContactIds.Contains(c.Id)).ToList();
+
+        if (chosen.Count == 0)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "None of the chosen contacts belong to this job card's customer.",
+            });
+        }
+
+        var settings = await _db.MailSettings
+            .FirstOrDefaultAsync(s => s.CompanyId == job.CompanyId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (settings is null)
+        {
+            return Ok(new EmailDocumentResponse(false, [], "No mail server is configured for this company."));
+        }
+
+        var pdf = await _jobSheet.RenderAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (pdf is null)
+        {
+            return NotFound();
+        }
+
+        var password = string.IsNullOrEmpty(settings.PasswordEncrypted)
+            ? null
+            : _protection.CreateProtector("Smartnet.MailSettings.Password").Unprotect(settings.PasswordEncrypted);
+
+        var (subject, body) = JobSheetMessage(job.Jobno, await CompanyNameAsync(job.CompanyId, cancellationToken).ConfigureAwait(false));
+        var recipients = chosen.Select(c => c.Email).ToList();
+
+        var result = await _mail.SendAsync(
+            settings,
+            password,
+            recipients,
+            subject,
+            body,
+            [new MailAttachment($"job-sheet-{job.Jobno}.pdf", "application/pdf", pdf)],
+            cancellationToken).ConfigureAwait(false);
+
+        // Recorded either way. A send that the server refused is exactly the event someone goes looking
+        // for when the customer says they never received it — "we tried and it bounced" is an answer.
+        await _audit.RecordAsync(
+            AuditAction.Email,
+            nameof(JobCard),
+            id.ToString(CultureInfo.InvariantCulture),
+            details: new
+            {
+                jobNo = job.Jobno,
+                document = "job-sheet",
+                to = recipients,
+                sent = result.Sent,
+                error = result.Error,
+            },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return Ok(new EmailDocumentResponse(result.Sent, recipients, result.Error));
+    }
+
+    /// <summary>The job row, only if the caller's companies include the one that owns it.</summary>
+    private async Task<VisibleJob?> VisibleJobAsync(long id, CancellationToken cancellationToken)
+    {
+        var meta = await _legacy.JobsMs
+            .Where(j => j.Id == id)
+            .Select(j => new { j.Company, j.Jobno, j.Customer })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (meta is null
+            || !long.TryParse(meta.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var companyId)
+            || !_company.Accessible.Contains(companyId))
+        {
+            return null;
+        }
+
+        return new VisibleJob(companyId, meta.Jobno ?? string.Empty, meta.Customer);
+    }
+
+    /// <summary>
+    /// The customer's saved contacts that can actually receive mail. Document contacts are ticked by
+    /// default — they are who the sheet would have been handed to — and notifications-only ones are
+    /// offered unticked rather than assumed.
+    /// </summary>
+    private async Task<List<DocumentContact>> CustomerContactsAsync(string? customerCode, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(customerCode))
+        {
+            return [];
+        }
+
+        return await _db.CustomerContacts
+            .Where(c => c.Customer.Code == customerCode && c.Email != null && c.Email != "")
+            .OrderBy(c => c.Name)
+            .Select(c => new DocumentContact(
+                c.Id,
+                c.Name,
+                c.Email!,
+                c.Usage,
+                c.Usage == ContactUsage.DocumentsAndNotifications))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<string> CompanyNameAsync(long companyId, CancellationToken cancellationToken) =>
+        await _db.Companies
+            .Where(c => c.Id == companyId)
+            .Select(c => c.Name)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false) ?? "SMARTNET";
+
+    /// <summary>
+    /// Why Send would fail, decided before the user picks anybody — an unconfigured server or the
+    /// company's send kill switch. Null when the send would genuinely be attempted.
+    /// </summary>
+    private async Task<string?> SendBlockedReasonAsync(
+        long companyId,
+        List<DocumentContact> contacts,
+        CancellationToken cancellationToken)
+    {
+        if (contacts.Count == 0)
+        {
+            return "This customer has no contact with an email address. Add one on the customer first.";
+        }
+
+        var settings = await _db.MailSettings
+            .Where(s => s.CompanyId == companyId)
+            .Select(s => new { s.Host, s.SendEnabled, s.FromAddress, s.Username })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (settings is null || string.IsNullOrWhiteSpace(settings.Host))
+        {
+            return "No mail server is configured for this company. Set one in Settings.";
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.FromAddress) && string.IsNullOrWhiteSpace(settings.Username))
+        {
+            return "No from-address is configured for this company. Set one in Settings.";
+        }
+
+        // The kill switch, reported rather than discovered: MailSender refuses the send when this is off.
+        return settings.SendEnabled
+            ? null
+            : "Sending is switched off for this company. Turn it on in Settings to send.";
+    }
+
+    /// <summary>
+    /// The job-sheet message. Fixed, not a configurable template: it says one thing, and a covering note
+    /// whose wording drifts per send is a covering note nobody can vouch for.
+    /// </summary>
+    private static (string Subject, string Body) JobSheetMessage(string jobNo, string companyName)
+    {
+        var subject = $"Job sheet {jobNo} — {companyName}";
+
+        var body =
+            $"""
+             <p>Dear Customer,</p>
+             <p>Please find attached the job sheet for <strong>{jobNo}</strong>.</p>
+             <p>Kindly present this job sheet when collecting the equipment.</p>
+             <p>Thank you,<br />{companyName}</p>
+             """;
+
+        return (subject, body);
+    }
+
+    /// <summary>A job the caller may see: its company, its number and its customer code.</summary>
+    private sealed record VisibleJob(long CompanyId, string Jobno, string? Customer);
 
     private async Task<ActionResult<JobCardDetail>> LegacyJobCardDetail(
         long id, List<long> accessible, CancellationToken cancellationToken)

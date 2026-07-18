@@ -63,7 +63,9 @@ export default function NewJobCardPage() {
         lines: filledLines.map((l) => ({ itemId: null, description: l.description || null, serial: l.serial || null })),
       });
       toast.success(`Job card ${created.number} raised.`);
-      router.push(`/job-cards/${created.id}`);
+      // Straight to the sheet, ready to print: it is signed on collection, so the person booking the
+      // job needs the paper now — not after finding the card again and hunting for a download.
+      router.push(`/job-cards/${created.id}?print=1`);
     } catch (e) {
       setError(e as ApiError);
     } finally {

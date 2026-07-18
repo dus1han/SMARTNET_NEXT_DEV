@@ -1,10 +1,15 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Smartnet.Api.Auditing;
 using Smartnet.Api.Auth;
 using Smartnet.Api.Contracts;
+using Smartnet.Api.Mailing;
+using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Documents;
 using Smartnet.Domain.Identity;
+using Smartnet.Domain.Reporting;
+using Smartnet.Domain.Settings;
 using Smartnet.Infrastructure.Persistence;
 using Smartnet.Infrastructure.Reporting;
 
@@ -30,17 +35,222 @@ public sealed class CreditNotesController : ControllerBase
     private readonly SmartnetDbContext _db;
     private readonly SmartnetLegacyDbContext _legacy;
 
+    private readonly ICreditNoteRenderer _notePdf;
+    private readonly ICreditNoteDeleter _deleter;
+    private readonly IAuditWriter _audit;
+    private readonly DocumentMailer _mailer;
+
     public CreditNotesController(
         ICreditNoteCreator creator,
         ICompanyContext company,
         SmartnetDbContext db,
-        SmartnetLegacyDbContext legacy)
+        SmartnetLegacyDbContext legacy,
+        ICreditNoteRenderer notePdf,
+        ICreditNoteDeleter deleter,
+        IAuditWriter audit,
+        DocumentMailer mailer)
     {
         _creator = creator;
         _company = company;
         _db = db;
         _legacy = legacy;
+        _notePdf = notePdf;
+        _deleter = deleter;
+        _audit = audit;
+        _mailer = mailer;
     }
+
+    /// <summary>This credit note as a printable PDF, in its company's own profile.</summary>
+    [HttpGet("{id:long}/pdf")]
+    [RequirePermission(Permissions.SearchCreditNote)]
+    public async Task<IActionResult> Pdf(long id, CancellationToken cancellationToken)
+    {
+        if (await VisibleNoteAsync(id, cancellationToken).ConfigureAwait(false) is not { } note)
+        {
+            return NotFound();
+        }
+
+        var pdf = await _notePdf.RenderAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (pdf is null)
+        {
+            return NotFound();
+        }
+
+        await _audit.RecordAsync(
+            AuditAction.Print,
+            nameof(CreditNote),
+            id.ToString(CultureInfo.InvariantCulture),
+            details: new { creditNoteNo = note.Number, document = "credit-note" },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return File(pdf, "application/pdf", $"credit-note-{note.Number}.pdf");
+    }
+
+    /// <summary>Who this credit note can be emailed to — the customer's saved contacts.</summary>
+    [HttpGet("{id:long}/recipients")]
+    [RequirePermission(Permissions.SearchCreditNote)]
+    public async Task<ActionResult<CreditNoteRecipients>> Recipients(long id, CancellationToken cancellationToken)
+    {
+        if (await VisibleNoteAsync(id, cancellationToken).ConfigureAwait(false) is not { } note)
+        {
+            return NotFound();
+        }
+
+        var contacts = await _mailer.ContactsByCodeAsync(note.CustomerCode, cancellationToken).ConfigureAwait(false);
+        var (subject, body) = NoteMessage(note.Number, note.InvoiceNo, await CompanyNameAsync(note.CompanyId, cancellationToken).ConfigureAwait(false));
+
+        return Ok(new CreditNoteRecipients(
+            contacts,
+            subject,
+            body,
+            $"credit-note-{note.Number}.pdf",
+            await _mailer.BlockedReasonAsync(note.CompanyId, contacts.Count, cancellationToken).ConfigureAwait(false)));
+    }
+
+    /// <summary>Emails the credit note, as a PDF attachment, to the chosen saved contacts.</summary>
+    [HttpPost("{id:long}/email")]
+    [RequirePermission(Permissions.SearchCreditNote)]
+    public async Task<ActionResult<EmailDocumentResponse>> Email(
+        long id,
+        EmailDocumentRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (await VisibleNoteAsync(id, cancellationToken).ConfigureAwait(false) is not { } note)
+        {
+            return NotFound();
+        }
+
+        var offered = await _mailer.ContactsByCodeAsync(note.CustomerCode, cancellationToken).ConfigureAwait(false);
+        var chosen = offered.Where(c => request.ContactIds.Contains(c.Id)).ToList();
+
+        if (chosen.Count == 0)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "None of the chosen contacts belong to this credit note's customer.",
+            });
+        }
+
+        var pdf = await _notePdf.RenderAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (pdf is null)
+        {
+            return NotFound();
+        }
+
+        var (subject, body) = NoteMessage(note.Number, note.InvoiceNo, await CompanyNameAsync(note.CompanyId, cancellationToken).ConfigureAwait(false));
+        var recipients = chosen.Select(c => c.Email).ToList();
+
+        var result = await _mailer.SendAsync(
+            note.CompanyId,
+            recipients,
+            subject,
+            body,
+            [new MailAttachment($"credit-note-{note.Number}.pdf", "application/pdf", pdf)],
+            cancellationToken).ConfigureAwait(false);
+
+        await _audit.RecordAsync(
+            AuditAction.Email,
+            nameof(CreditNote),
+            id.ToString(CultureInfo.InvariantCulture),
+            details: new
+            {
+                creditNoteNo = note.Number,
+                document = "credit-note",
+                to = recipients,
+                sent = result.Sent,
+                error = result.Error,
+            },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return Ok(new EmailDocumentResponse(result.Sent, recipients, result.Error));
+    }
+
+    /// <summary>
+    /// Voids a credit note — soft, recoverable, reason-gated.
+    /// </summary>
+    /// <remarks>
+    /// A credit note is never edited, only voided: it exists to reverse an invoice, and a correction to it
+    /// is a new note rather than a rewrite of one already sent. The ledger credit and any stock it returned
+    /// are undone through new entries — see <see cref="ICreditNoteDeleter"/>.
+    /// </remarks>
+    [HttpDelete("{id:long}")]
+    [RequirePermission(Permissions.NewCreditNote)]
+    [RequireChangeReason]
+    public async Task<ActionResult<CreditNoteDeleted>> Delete(
+        long id,
+        [FromQuery] int expectedRowVersion,
+        CancellationToken cancellationToken)
+    {
+        if (await VisibleNoteAsync(id, cancellationToken).ConfigureAwait(false) is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            return Ok(await _deleter.DeleteAsync(id, expectedRowVersion, cancellationToken).ConfigureAwait(false));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "This credit note was changed by someone else. Reload and try again.");
+        }
+    }
+
+    /// <summary>The note's identity, only if the caller's companies include the one that owns it.</summary>
+    private async Task<VisibleNote?> VisibleNoteAsync(long id, CancellationToken cancellationToken)
+    {
+        var meta = await _legacy.CnHs
+            .Where(c => c.Id == id)
+            .Select(c => new { c.Cnno, c.CompanyId, c.Invoiceno })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (meta?.CompanyId is not { } companyId || !_company.Accessible.Contains(companyId))
+        {
+            return null;
+        }
+
+        // cn_h names no customer — it belongs to the invoice it credits, and that names one.
+        var customerCode = string.IsNullOrWhiteSpace(meta.Invoiceno)
+            ? null
+            : await _legacy.InvoiceHs
+                .Where(i => i.Invoiceno == meta.Invoiceno)
+                .Select(i => i.Customer)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+        return new VisibleNote(
+            companyId,
+            (meta.Cnno ?? string.Empty).Trim(),
+            (meta.Invoiceno ?? string.Empty).Trim(),
+            customerCode);
+    }
+
+    private async Task<string> CompanyNameAsync(long companyId, CancellationToken cancellationToken) =>
+        await _db.Companies
+            .Where(c => c.Id == companyId)
+            .Select(c => c.Name)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false) ?? "SMARTNET";
+
+    /// <summary>The covering message. Fixed, as every document's is.</summary>
+    private static (string Subject, string Body) NoteMessage(string number, string invoiceNo, string companyName) =>
+        ($"Credit Note {number} — {companyName}",
+         $"""
+          <p>Dear Customer,</p>
+          <p>Please find attached credit note <strong>{number}</strong>, issued against invoice
+             <strong>{invoiceNo}</strong>.</p>
+          <p>The amount credited reduces the balance due on that invoice.</p>
+          <p>Thank you,<br />{companyName}</p>
+          """);
+
+    /// <summary>A note the caller may see: its company, its number, its invoice and its customer code.</summary>
+    private sealed record VisibleNote(long CompanyId, string Number, string InvoiceNo, string? CustomerCode);
 
     /// <summary>
     /// Every credit note the caller may see, newest first — the ones this app has raised <b>and</b> the ones
@@ -181,6 +391,7 @@ public sealed class CreditNotesController : ControllerBase
             note.TaxAmount,
             note.Total,
             "new",
+            note.RowVersion,
             [.. note.Lines.Select(l => new InvoiceLineDetail(
                 null, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
     }
@@ -227,6 +438,15 @@ public sealed class CreditNotesController : ControllerBase
         var total = LegacyValue.Money(h.Totamount);
         var kind = lines.Any(l => !string.IsNullOrWhiteSpace(l.Itemcode)) ? "Item" : "Service";
 
+        // cn_h and credit_notes are the same row; the legacy entity simply does not map row_version. Read
+        // it from the typed side so a legacy note can be voided under the same concurrency guard.
+        var rowVersion = await _db.CreditNotes
+            .IgnoreQueryFilters()
+            .Where(c => c.Id == h.Id)
+            .Select(c => c.RowVersion)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         return Ok(new CreditNoteDetail(
             h.Id,
             h.Cnno ?? "—",
@@ -245,6 +465,7 @@ public sealed class CreditNotesController : ControllerBase
             total - net, // tax = grand total less the pre-VAT net
             total,
             "legacy",
+            rowVersion,
             [.. lines.Select(l => new InvoiceLineDetail(
                 null,
                 null,

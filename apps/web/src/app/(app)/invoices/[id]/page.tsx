@@ -119,19 +119,21 @@ export default function InvoiceViewPage() {
 
           <Card className="p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">History</h2>
-            {isLegacy ? (
-              // A legacy invoice predates the new app, so it has no version snapshots or audit trail —
-              // its history lives in the old system. New invoices carry a full history from creation.
-              <p className="text-sm text-muted">
-                Imported from the legacy system — it has no change history in the new app.
+            {/*
+              Shown for legacy records too. A legacy invoice predates the new app so it carries no
+              creation trail or version snapshots — but everything that happens to it *from now on* is
+              recorded like any other document, and that is the part staff need to see.
+            */}
+            {isLegacy && (
+              <p className="mb-3 text-sm text-muted">
+                Imported from the legacy system — anything before the migration lives in the old app.
               </p>
-            ) : (
-              <History
-                entityType="Invoice"
-                entityId={invoiceId}
-                document={{ docType: "INVOICE", docId: invoiceId, title: `Invoice ${data.number}` }}
-              />
             )}
+            <History
+              entityType="Invoice"
+              entityId={invoiceId}
+              document={{ docType: "INVOICE", docId: invoiceId, title: `Invoice ${data.number}` }}
+            />
           </Card>
 
           <VoidDialog

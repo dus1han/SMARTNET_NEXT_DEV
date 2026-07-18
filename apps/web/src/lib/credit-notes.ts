@@ -2,7 +2,11 @@ import type {
   CreateCreditNoteRequest,
   CreditNoteCreatedResponse,
   CreditNoteDetail,
+  CreditNoteDeleted,
+  CreditNoteRecipients,
   CreditNoteSummary,
+  EmailDocumentRequest,
+  EmailDocumentResponse,
 } from "@smartnet/api-client";
 import { api } from "./api";
 
@@ -11,7 +15,11 @@ export type {
   CreateCreditNoteRequest,
   CreditNoteCreatedResponse,
   CreditNoteDetail,
+  CreditNoteDeleted,
+  CreditNoteRecipients,
   CreditNoteSummary,
+  EmailDocumentRequest,
+  EmailDocumentResponse,
 } from "@smartnet/api-client";
 
 /** The credit notes this app has raised, newest first. */
@@ -27,3 +35,27 @@ export const getCreditNote = (id: number) => api<CreditNoteDetail>(`/api/credit-
  */
 export const createCreditNote = (request: CreateCreditNoteRequest) =>
   api<CreditNoteCreatedResponse>("/api/credit-notes", { method: "POST", body: request });
+
+/** Who this credit note can be emailed to — the customer's saved contacts, and why a send might fail. */
+export const creditNoteRecipients = (id: number) =>
+  api<CreditNoteRecipients>(`/api/credit-notes/${id}/recipients`);
+
+/**
+ * Emails the credit note as a PDF attachment to the chosen saved contacts.
+ *
+ * Resolves 200 even when the mail server refused it — the response carries `sent` and the reason.
+ */
+export const emailCreditNote = (id: number, request: EmailDocumentRequest) =>
+  api<EmailDocumentResponse>(`/api/credit-notes/${id}/email`, { method: "POST", body: request });
+
+/**
+ * Voids a credit note — soft, recoverable, reason-gated. A stale row_version is a 409.
+ *
+ * The server reverses the ledger credit and any stock the note returned, through new entries. There is
+ * no edit: a correction to a credit note is a new note, not a rewrite of one already sent.
+ */
+export const deleteCreditNote = (id: number, expectedRowVersion: number, reason: string) =>
+  api<CreditNoteDeleted>(`/api/credit-notes/${id}?expectedRowVersion=${expectedRowVersion}`, {
+    method: "DELETE",
+    reason,
+  });
