@@ -10,6 +10,7 @@ public sealed record CompanyProfile(
     string Name,
     bool IsVatRegistered,
     string? VatNumber,
+    string? BusinessRegistrationNo,
     string? AddressLine1,
     string? AddressLine2,
     string? City,
@@ -21,7 +22,8 @@ public sealed record CompanyProfile(
     string? BankBranch,
     string? BankAccountName,
     string? BankAccountNumber,
-    string? BrandColour);
+    string? BrandColour,
+    bool HasLogo);
 
 public sealed record BusinessRule(string Key, string Value);
 

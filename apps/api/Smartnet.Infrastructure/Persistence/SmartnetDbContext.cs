@@ -47,6 +47,8 @@ public class SmartnetDbContext : DbContext
     /// <summary>The legacy <c>companies_m</c>, adopted and extended with the document header.</summary>
     public DbSet<Company> Companies => Set<Company>();
 
+    public DbSet<CompanyLogo> CompanyLogos => Set<CompanyLogo>();
+
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
 
     public DbSet<DocumentSeries> DocumentSeries => Set<DocumentSeries>();

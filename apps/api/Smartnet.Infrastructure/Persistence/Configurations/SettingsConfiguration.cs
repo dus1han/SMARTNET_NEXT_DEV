@@ -4,6 +4,20 @@ using Smartnet.Domain.Settings;
 
 namespace Smartnet.Infrastructure.Persistence.Configurations;
 
+public class CompanyLogoConfiguration : IEntityTypeConfiguration<CompanyLogo>
+{
+    public void Configure(EntityTypeBuilder<CompanyLogo> builder)
+    {
+        builder.ToTable("company_logo");
+        builder.HasKey(l => l.CompanyId);
+        builder.Property(l => l.CompanyId).HasColumnName("company_id").ValueGeneratedNever();
+        builder.Property(l => l.ContentType).HasColumnName("content_type").HasMaxLength(100).IsRequired();
+        builder.Property(l => l.Data).HasColumnName("data").HasColumnType("longblob").IsRequired();
+        builder.Property(l => l.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(l => l.UpdatedBy).HasColumnName("updated_by");
+    }
+}
+
 public class CompanyConfiguration : IEntityTypeConfiguration<Company>
 {
     public void Configure(EntityTypeBuilder<Company> builder)
@@ -21,6 +35,7 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
 
         builder.Property(c => c.IsVatRegistered).HasColumnName("is_vat_registered");
         builder.Property(c => c.VatNumber).HasColumnName("vat_number").HasMaxLength(64);
+        builder.Property(c => c.BusinessRegistrationNo).HasColumnName("business_registration_no").HasMaxLength(64);
 
         builder.Property(c => c.AddressLine1).HasColumnName("address_line1").HasMaxLength(200);
         builder.Property(c => c.AddressLine2).HasColumnName("address_line2").HasMaxLength(200);

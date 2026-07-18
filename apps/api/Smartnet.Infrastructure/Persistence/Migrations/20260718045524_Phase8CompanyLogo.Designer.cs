@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Smartnet.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Smartnet.Infrastructure.Persistence;
 namespace Smartnet.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(SmartnetDbContext))]
-    partial class SmartnetDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260718045524_Phase8CompanyLogo")]
+    partial class Phase8CompanyLogo
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3504,11 +3507,6 @@ namespace Smartnet.Infrastructure.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("varchar(16)")
                         .HasColumnName("brand_colour");
-
-                    b.Property<string>("BusinessRegistrationNo")
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)")
-                        .HasColumnName("business_registration_no");
 
                     b.Property<string>("City")
                         .HasMaxLength(100)

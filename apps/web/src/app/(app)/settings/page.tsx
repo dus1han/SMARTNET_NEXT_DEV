@@ -2,17 +2,20 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Hash, Mail, Percent, SlidersHorizontal, type LucideIcon } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiError } from "@/lib/api";
 import {
   RULE_LABELS,
+  deleteCompanyLogo,
   getBusinessRules,
   getCompany,
+  getCompanyLogoUrl,
   getMailSettings,
   getTaxRates,
   listCompanies,
   saveBusinessRules,
   saveCompany,
+  uploadCompanyLogo,
   saveMailSettings,
   sendTestEmail,
   type BusinessRule,
@@ -220,6 +223,7 @@ function CompanySection({ companyId }: { companyId: number }) {
   return (
     <CompanyForm
       profile={company.data}
+      companyId={companyId}
       onSave={(profile, reason) =>
         saveCompany(profile, reason, companyId)
           .then(() => {
@@ -232,8 +236,102 @@ function CompanySection({ companyId }: { companyId: number }) {
   );
 }
 
-function CompanyForm({ profile, onSave }: {
+/** Upload / preview / remove a company's logo — its own action (a binary upload), not part of the form save. */
+function CompanyLogoField({ companyId, hasLogo }: { companyId: number; hasLogo: boolean }) {
+  const queryClient = useQueryClient();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    void (async () => {
+      const next = hasLogo ? await getCompanyLogoUrl(companyId) : null;
+      if (!active) {
+        if (next) URL.revokeObjectURL(next);
+        return;
+      }
+      objectUrl = next;
+      setUrl(next);
+    })();
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [companyId, hasLogo]);
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["company", companyId] });
+
+  const upload = async (file: File) => {
+    setBusy(true);
+    try {
+      await uploadCompanyLogo(companyId, file);
+      toast.success("Logo updated.");
+      void refresh();
+    } catch (error) {
+      toast.error(message(error));
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await deleteCompanyLogo(companyId);
+      toast.success("Logo removed.");
+      void refresh();
+    } catch (error) {
+      toast.error(message(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-4">
+        <div className="flex h-16 w-28 items-center justify-center overflow-hidden rounded-md border border-subtle bg-surface">
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a blob object URL, not a static asset
+            <img src={url} alt="Company logo" className="max-h-full max-w-full object-contain" />
+          ) : (
+            <span className="text-xs text-muted">No logo</span>
+          )}
+        </div>
+        <div className="flex flex-col gap-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void upload(file);
+            }}
+          />
+          <Button variant="secondary" size="sm" pending={busy} onClick={() => inputRef.current?.click()}>
+            {hasLogo ? "Replace logo" : "Upload logo"}
+          </Button>
+          {hasLogo && (
+            <Button variant="ghost" size="sm" disabled={busy} onClick={remove}>
+              Remove
+            </Button>
+          )}
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-muted">
+        PNG, JPEG, GIF, WebP or SVG · up to 2 MB · prints on this company&rsquo;s documents beside the name.
+      </p>
+    </div>
+  );
+}
+
+function CompanyForm({ profile, companyId, onSave }: {
   profile: CompanyProfile;
+  companyId: number;
   onSave: (profile: CompanyProfile, reason: string) => void;
 }) {
   const [draft, setDraft] = useState(profile);
@@ -257,6 +355,12 @@ function CompanyForm({ profile, onSave }: {
           disabled={!draft.isVatRegistered}
           hint={!draft.isVatRegistered ? "Not registered for VAT." : undefined}
           onChange={(e) => set("vatNumber", e.target.value)}
+        />
+        <Input
+          label="Business registration no"
+          value={draft.businessRegistrationNo ?? ""}
+          hint="Printed on document headers."
+          onChange={(e) => set("businessRegistrationNo", e.target.value)}
         />
         <Input
           label="Address line 1"
@@ -307,6 +411,11 @@ function CompanyForm({ profile, onSave }: {
             onChange={(e) => set("bankAccountNumber", e.target.value)}
           />
         </div>
+      </div>
+
+      <div className="mt-5">
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">Branding</p>
+        <CompanyLogoField companyId={companyId} hasLogo={profile.hasLogo} />
       </div>
 
       <div className="mt-5 flex flex-wrap items-end gap-6">

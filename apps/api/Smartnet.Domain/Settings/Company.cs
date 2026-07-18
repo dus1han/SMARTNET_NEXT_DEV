@@ -37,6 +37,9 @@ public class Company : IAuditable, ISoftDeletable
     /// <summary>The VAT registration number as printed. Null when not registered.</summary>
     public string? VatNumber { get; set; }
 
+    /// <summary>The company's business/company registration number, printed on document headers.</summary>
+    public string? BusinessRegistrationNo { get; set; }
+
     // --- Document header ---------------------------------------------------------------------
 
     public string? AddressLine1 { get; set; }

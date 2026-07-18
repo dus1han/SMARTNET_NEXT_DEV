@@ -8,7 +8,7 @@ import type {
   SeriesInitialisation,
   TaxRate,
 } from "@smartnet/api-client";
-import { api } from "./api";
+import { api, API_BASE_URL } from "./api";
 
 // The types are generated from the API's OpenAPI schema — see packages/api-client. They are
 // re-exported here so a screen imports one thing, but they are NOT declared here: a hand-written
@@ -38,6 +38,40 @@ export const getCompany = (companyId: number) =>
 
 export const saveCompany = (profile: CompanyProfile, reason: string, companyId: number) =>
   api<CompanyProfile>("/api/settings/company", { method: "PUT", body: profile, reason, companyId });
+
+// The logo is a binary upload / image response, so it uses fetch directly rather than the JSON `api` helper —
+// but the same auth (the httpOnly cookie via credentials) and the same per-company header.
+
+/** The company's logo as an object URL, or null when it has none. The caller revokes the URL when done. */
+export async function getCompanyLogoUrl(companyId: number): Promise<string | null> {
+  const response = await fetch(`${API_BASE_URL}/api/settings/company/logo`, {
+    headers: { "X-Company-Id": String(companyId) },
+    credentials: "include",
+  });
+  if (response.status === 204 || !response.ok) {
+    return null;
+  }
+  const blob = await response.blob();
+  return blob.size === 0 ? null : URL.createObjectURL(blob);
+}
+
+/** Uploads (replaces) the company's logo — a PNG/JPEG/GIF/WebP/SVG up to 2 MB. */
+export async function uploadCompanyLogo(companyId: number, file: File): Promise<void> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(`${API_BASE_URL}/api/settings/company/logo`, {
+    method: "POST",
+    headers: { "X-Company-Id": String(companyId) },
+    credentials: "include",
+    body: form,
+  });
+  if (!response.ok) {
+    throw new Error((await response.text().catch(() => "")) || "The logo upload failed.");
+  }
+}
+
+export const deleteCompanyLogo = (companyId: number) =>
+  api<void>("/api/settings/company/logo", { method: "DELETE", companyId });
 
 export const getBusinessRules = (companyId: number) =>
   api<BusinessRule[]>("/api/settings/business-rules", { companyId });

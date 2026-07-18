@@ -70,8 +70,13 @@ public sealed class SettingsController : ControllerBase
     public async Task<ActionResult<CompanyProfile>> Company(CancellationToken cancellationToken)
     {
         var company = await ActiveCompany(cancellationToken).ConfigureAwait(false);
+        if (company is null)
+        {
+            return NotFound();
+        }
 
-        return company is null ? NotFound() : Ok(Profile(company));
+        var hasLogo = await _db.CompanyLogos.AnyAsync(l => l.CompanyId == company.Id, cancellationToken).ConfigureAwait(false);
+        return Ok(Profile(company, hasLogo));
     }
 
     /// <summary>The document header. Today it is hardcoded in the Crystal Reports templates.</summary>
@@ -94,6 +99,7 @@ public sealed class SettingsController : ControllerBase
         // A company that is not VAT-registered must not print a VAT number. Letting one linger in
         // the field after the flag is turned off is how it ends up on an invoice.
         company.VatNumber = request.IsVatRegistered ? request.VatNumber : null;
+        company.BusinessRegistrationNo = request.BusinessRegistrationNo;
 
         company.AddressLine1 = request.AddressLine1;
         company.AddressLine2 = request.AddressLine2;
@@ -110,7 +116,99 @@ public sealed class SettingsController : ControllerBase
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        return Ok(Profile(company));
+        var hasLogo = await _db.CompanyLogos.AnyAsync(l => l.CompanyId == company.Id, cancellationToken).ConfigureAwait(false);
+        return Ok(Profile(company, hasLogo));
+    }
+
+    // --- Company logo ------------------------------------------------------------------------
+
+    private const long MaxLogoBytes = 2 * 1024 * 1024; // 2 MB
+    private static readonly HashSet<string> AllowedLogoTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
+    };
+
+    /// <summary>The active company's logo image, or 204 if none. Served with its stored content type so the
+    /// browser and the PDF renderer decode it correctly.</summary>
+    [HttpGet("company/logo")]
+    public async Task<IActionResult> CompanyLogo(CancellationToken cancellationToken)
+    {
+        if (_companies.Active is not { } companyId)
+        {
+            return NoContent();
+        }
+
+        var logo = await _db.CompanyLogos
+            .FirstOrDefaultAsync(l => l.CompanyId == companyId, cancellationToken)
+            .ConfigureAwait(false);
+
+        return logo is null ? NoContent() : File(logo.Data, logo.ContentType);
+    }
+
+    /// <summary>Uploads (or replaces) the active company's logo — a PNG/JPEG/GIF/WebP/SVG up to 2 MB.</summary>
+    [HttpPost("company/logo")]
+    [RequestSizeLimit(MaxLogoBytes + 4096)]
+    public async Task<IActionResult> UploadCompanyLogo(IFormFile file, CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest("No file was uploaded.");
+        }
+        if (file.Length > MaxLogoBytes)
+        {
+            return BadRequest("The logo must be 2 MB or smaller.");
+        }
+        if (!AllowedLogoTypes.Contains(file.ContentType))
+        {
+            return BadRequest("The logo must be a PNG, JPEG, GIF, WebP or SVG image.");
+        }
+        if (_companies.Active is not { } companyId)
+        {
+            return NotFound();
+        }
+
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
+        var bytes = buffer.ToArray();
+
+        var logo = await _db.CompanyLogos
+            .FirstOrDefaultAsync(l => l.CompanyId == companyId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (logo is null)
+        {
+            logo = new CompanyLogo { CompanyId = companyId };
+            _db.CompanyLogos.Add(logo);
+        }
+
+        logo.ContentType = file.ContentType;
+        logo.Data = bytes;
+        logo.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return NoContent();
+    }
+
+    /// <summary>Removes the active company's logo.</summary>
+    [HttpDelete("company/logo")]
+    public async Task<IActionResult> DeleteCompanyLogo(CancellationToken cancellationToken)
+    {
+        if (_companies.Active is not { } companyId)
+        {
+            return NoContent();
+        }
+
+        var logo = await _db.CompanyLogos
+            .FirstOrDefaultAsync(l => l.CompanyId == companyId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (logo is not null)
+        {
+            _db.CompanyLogos.Remove(logo);
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return NoContent();
     }
 
     // --- Business rules ----------------------------------------------------------------------
@@ -465,10 +563,10 @@ public sealed class SettingsController : ControllerBase
         }
     }
 
-    private static CompanyProfile Profile(Company c) => new(
-        c.Id, c.Name, c.IsVatRegistered, c.VatNumber,
+    private static CompanyProfile Profile(Company c, bool hasLogo) => new(
+        c.Id, c.Name, c.IsVatRegistered, c.VatNumber, c.BusinessRegistrationNo,
         c.AddressLine1, c.AddressLine2, c.City, c.Country,
         c.Phone, c.Email, c.Website,
         c.BankName, c.BankBranch, c.BankAccountName, c.BankAccountNumber,
-        c.BrandColour);
+        c.BrandColour, hasLogo);
 }
