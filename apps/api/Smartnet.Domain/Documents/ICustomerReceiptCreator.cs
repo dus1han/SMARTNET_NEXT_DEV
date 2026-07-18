@@ -50,4 +50,20 @@ public interface ICustomerReceiptCreator
 public interface ICustomerReceiptVoider
 {
     Task VoidAsync(long receiptId, int expectedRowVersion, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Voids a payment the old system took, identified by its <c>payments</c> row id.
+    /// </summary>
+    /// <remarks>
+    /// A legacy payment has no <c>customer_receipts</c> row to void — it was never a receipt in this
+    /// system, only a row in the old table, which is why the lists show it under a negative id. Since the
+    /// ledger was rebuilt from the documents it does have a <c>Payment</c> entry, so voiding it is the
+    /// same reversal every other void performs: a compensating <c>Charge</c> that puts the receivable
+    /// back, a reversing negative row in the legacy table so the old reports net to nothing, and
+    /// <c>invoice_h.balance</c> restored.
+    ///
+    /// <para>Nothing is erased. The original payment row and its ledger entry both survive; what changes
+    /// is that a reversal now sits beside them.</para>
+    /// </remarks>
+    Task VoidLegacyAsync(long legacyPaymentId, CancellationToken cancellationToken = default);
 }

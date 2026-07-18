@@ -328,6 +328,13 @@ public sealed class CustomerReceiptsController : ControllerBase
     [RequireChangeReason]
     public async Task<IActionResult> Delete(long id, [FromQuery] int expectedRowVersion, CancellationToken cancellationToken)
     {
+        // A negative id is a payment the old system took: the lists show legacy `payments` rows under
+        // -id, because they have no customer_receipts row of their own to be identified by.
+        if (id < 0)
+        {
+            return await VoidLegacyAsync(-id, cancellationToken).ConfigureAwait(false);
+        }
+
         var accessible = _company.Accessible.ToList();
         var companyId = await _db.CustomerReceipts
             .IgnoreQueryFilters()
@@ -351,6 +358,44 @@ public sealed class CustomerReceiptsController : ControllerBase
             return Problem(
                 statusCode: StatusCodes.Status409Conflict,
                 title: "This receipt was changed by someone else. Reload and try again.");
+        }
+    }
+
+    /// <summary>
+    /// Voids a payment the old system took, guarding it by the company that owns its invoice.
+    /// </summary>
+    /// <remarks>
+    /// There is no row_version to check: a legacy payment is a row in the old table, not a document this
+    /// app versions. What guards it instead is that it can only be voided once — a second attempt finds
+    /// the reversal already there and the balance already restored.
+    /// </remarks>
+    private async Task<IActionResult> VoidLegacyAsync(long legacyPaymentId, CancellationToken cancellationToken)
+    {
+        var accessibleText = _company.Accessible
+            .Select(c => c.ToString(CultureInfo.InvariantCulture))
+            .ToHashSet(StringComparer.Ordinal);
+
+        var company = await (
+            from p in _legacy.Payments
+            join h in _legacy.InvoiceHs on p.Invoiceno equals h.Invoiceno
+            where p.Id == legacyPaymentId
+            select h.Company).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+
+        if (company is null || !accessibleText.Contains(company))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            await _voider.VoidLegacyAsync(legacyPaymentId, cancellationToken).ConfigureAwait(false);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            // The payment names no invoice, names one that is gone, or is for nothing — all data
+            // exceptions, and all worth saying plainly rather than as a 500.
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: ex.Message);
         }
     }
 }

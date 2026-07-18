@@ -4,6 +4,7 @@ using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Documents;
 using Smartnet.Domain.Ledger;
 using Smartnet.Infrastructure.Persistence;
+using Smartnet.Infrastructure.Reporting;
 
 namespace Smartnet.Infrastructure.Documents;
 
@@ -268,6 +269,85 @@ public sealed class CustomerReceiptService : ICustomerReceiptCreator, ICustomerR
     /// and <c>invoice_h.balance</c> set to the derived outstanding. A negative <paramref name="amount"/> is a
     /// void reversal.
     /// </summary>
+    /// <inheritdoc />
+    public async Task VoidLegacyAsync(long legacyPaymentId, CancellationToken cancellationToken = default)
+    {
+        var payment = await _legacy.Payments
+            .FirstOrDefaultAsync(p => p.Id == legacyPaymentId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Legacy payment {legacyPaymentId} does not exist.");
+
+        var number = payment.Invoiceno?.Trim();
+
+        if (string.IsNullOrEmpty(number))
+        {
+            throw new InvalidOperationException(
+                $"Legacy payment {legacyPaymentId} names no invoice, so there is nothing to put back.");
+        }
+
+        var invoice = await _legacy.InvoiceHs
+            .Where(i => i.Invoiceno == number)
+            .Select(i => new { i.Id, i.Customer, i.Balance })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                $"Legacy payment {legacyPaymentId} names invoice {number}, which does not exist.");
+
+        var customerId = await _db.Customers
+            .Where(c => c.Code == invoice.Customer)
+            .Select(c => c.Id)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (customerId == 0)
+        {
+            throw new InvalidOperationException(
+                $"Invoice {number} names customer '{invoice.Customer}', which is not in the customer master.");
+        }
+
+        var amount = LegacyValue.Money(payment.Amount);
+
+        if (amount == 0m)
+        {
+            throw new InvalidOperationException($"Legacy payment {legacyPaymentId} is for nothing.");
+        }
+
+        var enteredBy = await ActingUserNameAsync(cancellationToken).ConfigureAwait(false);
+        var now = _time.GetUtcNow().UtcDateTime;
+
+        await using var transaction = await _db.Database
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // The customer owes it again. Append-only: the original Payment entry stays, and this Charge sits
+        // beside it, so the pair nets to zero and the history shows both the payment and its reversal.
+        _db.ReceivablesLedger.Add(new LedgerEntry
+        {
+            CustomerId = customerId,
+            Type = LedgerEntryType.Charge,
+            Amount = amount,
+            InvoiceId = invoice.Id,
+            OccurredAt = now,
+            Note = $"Legacy payment #{legacyPaymentId} voided",
+        });
+
+        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // The legacy shadow, the same way a new receipt's void does it: a reversing negative row so the
+        // old detail nets to nothing, and the balance put back by the amount that was taken off it.
+        await DualWritePaymentAsync(
+            number,
+            -amount,
+            DateOnly.FromDateTime(now),
+            payment.Paym,
+            $"VOID {payment.Payref}".Trim(),
+            enteredBy,
+            LegacyValue.Money(invoice.Balance) + amount,
+            cancellationToken).ConfigureAwait(false);
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task DualWritePaymentAsync(
         string invoiceNumber, decimal amount, DateOnly date, string? method, string? reference, string enteredBy, decimal newBalance, CancellationToken cancellationToken)
     {

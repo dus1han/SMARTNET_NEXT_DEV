@@ -43,7 +43,17 @@ export default function SupplierInvoiceViewPage() {
   const error = invoice.error as ApiError | null;
   const data = invoice.data;
   const isLegacy = data?.origin === "legacy";
-  const canModify = data != null && !isLegacy && (user.data?.permissions.includes("supplier_in") ?? false);
+  const permitted = user.data?.permissions.includes("supplier_in") ?? false;
+
+  // Voiding works on a legacy invoice: it lives in the same supplier_invoice table, and the reversal is a
+  // no-op because a legacy invoice posted nothing to the payables ledger — so it soft-deletes and that is
+  // the whole correct effect.
+  const canVoid = data != null && permitted;
+
+  // Recording a payment stays new-only. A payment posts to payables_ledger, but a legacy invoice's
+  // outstanding is read from its `paymentstat` column and the payables ledger holds nothing for it — so a
+  // payment recorded here would not move the figure it appears to pay off.
+  const canPay = data != null && !isLegacy && permitted;
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: ["supplier-invoice", invoiceId] });
@@ -70,13 +80,13 @@ export default function SupplierInvoiceViewPage() {
           {data && <Badge tone={data.status === "Paid" ? "success" : "warning"}>{data.status}</Badge>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canModify && data!.outstanding > 0 && (
+          {canPay && data!.outstanding > 0 && (
             <Button onClick={() => setPaying(true)}>
               <Wallet />
               Record payment
             </Button>
           )}
-          {canModify && (
+          {canVoid && (
             <Button variant="secondary" onClick={() => setVoiding(true)}>
               <Trash2 />
               Void

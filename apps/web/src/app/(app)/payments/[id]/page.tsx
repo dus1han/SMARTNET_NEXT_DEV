@@ -40,7 +40,10 @@ export default function CustomerReceiptViewPage() {
   const error = receipt.error as ApiError | null;
   const data = receipt.data;
   const isLegacy = data?.origin === "legacy";
-  const canModify = data != null && !isLegacy && (user.data?.permissions.includes("payments") ?? false);
+  // A legacy payment is voidable too. It has no customer_receipts row — the list shows it under a
+  // negative id — but since the ledger was rebuilt from the documents it does have a Payment entry, so
+  // the server reverses it with a compensating Charge and a reversing row in the legacy table.
+  const canModify = data != null && (user.data?.permissions.includes("payments") ?? false);
 
   return (
     <FadeIn className="space-y-6">
