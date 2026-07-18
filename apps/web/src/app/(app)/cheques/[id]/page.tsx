@@ -14,14 +14,13 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Download, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, Printer, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { getCheque, voidCheque } from "@/lib/cheques";
 import { me } from "@/lib/auth";
 import { PageHeader } from "@/components/shell/app-shell";
 import { History } from "@/components/history/history";
 import { PrintPreview } from "@/components/print-preview";
-import { downloadExcel } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 
@@ -39,7 +38,6 @@ export default function ChequeViewPage() {
   const user = useQuery({ queryKey: ["me"], queryFn: me });
 
   const [voiding, setVoiding] = useState(false);
-  const [downloading, setDownloading] = useState(false);
 
   // A cheque raised from the new-cheque form arrives with ?print=1, so the overlay comes up ready to
   // print without the user having to go looking for it.
@@ -71,37 +69,15 @@ export default function ChequeViewPage() {
           {isLegacy && <Badge tone="neutral">Legacy</Badge>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/* Never disabled after the first print. A cheque that jams has to be printed again, and a
-              system that refuses just means somebody writes the second one out by hand. */}
+          {/* Print only — no download. A cheque overlay is meant for the stationery in the printer, and
+              a saved copy of one is a negotiable instrument sitting in somebody's downloads folder.
+              Never disabled after the first print either: a cheque that jams has to be printed again,
+              and a system that refuses just means somebody writes the second one out by hand. */}
           {data && (
-            <>
-              <Button variant="secondary" onClick={() => setPrinting(true)}>
-                <Printer />
-                Print
-              </Button>
-              <Button
-                variant="secondary"
-                pending={downloading}
-                onClick={async () => {
-                  setDownloading(true);
-                  try {
-                    await downloadExcel(`/api/cheques/${chequeId}/pdf`, `cheque-${data.chequeNumber || chequeId}.pdf`);
-                    // The download counts as a print — it produces the same overlay — so both the count
-                    // and the timeline are now stale.
-                    void queryClient.invalidateQueries({ queryKey: ["cheque", chequeId] });
-                    void queryClient.invalidateQueries({ queryKey: ["cheques"] });
-                    void queryClient.invalidateQueries({ queryKey: ["history", "Cheque", String(chequeId)] });
-                  } catch {
-                    toast.error("The download failed.");
-                  } finally {
-                    setDownloading(false);
-                  }
-                }}
-              >
-                <Download />
-                Download PDF
-              </Button>
-            </>
+            <Button variant="secondary" onClick={() => setPrinting(true)}>
+              <Printer />
+              Print
+            </Button>
           )}
           {canModify && (
             <Button variant="secondary" onClick={() => setVoiding(true)}>
