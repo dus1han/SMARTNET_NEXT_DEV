@@ -45,3 +45,18 @@ public interface IChequeVoider
 {
     Task VoidAsync(long chequeId, int expectedRowVersion, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Records that a cheque was printed.
+/// </summary>
+/// <remarks>
+/// Separate from rendering, which produces bytes and changes nothing. This is the write: it stamps the
+/// cheque's last-printed time and the legacy <c>printeddt</c> beside it, so the surviving ChequeReport
+/// still reads. The full print history is the audit trail, not this column — the legacy app kept only
+/// this one timestamp and overwrote it on every reprint, which is exactly the record that was missing.
+/// </remarks>
+public interface IChequePrintRecorder
+{
+    /// <summary>Stamps the cheque as printed now, and returns the moment recorded.</summary>
+    Task<DateTime> RecordPrintAsync(long chequeId, CancellationToken cancellationToken = default);
+}

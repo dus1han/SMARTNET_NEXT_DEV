@@ -105,4 +105,30 @@ const columns: ColumnDef<ChequeSummary, unknown>[] = [
     meta: { align: "right" },
     cell: ({ row }) => <span className="tabular font-medium text-text">{formatMoney(row.original.amount)}</span>,
   },
+  {
+    id: "printed",
+    accessorFn: (row) => row.printCount,
+    header: "Printed",
+    meta: { align: "center" },
+    // Reprints are allowed, so the count is the thing worth seeing: a cheque printed more than once is
+    // ordinary, but it should never be a surprise. A legacy cheque's prints predate the audit trail, so
+    // it reads "—" with its last-printed date in the tooltip rather than a count it cannot know.
+    cell: ({ row }) => {
+      const { printCount, lastPrintedAt, origin } = row.original;
+
+      if (printCount === 0) {
+        return (
+          <span className="text-muted" title={lastPrintedAt ? `Last printed ${formatReportDate(lastPrintedAt)} in the legacy system` : undefined}>
+            {origin === "legacy" && lastPrintedAt ? "—" : "Not printed"}
+          </span>
+        );
+      }
+
+      return (
+        <Badge tone={printCount > 1 ? "warning" : "neutral"} title={lastPrintedAt ? `Last printed ${formatReportDate(lastPrintedAt)}` : undefined}>
+          {printCount}×
+        </Badge>
+      );
+    },
+  },
 ];

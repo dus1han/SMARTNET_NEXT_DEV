@@ -33,7 +33,13 @@ public sealed record ChequeSummary(
     decimal Amount,
     string? CompanyName,
     string Source,
-    string Origin);
+    string Origin,
+
+    /// <summary>How many times it has been printed — counted from the audit trail, never stored.</summary>
+    int PrintCount,
+
+    /// <summary>The most recent print, or null if it has never been printed.</summary>
+    DateTime? LastPrintedAt);
 
 /// <summary>One cheque, in full — the read view.</summary>
 public sealed record ChequeDetail(
@@ -50,7 +56,13 @@ public sealed record ChequeDetail(
     string? CompanyName,
     string Source,
     int RowVersion,
-    string Origin);
+    string Origin,
+
+    /// <summary>How many times it has been printed — counted from the audit trail, never stored.</summary>
+    int PrintCount,
+
+    /// <summary>The most recent print, or null if it has never been printed.</summary>
+    DateTime? LastPrintedAt);
 
 /// <summary>Server-side validation for a new cheque — company, payee and a positive amount.</summary>
 public sealed class CreateChequeRequestValidator : AbstractValidator<CreateChequeRequest>

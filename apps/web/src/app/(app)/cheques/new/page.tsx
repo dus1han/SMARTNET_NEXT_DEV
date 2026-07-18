@@ -54,7 +54,9 @@ export default function NewChequePage() {
         dueDate: dueDate || null,
       });
       toast.success(`Cheque recorded — ${formatMoney(created.amount)} to ${payTo.trim()}.`);
-      router.push(`/cheques/${created.id}`);
+      // Straight to the print preview, as a new job card, quotation or invoice does — a cheque is
+      // written in order to be printed, so the preview is the next step, not a second decision.
+      router.push(`/cheques/${created.id}?print=1`);
     } catch (e) {
       setError(e as ApiError);
     } finally {

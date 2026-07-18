@@ -189,6 +189,29 @@
         }
       }
     },
+    "/api/cheques/{id}/pdf": {
+      "get": {
+        "tags": [
+          "Cheques"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/cheques": {
       "get": {
         "tags": [
@@ -7617,6 +7640,7 @@
           "id",
           "origin",
           "payTo",
+          "printCount",
           "rowVersion",
           "source"
         ],
@@ -7675,6 +7699,15 @@
           },
           "origin": {
             "type": "string"
+          },
+          "printCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastPrintedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -7775,6 +7808,7 @@
           "id",
           "origin",
           "payTo",
+          "printCount",
           "source"
         ],
         "type": "object",
@@ -7817,6 +7851,15 @@
           },
           "origin": {
             "type": "string"
+          },
+          "printCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastPrintedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           }
         },
         "additionalProperties": false

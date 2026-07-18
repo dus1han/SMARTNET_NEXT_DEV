@@ -8,7 +8,7 @@
  * close is refused) and reason-gated. Closing raises no invoice and moves no stock.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -33,12 +33,12 @@ export default function JobCardViewPage() {
   // A job card raised from the new-job form arrives here with ?print=1, so the sheet comes up ready
   // to print without the user having to go looking for it.
   //
-  // Read from location rather than useSearchParams(): that hook forces the page under a Suspense
-  // boundary at build time, and this is a one-shot read of a flag, not a subscription to the query.
-  const [printing, setPrinting] = useState(false);
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("print") === "1") setPrinting(true);
-  }, []);
+  // Read in a lazy initialiser rather than an effect: this is a one-shot read of a flag, so there is no
+  // second render to provoke. Read from location rather than useSearchParams(), which forces the page
+  // under a Suspense boundary at build time.
+  const [printing, setPrinting] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("print") === "1",
+  );
 
   const job = useQuery({
     queryKey: ["job-card", jobId],

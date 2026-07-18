@@ -4,19 +4,24 @@
  * One cheque, in full — Phase 7, slice 2.
  *
  * This app's own cheque or a legacy one. Void is soft and reason-gated (not the legacy hard delete), and only
- * for this app's own cheques. Printing is Phase 8.
+ * for this app's own cheques.
+ *
+ * A cheque may be printed as many times as it needs to be — paper jams — so the print button never locks.
+ * Every print is audited, which is what the register's count and the History panel below are reading.
  */
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Printer, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { getCheque, voidCheque } from "@/lib/cheques";
 import { me } from "@/lib/auth";
 import { PageHeader } from "@/components/shell/app-shell";
 import { History } from "@/components/history/history";
+import { PrintPreview } from "@/components/print-preview";
+import { downloadExcel } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 
@@ -34,6 +39,17 @@ export default function ChequeViewPage() {
   const user = useQuery({ queryKey: ["me"], queryFn: me });
 
   const [voiding, setVoiding] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  // A cheque raised from the new-cheque form arrives with ?print=1, so the overlay comes up ready to
+  // print without the user having to go looking for it.
+  //
+  // Read in a lazy initialiser rather than an effect: this is a one-shot read of a flag, so there is no
+  // second render to provoke and nothing to keep in sync. Read from location rather than
+  // useSearchParams(), which forces the page under a Suspense boundary at build time.
+  const [printing, setPrinting] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("print") === "1",
+  );
   const error = cheque.error as ApiError | null;
   const data = cheque.data;
   const isLegacy = data?.origin === "legacy";
@@ -54,12 +70,46 @@ export default function ChequeViewPage() {
           />
           {isLegacy && <Badge tone="neutral">Legacy</Badge>}
         </div>
-        {canModify && (
-          <Button variant="secondary" onClick={() => setVoiding(true)}>
-            <Trash2 />
-            Void
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Never disabled after the first print. A cheque that jams has to be printed again, and a
+              system that refuses just means somebody writes the second one out by hand. */}
+          {data && (
+            <>
+              <Button variant="secondary" onClick={() => setPrinting(true)}>
+                <Printer />
+                Print
+              </Button>
+              <Button
+                variant="secondary"
+                pending={downloading}
+                onClick={async () => {
+                  setDownloading(true);
+                  try {
+                    await downloadExcel(`/api/cheques/${chequeId}/pdf`, `cheque-${data.chequeNumber || chequeId}.pdf`);
+                    // The download counts as a print — it produces the same overlay — so both the count
+                    // and the timeline are now stale.
+                    void queryClient.invalidateQueries({ queryKey: ["cheque", chequeId] });
+                    void queryClient.invalidateQueries({ queryKey: ["cheques"] });
+                    void queryClient.invalidateQueries({ queryKey: ["history", "Cheque", String(chequeId)] });
+                  } catch {
+                    toast.error("The download failed.");
+                  } finally {
+                    setDownloading(false);
+                  }
+                }}
+              >
+                <Download />
+                Download PDF
+              </Button>
+            </>
+          )}
+          {canModify && (
+            <Button variant="secondary" onClick={() => setVoiding(true)}>
+              <Trash2 />
+              Void
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
@@ -77,6 +127,11 @@ export default function ChequeViewPage() {
             <Detail label="Amount" value={formatMoney(data.amount)} />
             <Detail label="Cheque date" value={data.chequeDate ? formatReportDate(data.chequeDate) : "—"} />
             <Detail label="Due date" value={data.dueDate ? formatReportDate(data.dueDate) : "—"} />
+            <Detail
+              label="Printed"
+              value={data.printCount === 0 ? "Not printed" : `${data.printCount} time${data.printCount === 1 ? "" : "s"}`}
+              sub={data.lastPrintedAt ? `Last ${formatReportDate(data.lastPrintedAt)}` : undefined}
+            />
           </div>
 
           <Card className="p-5">
@@ -99,6 +154,20 @@ export default function ChequeViewPage() {
               router.push("/cheques");
             }}
             voidCheque={(reason) => voidCheque(chequeId, data.rowVersion, reason)}
+          />
+
+          <PrintPreview
+            open={printing}
+            onOpenChange={setPrinting}
+            path={`/api/cheques/${chequeId}/pdf`}
+            title={`Cheque ${data.chequeNumber || ""}`.trim()}
+            // Fetching it records the print, so the count, the register and the timeline are all stale
+            // the moment the preview loads.
+            onLoaded={() => {
+              void queryClient.invalidateQueries({ queryKey: ["cheque", chequeId] });
+              void queryClient.invalidateQueries({ queryKey: ["cheques"] });
+              void queryClient.invalidateQueries({ queryKey: ["history", "Cheque", String(chequeId)] });
+            }}
           />
         </>
       )}

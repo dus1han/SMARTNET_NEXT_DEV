@@ -16,7 +16,7 @@ namespace Smartnet.Infrastructure.Documents;
 /// (via shadow properties) so the surviving <c>ChequeReport</c> reads a whole row. Void is soft and
 /// reason-gated — not the legacy hard delete.
 /// </remarks>
-public sealed class ChequeService : IChequeCreator, IChequeVoider
+public sealed class ChequeService : IChequeCreator, IChequeVoider, IChequePrintRecorder
 {
     private readonly SmartnetDbContext _db;
     private readonly IChangeContext _change;
@@ -27,6 +27,32 @@ public sealed class ChequeService : IChequeCreator, IChequeVoider
         _db = db;
         _change = change;
         _time = time;
+    }
+
+    /// <summary>
+    /// Stamps the cheque as printed, typed column and legacy shadow together.
+    /// </summary>
+    /// <remarks>
+    /// A reprint is allowed and overwrites this, exactly as the legacy app did — the difference is that
+    /// the audit trail now keeps every one of them, so this column being "the last print" is a summary
+    /// rather than the whole record.
+    /// </remarks>
+    public async Task<DateTime> RecordPrintAsync(long chequeId, CancellationToken cancellationToken = default)
+    {
+        var cheque = await _db.Cheques
+            .FirstOrDefaultAsync(c => c.Id == chequeId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Cheque {chequeId} does not exist.");
+
+        var printedAt = _time.GetUtcNow().UtcDateTime;
+
+        cheque.PrintedAt = printedAt;
+        _db.Entry(cheque).Property(ChequeLegacyShadow.PrintedDt).CurrentValue =
+            printedAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
+        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return printedAt;
     }
 
     public async Task<ChequeCreated> CreateAsync(NewCheque request, CancellationToken cancellationToken = default)
