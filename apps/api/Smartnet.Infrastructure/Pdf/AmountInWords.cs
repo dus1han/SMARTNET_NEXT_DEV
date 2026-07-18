@@ -11,16 +11,23 @@ namespace Smartnet.Infrastructure.Pdf;
 /// words govern — the bank pays what is written, not what is typed in the box. So this is not a
 /// formatting helper; it is the amount.
 ///
-/// <para><b>The legacy converter was wrong about cents.</b> A sample cheque for <c>438,676.80</c> printed
-/// "FOUR HUNDRED THIRTY EIGHT THOUSAND SIX HUNDRED SEVENTY SIX AND <b>EIGHT</b> CENTS ONLY" — eight
-/// cents, not eighty. It read the first decimal digit as the whole cents figure, so every amount ending
-/// in a round ten-cent value was understated by an order of magnitude in the words, and the words are the
-/// binding half. Reproducing that faithfully was never an option; this converts the full two-digit cents
-/// value.</para>
+/// <para><b>Matched against the legacy converter, output for output.</b> This reproduces
+/// <c>Smart_InvSys/AmountToText.cs</c> as it now stands, put through the same post-processing
+/// <c>ChequeController</c> applies before printing — upper-cased, " ONLY" appended, commas removed,
+/// hyphens turned into spaces. 25 amounts across the range, including every case below, were compared
+/// against the legacy code compiled and run directly rather than read and reasoned about.</para>
 ///
-/// <para>The wording otherwise follows the legacy house style, because these cheques are recognised by
-/// the people who countersign them: upper case, no "RUPEES", no "AND" between the hundreds and the tens
-/// ("FOUR HUNDRED THIRTY EIGHT"), and "ONLY" at the end to close the line against alteration.</para>
+/// <para><b>The bug that was in the printed sample is already fixed there.</b> A cheque for
+/// <c>438,676.80</c> printed "...AND <b>EIGHT</b> CENTS ONLY" because the old code did
+/// <c>n.ToString().Split('.')</c> and <c>(438676.80).ToString()</c> drops the trailing zero, leaving
+/// "8". Under it <c>.80</c> and <c>.08</c> produced an identical cheque. The legacy app now computes
+/// cents as hundredths, which is what this does; the superseded version is still in that file,
+/// commented out beneath the working one.</para>
+///
+/// <para>The wording follows the legacy house style, because these cheques are recognised by the people
+/// who countersign them: upper case, no "RUPEES", no "AND" between the hundreds and the tens ("FOUR
+/// HUNDRED THIRTY EIGHT"), no rupee words at all below a rupee ("FIFTY CENTS ONLY"), and "ONLY" closing
+/// the line against alteration.</para>
 /// </remarks>
 public static class AmountInWords
 {
@@ -37,7 +44,7 @@ public static class AmountInWords
 
     /// <summary>
     /// The full cheque line — "FOUR HUNDRED THIRTY EIGHT THOUSAND SIX HUNDRED SEVENTY SIX AND EIGHTY
-    /// CENTS ONLY". Cents are omitted when there are none.
+    /// CENTS ONLY". Cents are omitted when there are none, and rupees when the amount is under one.
     /// </summary>
     public static string Cheque(decimal amount)
     {
@@ -52,11 +59,25 @@ public static class AmountInWords
         var rupees = decimal.Truncate(rounded);
         var cents = (int)decimal.Round((rounded - rupees) * 100m, 0, MidpointRounding.AwayFromZero);
 
-        var words = new StringBuilder(Whole(rupees));
+        if (rupees == 0m && cents == 0)
+        {
+            return "ZERO ONLY";
+        }
+
+        var words = new StringBuilder();
+
+        // Under a rupee, the rupee words are left out altogether: "FIFTY CENTS ONLY", not "ZERO AND
+        // FIFTY CENTS ONLY". Matching the legacy converter, which reads better and is what is already
+        // written on the cheques in circulation.
+        if (rupees > 0m)
+        {
+            words.Append(Whole(rupees));
+        }
 
         if (cents > 0)
         {
-            words.Append(" AND ").Append(Whole(cents)).Append(" CENTS");
+            if (words.Length > 0) words.Append(" AND ");
+            words.Append(Whole(cents)).Append(" CENTS");
         }
 
         return words.Append(" ONLY").ToString();

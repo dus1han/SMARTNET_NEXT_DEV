@@ -9,7 +9,7 @@ namespace Smartnet.Tests.Pdf;
 public sealed class AmountInWordsTests
 {
     [Fact]
-    public void Writes_the_cents_the_legacy_converter_lost()
+    public void Writes_the_cents_the_printed_sample_lost()
     {
         // The sample cheque: 438,676.80 printed as "...AND EIGHT CENTS ONLY" by the old system, which
         // read the first decimal digit as the whole cents figure. Eighty cents, not eight.
@@ -36,11 +36,12 @@ public sealed class AmountInWordsTests
         AmountInWords.Cheque(amount).Should().Be(expected);
 
     [Fact]
-    public void Cents_alone_still_name_the_rupees()
+    public void An_amount_under_a_rupee_does_not_name_the_rupees()
     {
-        // "FIFTY CENTS ONLY" on its own would read as an amount with the rupees missing rather than an
-        // amount with no rupees.
-        AmountInWords.Cheque(0.50m).Should().Be("ZERO AND FIFTY CENTS ONLY");
+        // "FIFTY CENTS ONLY", not "ZERO AND FIFTY CENTS ONLY" — matching the legacy converter, which is
+        // what the cheques already in circulation read.
+        AmountInWords.Cheque(0.50m).Should().Be("FIFTY CENTS ONLY");
+        AmountInWords.Cheque(0.01m).Should().Be("ONE CENTS ONLY");
     }
 
     [Fact]
@@ -54,7 +55,7 @@ public sealed class AmountInWordsTests
     {
         // The figures box rounds to two decimals; if the words did not, a cheque could read "EIGHTY" beside
         // a printed 0.81.
-        AmountInWords.Cheque(0.805m).Should().Be("ZERO AND EIGHTY ONE CENTS ONLY");
+        AmountInWords.Cheque(0.805m).Should().Be("EIGHTY ONE CENTS ONLY");
         AmountInWords.Figures(0.805m).Should().Be("0.81");
     }
 
