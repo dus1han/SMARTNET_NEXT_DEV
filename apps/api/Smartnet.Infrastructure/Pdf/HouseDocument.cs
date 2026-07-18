@@ -59,6 +59,18 @@ public abstract class HouseDocument : IDocument
     /// <summary>The document's reference rows — its number, date, and whatever else identifies it.</summary>
     protected abstract IReadOnlyList<(string Label, string Value)> References { get; }
 
+    /// <summary>
+    /// True to print the title as a centred full-width band, with no reference column beside it.
+    /// </summary>
+    /// <remarks>
+    /// The tax invoice does this. Its references are not a short list that fits in a corner — the VAT
+    /// rules want the supplier's and the purchaser's registration details side by side, fourteen fields
+    /// of them, so they form a block of their own beneath the title rather than a column next to it.
+    /// A document that sets this supplies its references through <see cref="ComposeSections"/> instead,
+    /// and <see cref="References"/> is empty.
+    /// </remarks>
+    protected virtual bool CentredTitle => false;
+
     /// <summary>Everything between the header and the footer.</summary>
     protected abstract void ComposeSections(ColumnDescriptor sections);
 
@@ -166,7 +178,12 @@ public abstract class HouseDocument : IDocument
         {
             // Only the masthead layout prints a title band here — the boxed header already carries the
             // title and references, and repeating them would print them twice.
-            if (MastheadLayout)
+            if (MastheadLayout && CentredTitle)
+            {
+                col.Item().Background(AccentSoft).PaddingVertical(6).AlignCenter()
+                    .Text(Title).FontSize(15).Bold().FontColor(Accent).LetterSpacing(0.1f);
+            }
+            else if (MastheadLayout)
             {
                 col.Item().Row(row =>
                 {

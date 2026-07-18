@@ -72,10 +72,9 @@ export default function InvoiceViewPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Download, print and email all work on a legacy invoice — the document renders from the
-              stored legacy figures, so none of them waits on the invoice being adopted. They are absent
-              for a VAT-registered company, whose tax invoice is a separate document not yet built;
-              `canPrint` comes from the server rather than being guessed from the company name. */}
-          {data?.canPrint && (
+              stored legacy figures, so none of them waits on the invoice being adopted. A VAT-registered
+              company gets the tax invoice, a non-registered one the plain invoice; the renderer chooses. */}
+          {data && (
             <>
               <Button
                 variant="secondary"
@@ -191,29 +190,25 @@ export default function InvoiceViewPage() {
             voidInvoice={(reason) => deleteInvoice(invoiceId, data.rowVersion, reason)}
           />
 
-          {data.canPrint && (
-            <>
-              <PrintPreview
-                open={printing}
-                onOpenChange={setPrinting}
-                path={`/api/invoices/${invoiceId}/pdf`}
-                title={`Invoice ${data.number}`}
-                // Fetching it records a Print event, so the timeline is stale once it loads.
-                onLoaded={() => queryClient.invalidateQueries({ queryKey: ["history", "Invoice", String(invoiceId)] })}
-              />
+          <PrintPreview
+            open={printing}
+            onOpenChange={setPrinting}
+            path={`/api/invoices/${invoiceId}/pdf`}
+            title={`Invoice ${data.number}`}
+            // Fetching it records a Print event, so the timeline is stale once it loads.
+            onLoaded={() => queryClient.invalidateQueries({ queryKey: ["history", "Invoice", String(invoiceId)] })}
+          />
 
-              <EmailDocumentDialog
-                open={emailing}
-                onOpenChange={setEmailing}
-                documentId={invoiceId}
-                documentLabel={`Invoice ${data.number}`}
-                queryKey="invoice"
-                fetchRecipients={invoiceRecipients}
-                send={(id, contactIds) => emailInvoice(id, { contactIds })}
-                onSent={() => queryClient.invalidateQueries({ queryKey: ["history", "Invoice", String(invoiceId)] })}
-              />
-            </>
-          )}
+          <EmailDocumentDialog
+            open={emailing}
+            onOpenChange={setEmailing}
+            documentId={invoiceId}
+            documentLabel={`Invoice ${data.number}`}
+            queryKey="invoice"
+            fetchRecipients={invoiceRecipients}
+            send={(id, contactIds) => emailInvoice(id, { contactIds })}
+            onSent={() => queryClient.invalidateQueries({ queryKey: ["history", "Invoice", String(invoiceId)] })}
+          />
         </>
       )}
     </FadeIn>

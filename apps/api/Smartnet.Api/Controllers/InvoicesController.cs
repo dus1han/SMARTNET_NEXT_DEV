@@ -223,7 +223,6 @@ public sealed class InvoicesController : ControllerBase
             outstanding,
             invoice.RowVersion,
             "new",
-            CanPrint: !(company?.IsVatRegistered ?? false),
             [.. invoice.Lines.Select(l => new InvoiceLineDetail(
                 l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
     }
@@ -312,7 +311,6 @@ public sealed class InvoicesController : ControllerBase
             LegacyValue.Money(h.Balance),
             h.RowVersion, // the legacy row's version, so an edit adopts it under a real concurrency guard
             "legacy",
-            CanPrint: !(company?.IsVatRegistered ?? false),
             [.. lines.Select(l => new InvoiceLineDetail(
                 l.Id,
                 ItemIdFor(l.Itemcode),

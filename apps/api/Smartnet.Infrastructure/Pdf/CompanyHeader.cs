@@ -39,7 +39,14 @@ public static class CompanyHeader
 
         if (!string.IsNullOrWhiteSpace(c.Phone)) channels.Add("Tel: " + FormatPhone(c.Phone.Trim()));
         Add(channels, c.Email);
-        Add(channels, c.Website);
+
+        // Smart Net's website field holds its email address, so the header printed the same thing twice.
+        // Worth guarding rather than only correcting the data: a header that repeats itself looks like a
+        // rendering fault to whoever receives it, and nothing else would catch it.
+        if (!string.Equals(c.Website?.Trim(), c.Email?.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            Add(channels, c.Website);
+        }
 
         Add(registration, c.BusinessRegistrationNo, "Reg. No: ");
         if (c.IsVatRegistered) Add(registration, c.VatNumber, "VAT No: ");

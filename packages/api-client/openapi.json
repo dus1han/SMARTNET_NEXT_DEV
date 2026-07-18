@@ -10351,7 +10351,6 @@
       },
       "InvoiceDetail": {
         "required": [
-          "canPrint",
           "cost",
           "date",
           "discountAmount",
@@ -10451,9 +10450,6 @@
           },
           "origin": {
             "type": "string"
-          },
-          "canPrint": {
-            "type": "boolean"
           },
           "lines": {
             "type": "array",

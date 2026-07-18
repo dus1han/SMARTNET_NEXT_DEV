@@ -13,11 +13,16 @@ namespace Smartnet.Infrastructure.Pdf;
 /// Resolves an invoice, its customer and its company, and renders the document.
 /// </summary>
 /// <remarks>
-/// <b>Non-VAT invoices only</b> — the <c>Invoice_ST</c> replacement. A VAT-registered company returns
-/// null, because this layout carries no VAT rows and no supplier/purchaser registration block: printing
-/// it for Smart Net would hand the customer an invoice showing 209,450 with no VAT line and nothing to
-/// reclaim against. Null surfaces as a 404 on a button that should not have been offered, which is a
-/// visible gap; a silently VAT-less tax invoice is a wrong document, which is not.
+/// <b>Two documents, chosen by what the invoice actually charged.</b> An invoice with VAT on it, from a
+/// registered company, gets the tax invoice (<see cref="TaxInvoiceDocument"/>, the
+/// <c>Invoice_SN_TAX</c> replacement), which names both parties' registration numbers and the date of
+/// supply because that is what the purchaser reclaims against. Everything else gets the plain one
+/// (<see cref="InvoiceDocument"/>, replacing <c>Invoice_ST</c>).
+///
+/// <para>The legacy pack left this to whichever report a clerk picked, so the same company could issue
+/// either. Keying it to the company's registration flag alone would only move that fault: Smart Net
+/// registered part-way through its history, and its 664 earlier invoices would then reprint as tax
+/// invoices charging no tax. The document decides.</para>
 ///
 /// <para><b>Read from the legacy columns, deliberately.</b> <c>Invoice</c> and <c>InvoiceH</c> map the
 /// same <c>invoice_h</c> row — the typed <c>decimal</c>/<c>date</c> columns were added beside the
@@ -51,9 +56,10 @@ public sealed class InvoiceRenderer : IInvoiceRenderer
     /// <summary>
     /// The composed document rather than its bytes — what the drafting preview tool streams to the
     /// QuestPDF Companion, so the template is iterated against the real resolution logic rather than a
-    /// second copy of it that drifts.
+    /// second copy of it that drifts. Returns whichever of the two invoice documents this company's VAT
+    /// registration calls for.
     /// </summary>
-    public async Task<InvoiceDocument?> BuildAsync(long invoiceId, CancellationToken cancellationToken = default)
+    public async Task<IDocument?> BuildAsync(long invoiceId, CancellationToken cancellationToken = default)
     {
         var header = await _legacy.InvoiceHs
             .FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken)
@@ -69,12 +75,6 @@ public sealed class InvoiceRenderer : IInvoiceRenderer
         var company = await _db.Companies
             .FirstOrDefaultAsync(c => c.Id == companyId, cancellationToken)
             .ConfigureAwait(false);
-
-        // The tax invoice is a different document, not a flag on this one. See the class remarks.
-        if (company?.IsVatRegistered ?? false)
-        {
-            return null;
-        }
 
         var number = Trim(header.Invoiceno);
 
@@ -112,7 +112,7 @@ public sealed class InvoiceRenderer : IInvoiceRenderer
             ? null
             : await _db.Customers
                 .Where(c => c.Code == customerCode)
-                .Select(c => new { c.Name, c.Address, c.Phone })
+                .Select(c => new { c.Name, c.Address, c.Phone, c.VatNumber })
                 .FirstOrDefaultAsync(cancellationToken)
                 .ConfigureAwait(false);
 
@@ -127,6 +127,58 @@ public sealed class InvoiceRenderer : IInvoiceRenderer
         var netTotal = LegacyValue.Money(header.Novattotal);
         var total = LegacyValue.Money(header.Totamount);
         var balance = LegacyValue.Money(header.Balance);
+        var date = FormatDate(header.Indate);
+        var accent = CompanyTheme.AccentFor(companyId);
+        var logoBytes = logo is { Length: > 0 } ? logo : null;
+        var bank = BuildBank(company);
+
+        var vatRate = LegacyValue.Money(header.Vper);
+
+        // The tax invoice follows the *invoice*, not the company. Smart Net registered for VAT on
+        // 2024-09-02: its 664 earlier invoices charge no VAT and are not tax invoices, and reprinting one
+        // today under a TAX INVOICE heading with a "VAT (0%)" line would restate a historical supply as
+        // something it was not. Reading the rate off the document gets that right without needing a
+        // registration date, and it is the same reason the legacy pack's clerk-picks-the-report approach
+        // was wrong — the document decides, not whoever is printing it.
+        if ((company?.IsVatRegistered ?? false) && vatRate > 0m)
+        {
+            return new TaxInvoiceDocument(new TaxInvoiceModel(
+                Logo: logoBytes,
+                CompanyName: Trim(company.Name),
+                CompanyContact: CompanyHeader.Build(company),
+                AccentColour: accent,
+                InvoiceNo: number,
+                Date: date,
+                // The same day on every legacy invoice, because the old system had nowhere else to put
+                // it. Kept as its own field: it decides the VAT period, and the invoice date does not.
+                DateOfSupply: date,
+                Supplier: new TaxParty(
+                    Tin(company.VatNumber),
+                    Trim(company.Name),
+                    CompanyAddress(company),
+                    CompanyHeader.FormatPhone(Trim(company.Phone))),
+                Purchaser: new TaxParty(
+                    Tin(customer?.VatNumber),
+                    Trim(customer?.Name),
+                    Trim(customer?.Address),
+                    CompanyHeader.FormatPhone(Trim(customer?.Phone))),
+                ContactPerson: Trim(header.Contactperson),
+                PoNumber: PoNumber(header.Pono),
+                PreparedBy: Trim(header.Preparedby),
+                Items: items,
+                Subtotal: subtotal,
+                DiscountPercent: LegacyValue.Money(header.Discountper),
+                DiscountAmount: subtotal - netTotal,
+                NetTotal: netTotal,
+                TaxLabel: $"VAT ({Percentage(vatRate)}%)",
+                // Derived, not stored: invoice_h has no VAT column, so the tax is the grand total less
+                // the pre-VAT net — the same subtraction the legacy report did.
+                TaxAmount: total - netTotal,
+                Total: total,
+                Paid: total - balance,
+                BalanceDue: balance,
+                Bank: bank));
+        }
 
         var model = new InvoiceModel(
             Logo: logo is { Length: > 0 } ? logo : null,
@@ -189,6 +241,45 @@ public sealed class InvoiceRenderer : IInvoiceRenderer
 
         return person.Length == 0 ? formatted : $"{person} ({formatted})";
     }
+
+    /// <summary>
+    /// A registration number, or empty when the field holds a placeholder rather than one.
+    /// </summary>
+    /// <remarks>
+    /// The same habit as <see cref="PoNumber"/>, in a field that matters more. 111 of the 223 customers
+    /// have a <c>vatnum</c> with no digit in it at all — <c>-</c> for "not registered", or <c>XXXX</c> —
+    /// and others carry a real number with a dash still in front of it, which is why the first tax invoice
+    /// rendered showed a purchaser's TIN of "- 104046851-7000".
+    ///
+    /// <para>Anything without a digit is treated as absent and prints as "—", because a tax invoice
+    /// claiming the purchaser's TIN is "-" is worse than one that plainly has not got it: the second is a
+    /// gap somebody can fill, the first looks answered. Leading punctuation is stripped from the rest.</para>
+    /// </remarks>
+    private static string Tin(string? raw)
+    {
+        var value = Trim(raw);
+
+        return value.Any(char.IsDigit) ? value.TrimStart('-', '.', '/', ' ').Trim() : string.Empty;
+    }
+
+    /// <summary>
+    /// The company's address on one line — what the tax invoice's "Address" row prints.
+    /// </summary>
+    /// <remarks>
+    /// The masthead sets the same parts over several lines; here they run together, because the party
+    /// block is a grid of one-line values and a three-line address would push the two columns out of
+    /// step with each other.
+    /// </remarks>
+    private static string CompanyAddress(Company c) =>
+        string.Join(", ", new[] { c.AddressLine1, c.AddressLine2, c.City }
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => p!.Trim()));
+
+    /// <summary>A rate without trailing zeros — "18", not "18.00".</summary>
+    private static string Percentage(decimal value) =>
+        value == decimal.Truncate(value)
+            ? decimal.Truncate(value).ToString("0", CultureInfo.InvariantCulture)
+            : value.ToString("0.##", CultureInfo.InvariantCulture);
 
     /// <summary>The bank block, or null when the company has no account on file — nothing to print.</summary>
     private static BankDetails? BuildBank(Company? c) =>

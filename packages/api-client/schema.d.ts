@@ -6967,7 +6967,6 @@ export interface components {
             /** Format: int32 */
             rowVersion: number;
             origin: string;
-            canPrint: boolean;
             lines: components["schemas"]["InvoiceLineDetail"][];
         };
         InvoiceEditedResponse: {
