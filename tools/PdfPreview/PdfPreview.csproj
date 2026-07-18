@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Smartnet.PdfPreview</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MySqlConnector" Version="2.6.1" />
+    <PackageReference Include="QuestPDF" Version="2026.7.1" />
+  </ItemGroup>
+  <!-- Previews the app's real templates (one source of truth) — the model + documents come from here. -->
+  <ItemGroup>
+    <ProjectReference Include="../../apps/api/Smartnet.Infrastructure/Smartnet.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
