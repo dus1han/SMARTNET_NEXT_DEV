@@ -899,7 +899,7 @@ public sealed class ReportsController : ControllerBase
         var scope = CompanyScope(company);
         if (scope.Count == 0)
         {
-            return new DataExceptionsResponse(0, 0, 0, 0, []);
+            return new DataExceptionsResponse(0, 0, 0, 0, 0, 0, 0, []);
         }
 
         // No soft-delete filter: invoice_h holds only live rows (deletes move to del_invoice_h), exactly as
@@ -917,17 +917,55 @@ public sealed class ReportsController : ControllerBase
         // Payments and lines carry no company, so scope them by membership of the scoped invoices. Both legacy
         // tables are small enough to read whole and filter in memory (payments ~2k, lines ~13k), which avoids a
         // multi-thousand-parameter IN and naturally drops orphaned lines whose header no longer exists.
-        var payments = (await _legacy.Payments.ToListAsync(cancellationToken).ConfigureAwait(false))
+        var allPayments = await _legacy.Payments.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        var payments = allPayments
             .Where(p => p.Invoiceno != null && invoiceNos.Contains(p.Invoiceno))
+            .ToList();
+
+        // A payment naming an invoice outside the scope is not orphaned — it belongs to a company this view
+        // is not showing. Only one naming an invoice that exists nowhere is, so the test is against every
+        // invoice number rather than the scoped ones. Those are reported whatever the scope: with no invoice
+        // behind them there is no company to attribute them to, and dropping them is how they stayed hidden.
+        var everyInvoiceNo = (await _legacy.InvoiceHs
+                .Select(h => h.Invoiceno)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .Where(no => !string.IsNullOrEmpty(no))
+            .Select(no => no!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var orphanedPayments = allPayments
+            .Where(p => string.IsNullOrWhiteSpace(p.Invoiceno) || !everyInvoiceNo.Contains(p.Invoiceno!.Trim()))
             .ToList();
 
         var lines = (await _legacy.InvoiceLs.ToListAsync(cancellationToken).ConfigureAwait(false))
             .Where(l => l.Inno != null && invoiceNos.Contains(l.Inno))
             .ToList();
 
-        var customerNames = await CustomerNames(cancellationToken).ConfigureAwait(false);
+        // The payables side. supplier_invoice carries a company, so it scopes directly; supplier_inv_pay does
+        // not, and is small enough to read whole — the report matches its rows to the scoped invoices by id.
+        var supplierInvoices = await _legacy.SupplierInvoices
+            .Where(i => scope.Contains(i.Company!))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        return DataExceptionsReport.Build(invoices, payments, lines, customerNames);
+        var supplierSettlements = await _legacy.SupplierInvPays
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var customerNames = await CustomerNames(cancellationToken).ConfigureAwait(false);
+        var supplierNames = SupplierNamesFrom(await SupplierParties(cancellationToken).ConfigureAwait(false));
+
+        return DataExceptionsReport.Build(
+            invoices,
+            payments,
+            lines,
+            customerNames,
+            orphanedPayments,
+            supplierInvoices,
+            supplierSettlements,
+            supplierNames);
     }
 
     private async Task<SalesReportResponse> BuildSales(ReportPeriod period, string? company, CancellationToken cancellationToken)

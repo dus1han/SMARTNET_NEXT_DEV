@@ -1,3 +1,4 @@
+using System.Globalization;
 using FluentAssertions;
 using Smartnet.Api.Reporting;
 using Smartnet.Infrastructure.Entities;
@@ -31,6 +32,15 @@ public sealed class DataExceptionsReportTests
 
     private static InvoiceL Line(string invoiceNo, string tot) =>
         new() { Inno = invoiceNo, Tot = tot };
+
+    private static readonly IReadOnlyDictionary<string, string> SupplierNames =
+        new Dictionary<string, string>(StringComparer.Ordinal) { ["S-1"] = "Lanka Cables" };
+
+    private static SupplierInvoice SupplierInvoice(long id, string invNo, string amount, string status) =>
+        new() { Id = id, Invno = invNo, Amount = amount, Paymentstat = status, Supcode = "S-1", Company = "2" };
+
+    private static SupplierInvPay Settlement(long supplierInvoiceId) =>
+        new() { Supinvid = supplierInvoiceId.ToString(CultureInfo.InvariantCulture), PayMethod = "Cash" };
 
     [Fact]
     public void Flags_a_duplicate_payment_group_with_the_overstated_value()
@@ -120,6 +130,120 @@ public sealed class DataExceptionsReportTests
         var report = DataExceptionsReport.Build(invoices, [], lines, Names);
 
         report.LinesNotHeader.Should().Be(0);
+    }
+
+    [Fact]
+    public void Flags_an_invoice_paid_twice_weeks_apart_that_the_duplicate_rule_cannot_see()
+    {
+        // STI-38: 71,000 taken on 2025-06-12 and again on 2025-06-29. Not a duplicate by (invoice, amount,
+        // date), and the stored balance said zero, so nothing surfaced it until the payments were measured
+        // against the invoice.
+        var invoices = new[] { Invoice("STI-38", total: "71000", balance: "0") };
+        var payments = new[]
+        {
+            Pay("STI-38", "71000", "2025-06-12"),
+            Pay("STI-38", "71000", "2025-06-29"),
+        };
+
+        var report = DataExceptionsReport.Build(invoices, payments, [], Names);
+
+        report.DuplicatePayments.Should().Be(0, "the dates differ, so the duplicate key does not match");
+        report.Overpaid.Should().Be(1);
+        report.Rows.Single(r => r.Type == "Overpaid").Amount.Should().Be(71000m);
+    }
+
+    [Fact]
+    public void Instalments_that_sum_to_the_invoice_are_not_an_overpayment()
+    {
+        var invoices = new[] { Invoice("SNI-2", total: "1000", balance: "0") };
+        var payments = new[] { Pay("SNI-2", "400", "2026-01-01"), Pay("SNI-2", "600", "2026-02-01") };
+
+        var report = DataExceptionsReport.Build(invoices, payments, [], Names);
+
+        report.Overpaid.Should().Be(0);
+    }
+
+    [Fact]
+    public void A_sub_rupee_overpayment_is_rounding_not_a_defect()
+    {
+        var invoices = new[] { Invoice("SNI-3", total: "1000", balance: "0") };
+        var payments = new[] { Pay("SNI-3", "1000.40") };
+
+        var report = DataExceptionsReport.Build(invoices, payments, [], Names);
+
+        report.Overpaid.Should().Be(0);
+    }
+
+    [Fact]
+    public void Flags_a_payment_naming_an_invoice_that_does_not_exist()
+    {
+        var orphaned = new[] { Pay("SNI-1045", "66375", "2025-03-04") };
+
+        var report = DataExceptionsReport.Build([], [], [], Names, orphaned);
+
+        report.OrphanedPayments.Should().Be(1);
+        var row = report.Rows.Single(r => r.Type == "Payment without an invoice");
+        row.Reference.Should().Be("SNI-1045");
+        row.Amount.Should().Be(66375m);
+    }
+
+    [Fact]
+    public void Flags_a_payment_naming_no_invoice_at_all_under_its_own_id()
+    {
+        var orphaned = new[] { new Payment { Id = 349, Invoiceno = "", Amount = "3006" } };
+
+        var report = DataExceptionsReport.Build([], [], [], Names, orphaned);
+
+        report.OrphanedPayments.Should().Be(1);
+        report.Rows.Single(r => r.Type == "Payment without an invoice").Reference.Should().Be("Payment #349");
+    }
+
+    [Fact]
+    public void Flags_a_supplier_invoice_marked_paid_with_nothing_settling_it()
+    {
+        var invoices = new[] { SupplierInvoice(1, "SUP-9", amount: "45000", status: "Paid") };
+
+        var report = DataExceptionsReport.Build([], [], [], Names, [], invoices, [], SupplierNames);
+
+        report.SupplierSettlements.Should().Be(1);
+        var row = report.Rows.Single(r => r.Type == "Supplier paid, not settled");
+        row.CustomerName.Should().Be("Lanka Cables");
+        row.Amount.Should().Be(45000m);
+    }
+
+    [Fact]
+    public void Flags_a_supplier_invoice_settled_twice()
+    {
+        var invoices = new[] { SupplierInvoice(621, "SUP-621", amount: "12000", status: "Paid") };
+        var settlements = new[] { Settlement(621), Settlement(621) };
+
+        var report = DataExceptionsReport.Build([], [], [], Names, [], invoices, settlements, SupplierNames);
+
+        report.SupplierSettlements.Should().Be(1);
+        // Each settlement stands for the whole invoice, so the second is a second payment of the same money.
+        report.Rows.Single(r => r.Type == "Supplier settled twice").Amount.Should().Be(12000m);
+    }
+
+    [Fact]
+    public void A_pending_supplier_invoice_with_no_settlement_is_not_flagged()
+    {
+        var invoices = new[] { SupplierInvoice(2, "SUP-2", amount: "8000", status: "Pending") };
+
+        var report = DataExceptionsReport.Build([], [], [], Names, [], invoices, [], SupplierNames);
+
+        report.SupplierSettlements.Should().Be(0);
+    }
+
+    [Fact]
+    public void A_blank_supinvid_does_not_settle_the_invoice_numbered_zero()
+    {
+        // supinvid is a varchar; a blank one must not parse to 0 and quietly settle whatever holds that id.
+        var invoices = new[] { SupplierInvoice(0, "SUP-0", amount: "500", status: "Paid") };
+        var settlements = new[] { new SupplierInvPay { Id = 1, Supinvid = "", PayMethod = "Cash" } };
+
+        var report = DataExceptionsReport.Build([], [], [], Names, [], invoices, settlements, SupplierNames);
+
+        report.SupplierSettlements.Should().Be(1, "the blank settlement does not count for invoice 0");
     }
 
     [Fact]

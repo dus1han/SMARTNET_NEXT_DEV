@@ -26,7 +26,7 @@ public sealed class MailSenderGateTests
     public async Task Send_is_refused_when_the_kill_switch_is_off()
     {
         var result = await Sender.SendAsync(
-            Settings(sendEnabled: false), password: null, recipient: "debtor@example.com",
+            Settings(sendEnabled: false), password: null, recipients: ["debtor@example.com"],
             subject: "Outstanding", htmlBody: "<p>hi</p>");
 
         result.Sent.Should().BeFalse();
@@ -49,7 +49,7 @@ public sealed class MailSenderGateTests
         settings.Username = null;
 
         var result = await Sender.SendAsync(
-            settings, password: null, recipient: "debtor@example.com", subject: "s", htmlBody: "b");
+            settings, password: null, recipients: ["debtor@example.com"], subject: "s", htmlBody: "b");
 
         result.Sent.Should().BeFalse();
         result.Error.Should().Contain("from-address");

@@ -3,16 +3,21 @@
 /**
  * Data Exceptions (LEGACY-DATA-POLICY §4) — every known defect in the imported legacy data, listed live so
  * it is visible and does not quietly grow: duplicate payment groups, invoices marked paid with no payment
- * behind them, and invoices whose lines don't sum to the header.
+ * behind them, invoices whose lines don't sum to the header, invoices paid more than they were worth,
+ * payments naming an invoice that does not exist, and the supplier-side equivalents.
  *
- * Each defect offers a permission-gated, audited correction (a duplicate removed, a missing payment recorded,
- * a receivable restored) — a real, reasoned change, never a silent edit. Because the correction fixes the
- * underlying data, the exception then self-clears from the list. "Lines ≠ header" is listed but not yet
- * correctable here: it needs a per-invoice decision (which of the header or the lines is right), a later slice.
+ * Some defects offer a permission-gated, audited correction here (a duplicate removed, a missing payment
+ * recorded, a receivable restored) — a real, reasoned change, never a silent edit. Because the correction
+ * fixes the underlying data, the exception then self-clears from the list.
+ *
+ * The rest are resolved where the record lives, not from this screen, because the decision belongs to the
+ * document: an overpayment is resolved by voiding the payment that should not be there (or leaving the
+ * customer in credit, which is a true statement of the position), and a lines/header gap needs a per-invoice
+ * decision about which of the two is right. This screen's job is to make them all findable.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CopyX, FileWarning, ReceiptText } from "lucide-react";
+import { AlertTriangle, Banknote, CopyX, FileWarning, ReceiptText, Truck, Unlink } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import {
@@ -78,13 +83,15 @@ export default function DataExceptionsPage() {
     },
     {
       id: "reference",
-      header: "Invoice No",
+      // Not always an invoice now: a payment naming nothing is referenced by its own id, and the supplier
+      // rules reference a supplier invoice.
+      header: "Reference",
       accessorFn: (row) => row.reference,
       cell: ({ row }) => <span className="tabular text-text">{row.original.reference}</span>,
     },
     {
       id: "customer",
-      header: "Customer",
+      header: "Customer / supplier",
       accessorFn: (row) => row.customerName,
       cell: ({ row }) => <span className="text-text">{row.original.customerName || "—"}</span>,
     },
@@ -126,7 +133,7 @@ export default function DataExceptionsPage() {
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatTile
           label="Duplicate payments"
           icon={CopyX}
@@ -147,12 +154,35 @@ export default function DataExceptionsPage() {
           delayMs={140}
           value={data ? <AnimatedNumber value={data.linesNotHeader} format={formatCount} /> : "—"}
         />
+        <StatTile
+          label="Overpaid"
+          icon={Banknote}
+          color={data && data.overpaid > 0 ? "amber" : "emerald"}
+          delayMs={210}
+          value={data ? <AnimatedNumber value={data.overpaid} format={formatCount} /> : "—"}
+        />
+        <StatTile
+          label="Payments without an invoice"
+          icon={Unlink}
+          color={data && data.orphanedPayments > 0 ? "amber" : "emerald"}
+          delayMs={280}
+          value={data ? <AnimatedNumber value={data.orphanedPayments} format={formatCount} /> : "—"}
+        />
+        <StatTile
+          label="Supplier settlements"
+          icon={Truck}
+          color={data && data.supplierSettlements > 0 ? "amber" : "emerald"}
+          delayMs={350}
+          value={data ? <AnimatedNumber value={data.supplierSettlements} format={formatCount} /> : "—"}
+        />
       </div>
 
       <p className="flex items-start gap-2 text-sm text-muted">
         <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
         Correcting an exception writes a real, audited change with your reason — never a silent edit — and the
-        exception clears once the data is consistent again.
+        exception clears once the data is consistent again. Rows with no Resolve button are corrected on the
+        record itself: an overpaid invoice by voiding the payment that should not be there, a supplier
+        settlement from the supplier payment, and a lines/header gap by editing the invoice.
       </p>
 
       <DataTable
@@ -218,5 +248,18 @@ export default function DataExceptionsPage() {
 
 const formatCount = (n: number) => String(Math.round(n));
 
-const badgeColor = (type: string): "amber" | "rose" | "indigo" =>
-  type === "Duplicate payment" ? "amber" : type === "Paid, no payment" ? "rose" : "indigo";
+/** Rose for money that is missing or unattributed, amber for money counted twice, indigo for the rest. */
+const badgeColor = (type: string): "amber" | "rose" | "indigo" => {
+  switch (type) {
+    case "Duplicate payment":
+    case "Overpaid":
+    case "Supplier settled twice":
+      return "amber";
+    case "Paid, no payment":
+    case "Payment without an invoice":
+    case "Supplier paid, not settled":
+      return "rose";
+    default:
+      return "indigo";
+  }
+};

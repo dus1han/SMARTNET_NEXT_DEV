@@ -97,7 +97,7 @@ public sealed class LegacyInvoiceAdoptionTests
 
         await using (var db = _fixture.CreateContext(change))
         {
-            await new InvoiceDeleter(db, AdopterFor(db, change), Clock).DeleteAsync(invoiceId, rowVersion);
+            await new InvoiceDeleter(db, LegacyContext(), AdopterFor(db, change), Clock).DeleteAsync(invoiceId, rowVersion);
         }
 
         await using (var db = _fixture.CreateContext(change))

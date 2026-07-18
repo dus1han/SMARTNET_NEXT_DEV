@@ -6512,6 +6512,12 @@ export interface components {
             /** Format: int32 */
             linesNotHeader: number;
             /** Format: int32 */
+            overpaid: number;
+            /** Format: int32 */
+            orphanedPayments: number;
+            /** Format: int32 */
+            supplierSettlements: number;
+            /** Format: int32 */
             total: number;
             rows: components["schemas"]["DataExceptionRow"][];
         };

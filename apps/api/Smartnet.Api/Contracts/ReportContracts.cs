@@ -358,10 +358,16 @@ public sealed record DataExceptionRow(
 /// <param name="DuplicatePayments">Invoices still carrying a duplicate payment group.</param>
 /// <param name="PaidNoPayment">Invoices marked paid with no payment record behind them.</param>
 /// <param name="LinesNotHeader">Invoices whose line items do not sum to the header.</param>
+/// <param name="Overpaid">Invoices whose payments exceed their total, however those payments were spread.</param>
+/// <param name="OrphanedPayments">Payments naming an invoice that does not exist, or naming none.</param>
+/// <param name="SupplierSettlements">Supplier invoices paid with nothing settling them, or settled twice.</param>
 public sealed record DataExceptionsResponse(
     int DuplicatePayments,
     int PaidNoPayment,
     int LinesNotHeader,
+    int Overpaid,
+    int OrphanedPayments,
+    int SupplierSettlements,
     int Total,
     IReadOnlyList<DataExceptionRow> Rows);
 

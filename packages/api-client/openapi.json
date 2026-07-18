@@ -9303,8 +9303,11 @@
         "required": [
           "duplicatePayments",
           "linesNotHeader",
+          "orphanedPayments",
+          "overpaid",
           "paidNoPayment",
           "rows",
+          "supplierSettlements",
           "total"
         ],
         "type": "object",
@@ -9318,6 +9321,18 @@
             "format": "int32"
           },
           "linesNotHeader": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "overpaid": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "orphanedPayments": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "supplierSettlements": {
             "type": "integer",
             "format": "int32"
           },
