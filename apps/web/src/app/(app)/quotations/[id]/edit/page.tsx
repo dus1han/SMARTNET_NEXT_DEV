@@ -21,8 +21,9 @@ import { formatAmount, MINOR_UNITS_PER_MAJOR, QUANTITY_SCALE } from "@/lib/money
 import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatReportDate } from "@/components/reports";
-import { Button, Card, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
+import { Button, Card, ErrorBanner, FadeIn, Input, Select, Skeleton, toast } from "@/components/ui";
 import {
+  customerContactNames,
   LineDraftEditor,
   linesArePostable,
   toMinor,
@@ -30,6 +31,7 @@ import {
   type DocumentKind,
   type DraftLine,
 } from "@/components/documents/line-draft";
+import { listCustomers } from "@/lib/customers";
 
 const idFromKey = (key: string): number | null => (key.startsWith("srv-") ? Number(key.slice(4)) : null);
 
@@ -91,9 +93,18 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
   const router = useRouter();
   const queryClient = useQueryClient();
   const items = useQuery({ queryKey: ["items"], queryFn: listItems });
+  const customers = useQuery({ queryKey: ["customers"], queryFn: listCustomers });
+
+  // The same pick-list the New Quotation screen offers, so an edit is not the one screen where the
+  // contact has to be retyped from memory. customerContactNames returns the customer's *document*
+  // contacts only — a notifications-only contact receives mail but is never printed on a document.
+  const contactOptions = customerContactNames(
+    customers.data?.find((c) => c.code === quotation.customerCode),
+  );
 
   const [kind, setKind] = useState<DocumentKind>(quotation.lines.some((l) => l.itemId != null) ? "item" : "service");
   const [contact, setContact] = useState(quotation.contactPerson ?? "");
+  const [date, setDate] = useState(quotation.date);
   const [validity, setValidity] = useState(quotation.validity ?? "30 Days");
   const [documentDiscount, setDocumentDiscount] = useState(
     quotation.documentDiscountPercent > 0 ? String(quotation.documentDiscountPercent) : "",
@@ -122,6 +133,8 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
         quotationId,
         {
           expectedRowVersion: quotation.rowVersion,
+          // Only sent when actually moved; a changed date re-rates the quote server-side.
+          date: date !== quotation.date ? date : null,
           contactPerson: contact || null,
           validity: validity || null,
           documentDiscountPercent: docPercent,
@@ -155,7 +168,34 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
 
       <Card className="grid gap-4 p-5 sm:grid-cols-2">
-        <Input label="Contact person" value={contact} onChange={(e) => setContact(e.target.value)} />
+        <Input
+          label="Date"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          hint={
+            date !== quotation.date
+              ? "Moving the date re-quotes this at the VAT rate in force then."
+              : undefined
+          }
+        />
+        {contactOptions.length > 0 ? (
+          <Select label="Contact person" value={contact} onChange={(e) => setContact(e.target.value)}>
+            {/* The stored contact may no longer be one of the customer's — keep it selectable rather
+                than silently swapping it for another name. */}
+            {!contactOptions.includes(contact) && <option value={contact}>{contact || "Select…"}</option>}
+            {contactOptions.map((person) => (
+              <option key={person} value={person}>{person}</option>
+            ))}
+          </Select>
+        ) : (
+          <Input
+            label="Contact person"
+            value={contact}
+            onChange={(e) => setContact(e.target.value)}
+            hint={customers.isPending ? "Loading contacts…" : "This customer has no document contacts on file."}
+          />
+        )}
         <Input label="Valid for" value={validity} onChange={(e) => setValidity(e.target.value)} hint="e.g. 30 Days." />
       </Card>
 

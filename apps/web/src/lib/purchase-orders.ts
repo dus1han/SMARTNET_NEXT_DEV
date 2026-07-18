@@ -1,8 +1,14 @@
 import type {
   CreatePurchaseOrderRequest,
+  EmailDocumentRequest,
+  EmailDocumentResponse,
   InvoiceTaxRate,
   PurchaseOrderCreatedResponse,
   PurchaseOrderDetail,
+  EditPurchaseOrderRequest,
+  PurchaseOrderDeleted,
+  PurchaseOrderEditedResponse,
+  PurchaseOrderRecipients,
   PurchaseOrderSummary,
 } from "@smartnet/api-client";
 import { api } from "./api";
@@ -10,8 +16,14 @@ import { api } from "./api";
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
 export type {
   CreatePurchaseOrderRequest,
+  EmailDocumentRequest,
+  EmailDocumentResponse,
   PurchaseOrderCreatedResponse,
   PurchaseOrderDetail,
+  EditPurchaseOrderRequest,
+  PurchaseOrderDeleted,
+  PurchaseOrderEditedResponse,
+  PurchaseOrderRecipients,
   PurchaseOrderSummary,
 } from "@smartnet/api-client";
 
@@ -31,3 +43,36 @@ export const getPurchaseOrderTaxRate = (companyId: number, date: string) =>
 /** Raise a purchase order — the whole document, posted once. No ledger, no stock (an order, not a receipt). */
 export const createPurchaseOrder = (request: CreatePurchaseOrderRequest) =>
   api<PurchaseOrderCreatedResponse>("/api/purchase-orders", { method: "POST", body: request });
+
+/**
+ * Who this order can be emailed to — the supplier's addresses on file.
+ *
+ * Suppliers have no contacts table, so the addresses come from the supplier's own email column, split
+ * where it holds more than one. `blocked` says why a send would fail before any are chosen.
+ */
+export const purchaseOrderRecipients = (id: number) =>
+  api<PurchaseOrderRecipients>(`/api/purchase-orders/${id}/recipients`);
+
+/**
+ * Emails the purchase order as a PDF attachment to the chosen supplier addresses.
+ *
+ * Resolves 200 even when the mail server refused it — the response carries `sent` and the reason.
+ */
+export const emailPurchaseOrder = (id: number, request: EmailDocumentRequest) =>
+  api<EmailDocumentResponse>(`/api/purchase-orders/${id}/email`, { method: "POST", body: request });
+
+/**
+ * Edit a purchase order — versioned, reason-gated. A stale row_version is a 409.
+ *
+ * An order posts no ledger entry and no stock movement, so an edit re-values the document alone.
+ * Moving the date re-rates it at the VAT rate in force then.
+ */
+export const editPurchaseOrder = (id: number, request: EditPurchaseOrderRequest, reason: string) =>
+  api<PurchaseOrderEditedResponse>(`/api/purchase-orders/${id}`, { method: "PUT", body: request, reason });
+
+/** Void a purchase order — soft, recoverable, reason-gated. Nothing to reverse; an order posted nothing. */
+export const deletePurchaseOrder = (id: number, expectedRowVersion: number, reason: string) =>
+  api<PurchaseOrderDeleted>(`/api/purchase-orders/${id}?expectedRowVersion=${expectedRowVersion}`, {
+    method: "DELETE",
+    reason,
+  });

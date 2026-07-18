@@ -75,15 +75,40 @@ public sealed class QuotationEditor : IQuotationEditor
             ? TaxRounding.PerDocument
             : TaxRounding.PerLine;
 
-        var rateName = quotation.TaxRatePercentage == 0m
-            ? "No VAT"
-            : $"VAT {quotation.TaxRatePercentage.ToString("0.##", CultureInfo.InvariantCulture)}%";
+        // Moving the date re-rates the quote at the rate in force then; leaving it alone keeps the one it
+        // was quoted under. Simpler than the invoice's equivalent because a quotation posts nothing — no
+        // ledger entry and no stock movement — so there is nothing to move with it. A spent (converted)
+        // quote never reaches here: the guard above refuses the edit outright.
+        TaxCalculationResult calc;
 
-        var calc = _tax.Calculate(new TaxCalculationRequest(
-            quotation.Date, company.IsVatRegistered, rounding,
-            [.. request.Lines.Select(l => new TaxLineInput(l.Quantity, l.UnitPrice, l.DiscountPercent))],
-            AvailableRates: [], request.DocumentDiscountPercent,
-            RateOverride: new TaxRateOverride(quotation.TaxRateId, rateName, quotation.TaxRatePercentage)));
+        if (request.Date is { } moved && moved != quotation.Date)
+        {
+            var rates = await _db.TaxRates
+                .Where(r => r.CompanyId == company.Id)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            calc = _tax.Calculate(new TaxCalculationRequest(
+                moved, company.IsVatRegistered, rounding,
+                [.. request.Lines.Select(l => new TaxLineInput(l.Quantity, l.UnitPrice, l.DiscountPercent))],
+                rates, request.DocumentDiscountPercent));
+
+            quotation.Date = moved;
+            quotation.TaxRateId = calc.TaxRateId;
+            quotation.TaxRatePercentage = calc.TaxRatePercentage;
+        }
+        else
+        {
+            var rateName = quotation.TaxRatePercentage == 0m
+                ? "No VAT"
+                : $"VAT {quotation.TaxRatePercentage.ToString("0.##", CultureInfo.InvariantCulture)}%";
+
+            calc = _tax.Calculate(new TaxCalculationRequest(
+                quotation.Date, company.IsVatRegistered, rounding,
+                [.. request.Lines.Select(l => new TaxLineInput(l.Quantity, l.UnitPrice, l.DiscountPercent))],
+                AvailableRates: [], request.DocumentDiscountPercent,
+                RateOverride: new TaxRateOverride(quotation.TaxRateId, rateName, quotation.TaxRatePercentage)));
+        }
 
         ReconcileLines(quotation, request, calc);
 

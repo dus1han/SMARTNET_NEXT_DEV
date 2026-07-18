@@ -35,7 +35,13 @@ public sealed record EditInvoice(
     decimal DocumentDiscountPercent,
     IReadOnlyList<EditInvoiceLine> Lines,
     // A service invoice's document-level cost; null for an item invoice (cost derived from the lines).
-    decimal? DocumentCost = null);
+    decimal? DocumentCost = null,
+    /// <summary>
+    /// The document date, or null to leave it. Changing it re-rates the invoice at the new date — the rate
+    /// in force then, not the one it was issued under — and moves its ledger and stock entries to match, so
+    /// the document and everything it posted stay in one period. Refused once anything depends on it.
+    /// </summary>
+    DateOnly? Date = null);
 
 /// <summary>What the caller gets back after an edit — the new figures and the version it wrote.</summary>
 public sealed record InvoiceEdited(long Id, string Number, decimal Total, decimal Outstanding, int VersionNo);

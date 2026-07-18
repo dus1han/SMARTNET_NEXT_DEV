@@ -1,10 +1,15 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Smartnet.Api.Auditing;
 using Smartnet.Api.Auth;
 using Smartnet.Api.Contracts;
+using Smartnet.Api.Mailing;
+using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Documents;
 using Smartnet.Domain.Identity;
+using Smartnet.Domain.Reporting;
+using Smartnet.Domain.Settings;
 using Smartnet.Infrastructure.Persistence;
 using Smartnet.Infrastructure.Reporting;
 
@@ -29,19 +34,257 @@ public sealed class PurchaseOrdersController : ControllerBase
     private readonly SmartnetLegacyDbContext _legacy;
     private readonly ITaxEngine _tax;
 
+    private readonly IPurchaseOrderRenderer _orderPdf;
+    private readonly IPurchaseOrderEditor _editor;
+    private readonly IPurchaseOrderDeleter _deleter;
+    private readonly IAuditWriter _audit;
+    private readonly DocumentMailer _mailer;
+
     public PurchaseOrdersController(
         IPurchaseOrderCreator creator,
         ICompanyContext company,
         SmartnetDbContext db,
         SmartnetLegacyDbContext legacy,
-        ITaxEngine tax)
+        ITaxEngine tax,
+        IPurchaseOrderRenderer orderPdf,
+        IPurchaseOrderEditor editor,
+        IPurchaseOrderDeleter deleter,
+        IAuditWriter audit,
+        DocumentMailer mailer)
     {
+        _editor = editor;
+        _deleter = deleter;
         _creator = creator;
         _company = company;
         _db = db;
         _legacy = legacy;
         _tax = tax;
+        _orderPdf = orderPdf;
+        _audit = audit;
+        _mailer = mailer;
     }
+
+    /// <summary>
+    /// Edits a purchase order — versioned, reason-gated, concurrency-guarded.
+    /// </summary>
+    /// <remarks>
+    /// An order posts no ledger entry and no stock movement, so an edit re-values the document and nothing
+    /// else. Moving the date re-rates it at the rate in force then.
+    /// </remarks>
+    [HttpPut("{id:long}")]
+    [RequirePermission(Permissions.PurchaseOrder)]
+    [RequireChangeReason]
+    public async Task<ActionResult<PurchaseOrderEditedResponse>> Edit(
+        long id,
+        EditPurchaseOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (await VisibleOrderAsync(id, cancellationToken).ConfigureAwait(false) is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var edited = await _editor.EditAsync(
+                id,
+                new EditPurchaseOrder(
+                    request.ExpectedRowVersion,
+                    request.DocumentDiscountPercent,
+                    [.. request.Lines.Select(l => new EditPurchaseOrderLine(
+                        l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
+                    request.DocumentCost,
+                    request.Date),
+                cancellationToken).ConfigureAwait(false);
+
+            return Ok(new PurchaseOrderEditedResponse(edited.Id, edited.Number, edited.Total, edited.VersionNo));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "This purchase order was changed by someone else while you were editing it. Reload and try again.");
+        }
+    }
+
+    /// <summary>Voids a purchase order — soft, recoverable, reason-gated. Nothing to reverse.</summary>
+    [HttpDelete("{id:long}")]
+    [RequirePermission(Permissions.PurchaseOrder)]
+    [RequireChangeReason]
+    public async Task<ActionResult<PurchaseOrderDeleted>> Delete(
+        long id,
+        [FromQuery] int expectedRowVersion,
+        CancellationToken cancellationToken)
+    {
+        if (await VisibleOrderAsync(id, cancellationToken).ConfigureAwait(false) is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            return Ok(await _deleter.DeleteAsync(id, expectedRowVersion, cancellationToken).ConfigureAwait(false));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "This purchase order was changed by someone else. Reload and try again.");
+        }
+    }
+
+    /// <summary>This purchase order as a printable PDF, in its company's own profile.</summary>
+    /// <remarks>Serves a legacy order as readily as an adopted one — the renderer reads the legacy columns.</remarks>
+    [HttpGet("{id:long}/pdf")]
+    [RequirePermission(Permissions.SearchPurchaseOrder)]
+    public async Task<IActionResult> Pdf(long id, CancellationToken cancellationToken)
+    {
+        if (await VisibleOrderAsync(id, cancellationToken).ConfigureAwait(false) is not { } order)
+        {
+            return NotFound();
+        }
+
+        var pdf = await _orderPdf.RenderAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (pdf is null)
+        {
+            return NotFound();
+        }
+
+        await _audit.RecordAsync(
+            AuditAction.Print,
+            nameof(PurchaseOrder),
+            id.ToString(CultureInfo.InvariantCulture),
+            details: new { orderNo = order.Number, document = "purchase-order" },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return File(pdf, "application/pdf", $"purchase-order-{order.Number}.pdf");
+    }
+
+    /// <summary>Who this order can be emailed to — the supplier's addresses on file.</summary>
+    [HttpGet("{id:long}/recipients")]
+    [RequirePermission(Permissions.SearchPurchaseOrder)]
+    public async Task<ActionResult<PurchaseOrderRecipients>> Recipients(long id, CancellationToken cancellationToken)
+    {
+        if (await VisibleOrderAsync(id, cancellationToken).ConfigureAwait(false) is not { } order)
+        {
+            return NotFound();
+        }
+
+        var contacts = await _mailer.ContactsBySupplierCodeAsync(order.SupplierCode, cancellationToken).ConfigureAwait(false);
+        var (subject, body) = OrderMessage(order.Number, await CompanyNameAsync(order.CompanyId, cancellationToken).ConfigureAwait(false));
+
+        var blocked = contacts.Count == 0
+            ? "This supplier has no email address on file. Add one on the supplier first."
+            : await _mailer.BlockedReasonAsync(order.CompanyId, contacts.Count, cancellationToken).ConfigureAwait(false);
+
+        return Ok(new PurchaseOrderRecipients(
+            contacts,
+            subject,
+            body,
+            $"purchase-order-{order.Number}.pdf",
+            blocked));
+    }
+
+    /// <summary>Emails the purchase order, as a PDF attachment, to the chosen supplier addresses.</summary>
+    [HttpPost("{id:long}/email")]
+    [RequirePermission(Permissions.PurchaseOrder)]
+    public async Task<ActionResult<EmailDocumentResponse>> Email(
+        long id,
+        EmailDocumentRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (await VisibleOrderAsync(id, cancellationToken).ConfigureAwait(false) is not { } order)
+        {
+            return NotFound();
+        }
+
+        // Re-resolved against this order's own supplier: a posted id cannot address anybody else.
+        var offered = await _mailer.ContactsBySupplierCodeAsync(order.SupplierCode, cancellationToken).ConfigureAwait(false);
+        var chosen = offered.Where(c => request.ContactIds.Contains(c.Id)).ToList();
+
+        if (chosen.Count == 0)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "None of the chosen addresses belong to this order's supplier.",
+            });
+        }
+
+        var pdf = await _orderPdf.RenderAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (pdf is null)
+        {
+            return NotFound();
+        }
+
+        var (subject, body) = OrderMessage(order.Number, await CompanyNameAsync(order.CompanyId, cancellationToken).ConfigureAwait(false));
+        var recipients = chosen.Select(c => c.Email).ToList();
+
+        var result = await _mailer.SendAsync(
+            order.CompanyId,
+            recipients,
+            subject,
+            body,
+            [new MailAttachment($"purchase-order-{order.Number}.pdf", "application/pdf", pdf)],
+            cancellationToken).ConfigureAwait(false);
+
+        await _audit.RecordAsync(
+            AuditAction.Email,
+            nameof(PurchaseOrder),
+            id.ToString(CultureInfo.InvariantCulture),
+            details: new
+            {
+                orderNo = order.Number,
+                document = "purchase-order",
+                to = recipients,
+                sent = result.Sent,
+                error = result.Error,
+            },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return Ok(new EmailDocumentResponse(result.Sent, recipients, result.Error));
+    }
+
+    /// <summary>The order's identity, only if the caller's companies include the one that owns it.</summary>
+    private async Task<VisibleOrder?> VisibleOrderAsync(long id, CancellationToken cancellationToken)
+    {
+        var meta = await _legacy.PoHs
+            .Where(p => p.Id == id)
+            .Select(p => new { p.PoNo, p.Company, p.Supplier })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (meta is null
+            || !long.TryParse(meta.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var companyId)
+            || !_company.Accessible.Contains(companyId))
+        {
+            return null;
+        }
+
+        return new VisibleOrder(companyId, (meta.PoNo ?? string.Empty).Trim(), meta.Supplier);
+    }
+
+    private async Task<string> CompanyNameAsync(long companyId, CancellationToken cancellationToken) =>
+        await _db.Companies
+            .Where(c => c.Id == companyId)
+            .Select(c => c.Name)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false) ?? "SMARTNET";
+
+    /// <summary>The covering message. Fixed, as the job sheet's and the quotation's are.</summary>
+    private static (string Subject, string Body) OrderMessage(string number, string companyName) =>
+        ($"Purchase Order {number} — {companyName}",
+         $"""
+          <p>Dear Supplier,</p>
+          <p>Please find attached our purchase order <strong>{number}</strong>.</p>
+          <p>Kindly quote this order number on your invoice and delivery note.</p>
+          <p>Thank you,<br />{companyName}</p>
+          """);
+
+    /// <summary>An order the caller may see: its company, its number and its supplier code.</summary>
+    private sealed record VisibleOrder(long CompanyId, string Number, string? SupplierCode);
 
     /// <summary>
     /// Every purchase order the caller may see, newest first — the ones this app has raised <b>and</b> the

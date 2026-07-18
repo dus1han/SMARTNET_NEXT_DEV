@@ -74,6 +74,19 @@ public sealed class InvoiceEditor : IInvoiceEditor
             throw new InvoiceHasPaymentsException(invoice.Number);
         }
 
+        // A credited invoice is not editable either, for the same reason: the credit note was raised against
+        // these figures and states the amount it reverses. Changing them underneath would leave the pair
+        // disagreeing, with nothing on either document to say which is right. The note is voided first.
+        var hasCreditNote = await _db.CreditNotes
+            .IgnoreQueryFilters()
+            .AnyAsync(c => c.InvoiceId == invoice.Id && c.DeletedAt == null, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (hasCreditNote)
+        {
+            throw new InvoiceHasCreditNotesException(invoice.Number);
+        }
+
         // The load's row_version is replaced by the one the caller edited against, so the UPDATE's WHERE
         // clause checks *their* expectation: if the row moved under them, no row matches and EF throws.
         _db.Entry(invoice).Property(i => i.RowVersion).OriginalValue = request.ExpectedRowVersion;
@@ -100,20 +113,56 @@ public sealed class InvoiceEditor : IInvoiceEditor
             ? TaxRounding.PerDocument
             : TaxRounding.PerLine;
 
-        // Re-run the engine at the invoice's *snapshotted* rate, not whatever is in force today — an edit
-        // corrects figures, it does not silently re-rate a document to a rate it was never issued under.
-        var rateName = invoice.TaxRatePercentage == 0m
-            ? "No VAT"
-            : $"VAT {invoice.TaxRatePercentage.ToString("0.##", CultureInfo.InvariantCulture)}%";
+        // Moving the date re-rates the document; leaving it alone keeps the rate it was issued under.
+        //
+        // An edit normally corrects figures and must not silently re-rate — hence the override below. But a
+        // date change is not a correction to the figures, it is a change to *when the document happened*,
+        // and the rate follows the date. A document dated into a period it was not rated for would carry a
+        // percentage that no longer matches its own date, which is the defect REPORT-FIELDS.md flags on the
+        // legacy pack. So: new date, rate resolved at that date, and the entries it posted move with it.
+        var newDate = request.Date is { } requested && requested != invoice.Date ? requested : (DateOnly?)null;
+        var occurredBefore = invoice.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
-        var calc = _tax.Calculate(new TaxCalculationRequest(
-            invoice.Date,
-            company.IsVatRegistered,
-            rounding,
-            [.. request.Lines.Select(l => new TaxLineInput(l.Quantity, l.UnitPrice, l.DiscountPercent))],
-            AvailableRates: [],
-            request.DocumentDiscountPercent,
-            RateOverride: new TaxRateOverride(invoice.TaxRateId, rateName, invoice.TaxRatePercentage)));
+        TaxCalculationResult calc;
+
+        if (newDate is { } moved)
+        {
+            var rates = await _db.TaxRates
+                .Where(r => r.CompanyId == company.Id)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            // No override: the engine resolves the rate in force on the new date, exactly as a document
+            // raised on that date would have been rated.
+            calc = _tax.Calculate(new TaxCalculationRequest(
+                moved,
+                company.IsVatRegistered,
+                rounding,
+                [.. request.Lines.Select(l => new TaxLineInput(l.Quantity, l.UnitPrice, l.DiscountPercent))],
+                rates,
+                request.DocumentDiscountPercent));
+
+            invoice.Date = moved;
+            invoice.TaxRateId = calc.TaxRateId;
+            invoice.TaxRatePercentage = calc.TaxRatePercentage;
+
+            await MovePostingsAsync(invoice, occurredBefore, cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            var rateName = invoice.TaxRatePercentage == 0m
+                ? "No VAT"
+                : $"VAT {invoice.TaxRatePercentage.ToString("0.##", CultureInfo.InvariantCulture)}%";
+
+            calc = _tax.Calculate(new TaxCalculationRequest(
+                invoice.Date,
+                company.IsVatRegistered,
+                rounding,
+                [.. request.Lines.Select(l => new TaxLineInput(l.Quantity, l.UnitPrice, l.DiscountPercent))],
+                AvailableRates: [],
+                request.DocumentDiscountPercent,
+                RateOverride: new TaxRateOverride(invoice.TaxRateId, rateName, invoice.TaxRatePercentage)));
+        }
 
         var oldTotal = invoice.Total;
 
@@ -335,4 +384,46 @@ public sealed class InvoiceEditor : IInvoiceEditor
             l.Cost,
         }),
     };
+
+    /// <summary>
+    /// Moves everything this invoice has already posted onto its new date.
+    /// </summary>
+    /// <remarks>
+    /// The document date is the date its ledger and stock entries were recorded on, so moving the document
+    /// without moving them would leave the charge sitting in the old period and the invoice in the new one
+    /// — an aged-debt report would age it from a date the invoice no longer carries, and a VAT return would
+    /// find the entry in one month and the document in another.
+    ///
+    /// <para>Only entries that still carry the <i>old</i> date are moved. An entry deliberately dated
+    /// otherwise is left where it is; this repositions the document's own postings, it does not restamp
+    /// unrelated history.</para>
+    /// </remarks>
+    private async Task MovePostingsAsync(Invoice invoice, DateTime occurredBefore, CancellationToken cancellationToken)
+    {
+        var occurredAfter = invoice.Date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
+        var entries = await _db.ReceivablesLedger
+            .Where(e => e.InvoiceId == invoice.Id && e.OccurredAt == occurredBefore)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var entry in entries)
+        {
+            entry.OccurredAt = occurredAfter;
+        }
+
+        // Stock movements name the invoice only in their reason text — there is no invoice_id on the stock
+        // ledger — so they are matched on that and the old date together.
+        var reason = $"Invoice {invoice.Number}";
+
+        var movements = await _db.StockMovements
+            .Where(m => m.OccurredAt == occurredBefore && m.Reason != null && m.Reason.StartsWith(reason))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var movement in movements)
+        {
+            movement.OccurredAt = occurredAfter;
+        }
+    }
 }

@@ -22,8 +22,9 @@ import { formatAmount, MINOR_UNITS_PER_MAJOR, QUANTITY_SCALE } from "@/lib/money
 import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatReportDate } from "@/components/reports";
-import { Button, Card, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
+import { Button, Card, ErrorBanner, FadeIn, Input, Select, Skeleton, toast } from "@/components/ui";
 import {
+  customerContactNames,
   LineDraftEditor,
   linesArePostable,
   toMinor,
@@ -31,6 +32,7 @@ import {
   type DocumentKind,
   type DraftLine,
 } from "@/components/documents/line-draft";
+import { listCustomers } from "@/lib/customers";
 
 /** Existing lines round-trip their server id through the draft key; a new line has none. */
 const idFromKey = (key: string): number | null => (key.startsWith("srv-") ? Number(key.slice(4)) : null);
@@ -94,8 +96,16 @@ function EditForm({ invoice, invoiceId }: { invoice: InvoiceDetail; invoiceId: n
   const router = useRouter();
   const queryClient = useQueryClient();
   const items = useQuery({ queryKey: ["items"], queryFn: listItems });
+  const customers = useQuery({ queryKey: ["customers"], queryFn: listCustomers });
+
+  // The same pick-list the New Invoice screen offers. customerContactNames returns the customer's
+  // *document* contacts only — a notifications-only contact receives mail but is never printed.
+  const contactOptions = customerContactNames(
+    customers.data?.find((c) => c.code === invoice.customerCode),
+  );
 
   const [kind, setKind] = useState<DocumentKind>(invoice.lines.some((l) => l.itemId != null) ? "item" : "service");
+  const [date, setDate] = useState(invoice.date);
   const [po, setPo] = useState(invoice.purchaseOrderNo ?? "");
   const [contact, setContact] = useState(invoice.contactPerson ?? "");
   const [documentDiscount, setDocumentDiscount] = useState(
@@ -125,6 +135,9 @@ function EditForm({ invoice, invoiceId }: { invoice: InvoiceDetail; invoiceId: n
         invoiceId,
         {
           expectedRowVersion: invoice.rowVersion,
+          // Only sent when actually moved. An unchanged date leaves the invoice at the rate it was issued
+          // under; a changed one re-rates it at the new date, server-side.
+          date: date !== invoice.date ? date : null,
           purchaseOrderNo: po || null,
           contactPerson: contact || null,
           documentDiscountPercent: docPercent,
@@ -159,8 +172,35 @@ function EditForm({ invoice, invoiceId }: { invoice: InvoiceDetail; invoiceId: n
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
 
       <Card className="grid gap-4 p-5 sm:grid-cols-2">
+        <Input
+          label="Date"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          hint={
+            date !== invoice.date
+              ? "Moving the date re-rates this invoice at the VAT rate in force then, and moves its ledger and stock entries with it."
+              : undefined
+          }
+        />
         <Input label="PO number" value={po} onChange={(e) => setPo(e.target.value)} />
-        <Input label="Contact person" value={contact} onChange={(e) => setContact(e.target.value)} />
+        {contactOptions.length > 0 ? (
+          <Select label="Contact person" value={contact} onChange={(e) => setContact(e.target.value)}>
+            {/* The stored contact may no longer be one of the customer's — keep it selectable rather
+                than silently swapping it for another name. */}
+            {!contactOptions.includes(contact) && <option value={contact}>{contact || "Select…"}</option>}
+            {contactOptions.map((person) => (
+              <option key={person} value={person}>{person}</option>
+            ))}
+          </Select>
+        ) : (
+          <Input
+            label="Contact person"
+            value={contact}
+            onChange={(e) => setContact(e.target.value)}
+            hint={customers.isPending ? "Loading contacts…" : "This customer has no document contacts on file."}
+          />
+        )}
       </Card>
 
       <LineDraftEditor kind={kind} onKindChange={setKind} lines={lines} onLinesChange={setLines} items={items.data ?? []} />

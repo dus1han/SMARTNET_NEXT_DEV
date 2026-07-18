@@ -20,7 +20,12 @@ public sealed record EditQuotation(
     decimal DocumentDiscountPercent,
     IReadOnlyList<EditQuotationLine> Lines,
     // A service quotation's document-level cost; null for an item quotation (cost derived from the lines).
-    decimal? DocumentCost = null);
+    decimal? DocumentCost = null,
+    /// <summary>
+    /// The document date, or null to leave it. Changing it re-rates the quote at the rate in force on the
+    /// new date. A converted quote is refused the edit outright, so nothing can already depend on it.
+    /// </summary>
+    DateOnly? Date = null);
 
 /// <summary>What an edit returns — the new figures and the version it wrote.</summary>
 public sealed record QuotationEdited(long Id, string Number, decimal Total, int VersionNo);

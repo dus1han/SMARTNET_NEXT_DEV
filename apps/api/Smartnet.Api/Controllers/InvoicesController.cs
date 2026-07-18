@@ -481,7 +481,8 @@ public sealed class InvoicesController : ControllerBase
                     request.DocumentDiscountPercent,
                     [.. request.Lines.Select(l => new EditInvoiceLine(
                         l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
-                    request.DocumentCost),
+                    request.DocumentCost,
+                    request.Date),
                 cancellationToken).ConfigureAwait(false);
         }
         catch (DbUpdateConcurrencyException)
@@ -498,6 +499,13 @@ public sealed class InvoicesController : ControllerBase
             // lets the screen tell this refusal from a concurrency conflict.
             var problem = new ProblemDetails { Status = StatusCodes.Status409Conflict, Title = paid.Message };
             problem.Extensions["code"] = "invoice_has_payments";
+            return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
+        }
+        catch (InvoiceHasCreditNotesException credited)
+        {
+            // The linking document is removed first — void the credit note, then edit the invoice.
+            var problem = new ProblemDetails { Status = StatusCodes.Status409Conflict, Title = credited.Message };
+            problem.Extensions["code"] = "invoice_has_credit_notes";
             return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
         }
 
@@ -541,6 +549,19 @@ public sealed class InvoicesController : ControllerBase
             return Problem(
                 statusCode: StatusCodes.Status409Conflict,
                 title: "This invoice was changed by someone else. Reload and try again.");
+        }
+        catch (InvoiceHasPaymentsException paid)
+        {
+            // Settled invoices are not voided underneath the payment — the receipt is voided first.
+            var problem = new ProblemDetails { Status = StatusCodes.Status409Conflict, Title = paid.Message };
+            problem.Extensions["code"] = "invoice_has_payments";
+            return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
+        }
+        catch (InvoiceHasCreditNotesException credited)
+        {
+            var problem = new ProblemDetails { Status = StatusCodes.Status409Conflict, Title = credited.Message };
+            problem.Extensions["code"] = "invoice_has_credit_notes";
+            return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
         }
     }
 

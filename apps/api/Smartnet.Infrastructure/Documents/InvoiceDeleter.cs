@@ -12,12 +12,18 @@ namespace Smartnet.Infrastructure.Documents;
 public sealed class InvoiceDeleter : IInvoiceDeleter
 {
     private readonly SmartnetDbContext _db;
+    private readonly SmartnetLegacyDbContext _legacy;
     private readonly ILegacyInvoiceAdopter _adopter;
     private readonly TimeProvider _time;
 
-    public InvoiceDeleter(SmartnetDbContext db, ILegacyInvoiceAdopter adopter, TimeProvider time)
+    public InvoiceDeleter(
+        SmartnetDbContext db,
+        SmartnetLegacyDbContext legacy,
+        ILegacyInvoiceAdopter adopter,
+        TimeProvider time)
     {
         _db = db;
+        _legacy = legacy;
         _adopter = adopter;
         _time = time;
     }
@@ -36,6 +42,34 @@ public sealed class InvoiceDeleter : IInvoiceDeleter
             .FirstOrDefaultAsync(i => i.Id == invoiceId && i.DeletedAt == null, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Invoice {invoiceId} does not exist.");
+
+        // A settled or credited invoice is not voided — the linking document is removed first.
+        //
+        // Voiding underneath one would strand it: a payment allocated to an invoice that no longer exists,
+        // or a credit note stating what it reverses of a document that has gone. Both are reversible in
+        // their own right (void the receipt, void the note), so the remedy is always available and always
+        // leaves a trail. The editor refuses on the same two grounds.
+        var hasPayment = await _db.ReceivablesLedger
+            .AnyAsync(e => e.InvoiceId == invoice.Id && e.Type == LedgerEntryType.Payment, cancellationToken)
+            .ConfigureAwait(false)
+            || await _legacy.Payments
+            .AnyAsync(p => p.Invoiceno == invoice.Number, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (hasPayment)
+        {
+            throw new InvoiceHasPaymentsException(invoice.Number);
+        }
+
+        var hasCreditNote = await _db.CreditNotes
+            .IgnoreQueryFilters()
+            .AnyAsync(c => c.InvoiceId == invoice.Id && c.DeletedAt == null, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (hasCreditNote)
+        {
+            throw new InvoiceHasCreditNotesException(invoice.Number);
+        }
 
         // Void a stale copy → concurrency conflict, same as the editor.
         _db.Entry(invoice).Property(i => i.RowVersion).OriginalValue = expectedRowVersion;
