@@ -13,16 +13,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Mail, Pencil, Printer, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
-import { deleteInvoice, getInvoice } from "@/lib/invoices";
+import { deleteInvoice, emailInvoice, getInvoice, invoiceRecipients } from "@/lib/invoices";
 import { me } from "@/lib/auth";
 import { daysDueLabel } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
-import { DataTable, type ColumnDef } from "@/components/data-table";
+import { DataTable, downloadExcel, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 import { History } from "@/components/history/history";
+import { PrintPreview } from "@/components/print-preview";
+import { EmailDocumentDialog } from "@/components/email-document-dialog";
 import type { InvoiceLineDetail } from "@/lib/invoices";
 
 export default function InvoiceViewPage() {
@@ -31,6 +33,9 @@ export default function InvoiceViewPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [voiding, setVoiding] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [emailing, setEmailing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const invoice = useQuery({
     queryKey: ["invoice", invoiceId],
@@ -65,18 +70,55 @@ export default function InvoiceViewPage() {
           />
           {isLegacy && <Badge tone="neutral">Legacy</Badge>}
         </div>
-        {canModify && (
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => router.push(`/invoices/${invoiceId}/edit`)}>
-              <Pencil />
-              Edit
-            </Button>
-            <Button variant="secondary" onClick={() => setVoiding(true)}>
-              <Trash2 />
-              Void
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Download, print and email all work on a legacy invoice — the document renders from the
+              stored legacy figures, so none of them waits on the invoice being adopted. They are absent
+              for a VAT-registered company, whose tax invoice is a separate document not yet built;
+              `canPrint` comes from the server rather than being guessed from the company name. */}
+          {data?.canPrint && (
+            <>
+              <Button
+                variant="secondary"
+                pending={downloading}
+                onClick={async () => {
+                  setDownloading(true);
+                  try {
+                    await downloadExcel(`/api/invoices/${invoiceId}/pdf`, `invoice-${data.number}.pdf`);
+                    // The download is recorded as a Print event, so History is now stale.
+                    void queryClient.invalidateQueries({ queryKey: ["history", "Invoice", String(invoiceId)] });
+                  } catch {
+                    toast.error("The download failed.");
+                  } finally {
+                    setDownloading(false);
+                  }
+                }}
+              >
+                <Download />
+                Download PDF
+              </Button>
+              <Button variant="secondary" onClick={() => setPrinting(true)}>
+                <Printer />
+                Print
+              </Button>
+              <Button variant="secondary" onClick={() => setEmailing(true)}>
+                <Mail />
+                Email
+              </Button>
+            </>
+          )}
+          {canModify && (
+            <>
+              <Button variant="secondary" onClick={() => router.push(`/invoices/${invoiceId}/edit`)}>
+                <Pencil />
+                Edit
+              </Button>
+              <Button variant="secondary" onClick={() => setVoiding(true)}>
+                <Trash2 />
+                Void
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
@@ -148,6 +190,30 @@ export default function InvoiceViewPage() {
             }}
             voidInvoice={(reason) => deleteInvoice(invoiceId, data.rowVersion, reason)}
           />
+
+          {data.canPrint && (
+            <>
+              <PrintPreview
+                open={printing}
+                onOpenChange={setPrinting}
+                path={`/api/invoices/${invoiceId}/pdf`}
+                title={`Invoice ${data.number}`}
+                // Fetching it records a Print event, so the timeline is stale once it loads.
+                onLoaded={() => queryClient.invalidateQueries({ queryKey: ["history", "Invoice", String(invoiceId)] })}
+              />
+
+              <EmailDocumentDialog
+                open={emailing}
+                onOpenChange={setEmailing}
+                documentId={invoiceId}
+                documentLabel={`Invoice ${data.number}`}
+                queryKey="invoice"
+                fetchRecipients={invoiceRecipients}
+                send={(id, contactIds) => emailInvoice(id, { contactIds })}
+                onSent={() => queryClient.invalidateQueries({ queryKey: ["history", "Invoice", String(invoiceId)] })}
+              />
+            </>
+          )}
         </>
       )}
     </FadeIn>

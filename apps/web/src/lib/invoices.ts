@@ -4,10 +4,13 @@ import type {
   DeletedInvoiceDetail,
   DeletedInvoiceSummary,
   EditInvoiceRequest,
+  EmailDocumentRequest,
+  EmailDocumentResponse,
   InvoiceCreatedResponse,
   InvoiceDeleted,
   InvoiceDetail,
   InvoiceEditedResponse,
+  InvoiceRecipients,
   InvoiceSummary,
   InvoiceTaxRate,
 } from "@smartnet/api-client";
@@ -77,3 +80,21 @@ export const getDeletedInvoices = () => api<DeletedInvoiceSummary[]>("/api/invoi
  */
 export const getDeletedInvoice = (number: string) =>
   api<DeletedInvoiceDetail>(`/api/invoices/deleted/${encodeURIComponent(number)}`);
+
+/**
+ * Who this invoice can be emailed to, and the covering message that would go with it.
+ *
+ * Works for a legacy invoice as readily as an adopted one — the contacts come from the customer's saved
+ * records, resolved by the code the legacy document carries.
+ */
+export const invoiceRecipients = (id: number) =>
+  api<InvoiceRecipients>(`/api/invoices/${id}/recipients`);
+
+/**
+ * Emails the invoice as a PDF attachment to the chosen saved contacts.
+ *
+ * Resolves 200 even when the mail server refused it — the response carries `sent` and the reason, so a
+ * refusal is shown as a refusal, not as a failed request.
+ */
+export const emailInvoice = (id: number, request: EmailDocumentRequest) =>
+  api<EmailDocumentResponse>(`/api/invoices/${id}/email`, { method: "POST", body: request });

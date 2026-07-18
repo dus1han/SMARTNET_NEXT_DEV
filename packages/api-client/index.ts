@@ -171,6 +171,7 @@ export type CloseJobCardRequest = Schemas["CloseJobCardRequest"];
 export type DocumentContact = Schemas["DocumentContact"];
 export type JobSheetRecipients = Schemas["JobSheetRecipients"];
 export type QuotationRecipients = Schemas["QuotationRecipients"];
+export type InvoiceRecipients = Schemas["InvoiceRecipients"];
 export type PurchaseOrderRecipients = Schemas["PurchaseOrderRecipients"];
 export type CreditNoteRecipients = Schemas["CreditNoteRecipients"];
 export type CreditNoteDeleted = Schemas["CreditNoteDeleted"];

@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Smartnet.Api.Auditing;
 using Smartnet.Api.Auth;
 using Smartnet.Api.Contracts;
+using Smartnet.Api.Mailing;
+using Smartnet.Domain.Reporting;
 using Smartnet.Domain.Auditing;
 using System.Globalization;
 using Smartnet.Domain.Documents;
@@ -36,6 +38,9 @@ public sealed class InvoicesController : ControllerBase
     private readonly ITaxEngine _tax;
     private readonly IReceivablesLedger _ledger;
     private readonly IBusinessRuleReader _rules;
+    private readonly IInvoiceRenderer _invoicePdf;
+    private readonly IAuditWriter _audit;
+    private readonly DocumentMailer _mailer;
 
     public InvoicesController(
         IInvoiceCreator creator,
@@ -46,7 +51,10 @@ public sealed class InvoicesController : ControllerBase
         SmartnetLegacyDbContext legacy,
         ITaxEngine tax,
         IReceivablesLedger ledger,
-        IBusinessRuleReader rules)
+        IBusinessRuleReader rules,
+        IInvoiceRenderer invoicePdf,
+        IAuditWriter audit,
+        DocumentMailer mailer)
     {
         _creator = creator;
         _editor = editor;
@@ -57,6 +65,9 @@ public sealed class InvoicesController : ControllerBase
         _tax = tax;
         _ledger = ledger;
         _rules = rules;
+        _invoicePdf = invoicePdf;
+        _audit = audit;
+        _mailer = mailer;
     }
 
     /// <summary>
@@ -169,9 +180,17 @@ public sealed class InvoicesController : ControllerBase
             .FirstOrDefaultAsync(c => c.Id == invoice.CustomerId, cancellationToken)
             .ConfigureAwait(false);
 
-        var companyName = invoice.CompanyId is { } cid
-            ? await _db.Companies.Where(c => c.Id == cid).Select(c => c.Name).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+        // The VAT flag rides along because it decides whether a PDF exists for this invoice — only the
+        // non-VAT template is built.
+        var company = invoice.CompanyId is { } cid
+            ? await _db.Companies
+                .Where(c => c.Id == cid)
+                .Select(c => new { c.Name, c.IsVatRegistered })
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false)
             : null;
+
+        var companyName = company?.Name;
 
         var outstanding = await _db.ReceivablesLedger
             .Where(e => e.InvoiceId == id)
@@ -204,6 +223,7 @@ public sealed class InvoicesController : ControllerBase
             outstanding,
             invoice.RowVersion,
             "new",
+            CanPrint: !(company?.IsVatRegistered ?? false),
             [.. invoice.Lines.Select(l => new InvoiceLineDetail(
                 l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
     }
@@ -251,10 +271,17 @@ public sealed class InvoicesController : ControllerBase
             ? null
             : await _db.Customers.FirstOrDefaultAsync(c => c.Code == h.Customer, cancellationToken).ConfigureAwait(false);
 
-        // The legacy company column is the id as a string; resolve its name from the adopted companies.
-        var companyName = long.TryParse(h.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var legacyCompanyId)
-            ? await _db.Companies.Where(c => c.Id == legacyCompanyId).Select(c => c.Name).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+        // The legacy company column is the id as a string; resolve its profile from the adopted companies.
+        // The VAT flag rides along because it decides whether a PDF exists for this invoice.
+        var company = long.TryParse(h.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var legacyCompanyId)
+            ? await _db.Companies
+                .Where(c => c.Id == legacyCompanyId)
+                .Select(c => new { c.Name, c.IsVatRegistered })
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false)
             : null;
+
+        var companyName = company?.Name;
 
         var subtotal = LegacyValue.Money(h.Beforedisctot);
         var net = LegacyValue.Money(h.Novattotal);
@@ -285,6 +312,7 @@ public sealed class InvoicesController : ControllerBase
             LegacyValue.Money(h.Balance),
             h.RowVersion, // the legacy row's version, so an edit adopts it under a real concurrency guard
             "legacy",
+            CanPrint: !(company?.IsVatRegistered ?? false),
             [.. lines.Select(l => new InvoiceLineDetail(
                 l.Id,
                 ItemIdFor(l.Itemcode),
@@ -851,4 +879,171 @@ public sealed class InvoicesController : ControllerBase
                 ? loose
                 : DateTime.MinValue;
     }
+
+    // --- Print and email (Phase 8) -----------------------------------------------------------
+
+    /// <summary>This invoice as a printable PDF, in its company's own profile.</summary>
+    /// <remarks>
+    /// Serves a legacy invoice as readily as an adopted one — the renderer reads the legacy columns,
+    /// which are populated either way, so printing never waits on adoption.
+    ///
+    /// <para>Returns 404 for a VAT-registered company: only the non-VAT invoice is built, and the
+    /// renderer refuses rather than printing a tax invoice with no VAT on it.</para>
+    /// </remarks>
+    [HttpGet("{id:long}/pdf")]
+    [RequirePermission(Permissions.SearchInvoice)]
+    public async Task<IActionResult> Pdf(long id, CancellationToken cancellationToken)
+    {
+        if (await VisibleInvoiceAsync(id, cancellationToken).ConfigureAwait(false) is not { } invoice)
+        {
+            return NotFound();
+        }
+
+        var pdf = await _invoicePdf.RenderAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (pdf is null)
+        {
+            return NotFound();
+        }
+
+        await _audit.RecordAsync(
+            AuditAction.Print,
+            "Invoice",
+            id.ToString(CultureInfo.InvariantCulture),
+            details: new { invoiceNo = invoice.Number, document = "invoice" },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return File(pdf, "application/pdf", $"invoice-{invoice.Number}.pdf");
+    }
+
+    /// <summary>Who this invoice can be emailed to, and the message that would go with it.</summary>
+    [HttpGet("{id:long}/recipients")]
+    [RequirePermission(Permissions.SearchInvoice)]
+    public async Task<ActionResult<InvoiceRecipients>> Recipients(long id, CancellationToken cancellationToken)
+    {
+        if (await VisibleInvoiceAsync(id, cancellationToken).ConfigureAwait(false) is not { } invoice)
+        {
+            return NotFound();
+        }
+
+        var contacts = await _mailer.ContactsByCodeAsync(invoice.CustomerCode, cancellationToken).ConfigureAwait(false);
+        var companyName = await InvoiceCompanyNameAsync(invoice.CompanyId, cancellationToken).ConfigureAwait(false);
+        var (subject, body) = InvoiceMessage(invoice.Number, companyName);
+
+        return Ok(new InvoiceRecipients(
+            contacts,
+            subject,
+            body,
+            $"invoice-{invoice.Number}.pdf",
+            await _mailer.BlockedReasonAsync(invoice.CompanyId, contacts.Count, cancellationToken).ConfigureAwait(false)));
+    }
+
+    /// <summary>Emails the invoice, as a PDF attachment, to the chosen saved contacts.</summary>
+    [HttpPost("{id:long}/email")]
+    [RequirePermission(Permissions.SearchInvoice)]
+    public async Task<ActionResult<EmailDocumentResponse>> Email(
+        long id,
+        EmailDocumentRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (await VisibleInvoiceAsync(id, cancellationToken).ConfigureAwait(false) is not { } invoice)
+        {
+            return NotFound();
+        }
+
+        // Re-resolved against this customer's own contacts: otherwise a posted id could send this
+        // invoice to anybody's contact.
+        var offered = await _mailer.ContactsByCodeAsync(invoice.CustomerCode, cancellationToken).ConfigureAwait(false);
+        var chosen = offered.Where(c => request.ContactIds.Contains(c.Id)).ToList();
+
+        if (chosen.Count == 0)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "None of the chosen contacts belong to this invoice's customer.",
+            });
+        }
+
+        var pdf = await _invoicePdf.RenderAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (pdf is null)
+        {
+            return NotFound();
+        }
+
+        var companyName = await InvoiceCompanyNameAsync(invoice.CompanyId, cancellationToken).ConfigureAwait(false);
+        var (subject, body) = InvoiceMessage(invoice.Number, companyName);
+        var recipients = chosen.Select(c => c.Email).ToList();
+
+        var result = await _mailer.SendAsync(
+            invoice.CompanyId,
+            recipients,
+            subject,
+            body,
+            [new MailAttachment($"invoice-{invoice.Number}.pdf", "application/pdf", pdf)],
+            cancellationToken).ConfigureAwait(false);
+
+        // Recorded either way — a refusal is exactly the event someone looks for when the customer says
+        // the invoice never arrived.
+        await _audit.RecordAsync(
+            AuditAction.Email,
+            "Invoice",
+            id.ToString(CultureInfo.InvariantCulture),
+            details: new
+            {
+                invoiceNo = invoice.Number,
+                document = "invoice",
+                to = recipients,
+                sent = result.Sent,
+            },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return Ok(new EmailDocumentResponse(result.Sent, recipients, result.Error));
+    }
+
+    /// <summary>
+    /// The invoice the caller may see, or null — its company, number and customer code.
+    /// </summary>
+    /// <remarks>
+    /// Read off the legacy columns: <c>invoice_h</c> holds this app's invoices and the legacy ones in the
+    /// same table, and an unadopted row has nothing in the typed ones.
+    /// </remarks>
+    private async Task<VisibleInvoice?> VisibleInvoiceAsync(long id, CancellationToken cancellationToken)
+    {
+        var meta = await _legacy.InvoiceHs
+            .Where(i => i.Id == id)
+            .Select(i => new { i.Invoiceno, i.Company, i.Customer })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (meta is null
+            || !long.TryParse(meta.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var companyId)
+            || !_company.Accessible.Contains(companyId))
+        {
+            return null;
+        }
+
+        return new VisibleInvoice(companyId, (meta.Invoiceno ?? string.Empty).Trim(), meta.Customer);
+    }
+
+    private async Task<string> InvoiceCompanyNameAsync(long companyId, CancellationToken cancellationToken) =>
+        await _db.Companies
+            .Where(c => c.Id == companyId)
+            .Select(c => c.Name)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false) ?? "SMARTNET";
+
+    /// <summary>The covering message. Fixed, for the reason the job sheet's is.</summary>
+    private static (string Subject, string Body) InvoiceMessage(string number, string companyName) =>
+        ($"Invoice {number} — {companyName}",
+         $"""
+          <p>Dear Customer,</p>
+          <p>Please find attached invoice <strong>{number}</strong>.</p>
+          <p>Please quote the invoice number with any payment.</p>
+          <p>Thank you,<br />{companyName}</p>
+          """);
+
+    /// <summary>An invoice the caller may see: its company, its number and its customer code.</summary>
+    private sealed record VisibleInvoice(long CompanyId, string Number, string? CustomerCode);
 }

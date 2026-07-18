@@ -199,6 +199,17 @@ public sealed record InvoiceDetail(
     // silently overwritten. 0 for a legacy invoice (which the new editor does not touch).
     int RowVersion,
     string Origin,
+
+    /// <summary>
+    /// Whether this invoice can be printed, downloaded and emailed — false for a VAT-registered company.
+    /// </summary>
+    /// <remarks>
+    /// Only the non-VAT invoice template is built. Rather than have the page guess from the company name,
+    /// or offer three buttons that 404, the server says whether the document exists for this invoice. When
+    /// the tax invoice is built this becomes true for everyone and the flag can go.
+    /// </remarks>
+    bool CanPrint,
+
     IReadOnlyList<InvoiceLineDetail> Lines);
 
 // --- Quotations (Phase 5, slice 3) --------------------------------------------------------------
@@ -764,3 +775,11 @@ public sealed class CreatePurchaseOrderRequestValidator : AbstractValidator<Crea
         });
     }
 }
+
+/// <summary>Who an invoice can go to, and the message that would be sent — what its dialog renders.</summary>
+public sealed record InvoiceRecipients(
+    IReadOnlyList<DocumentContact> Contacts,
+    string Subject,
+    string Body,
+    string AttachmentName,
+    string? Blocked);

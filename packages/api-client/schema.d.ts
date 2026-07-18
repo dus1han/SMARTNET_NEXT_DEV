@@ -1810,6 +1810,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invoices/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{id}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceRecipients"];
+                        "application/json": components["schemas"]["InvoiceRecipients"];
+                        "text/json": components["schemas"]["InvoiceRecipients"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{id}/email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["EmailDocumentRequest"];
+                    "text/json": components["schemas"]["EmailDocumentRequest"];
+                    "application/*+json": components["schemas"]["EmailDocumentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["EmailDocumentResponse"];
+                        "application/json": components["schemas"]["EmailDocumentResponse"];
+                        "text/json": components["schemas"]["EmailDocumentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/items": {
         parameters: {
             query?: never;
@@ -5047,6 +5166,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dev/seed-payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DevSeedPaymentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -6571,6 +6727,11 @@ export interface components {
             deletedByName?: string | null;
             reason?: string | null;
         };
+        DevSeedPaymentRequest: {
+            invoiceNumber: string;
+            /** Format: double */
+            amount: number;
+        };
         DocumentContact: {
             /** Format: int64 */
             id: number;
@@ -6806,6 +6967,7 @@ export interface components {
             /** Format: int32 */
             rowVersion: number;
             origin: string;
+            canPrint: boolean;
             lines: components["schemas"]["InvoiceLineDetail"][];
         };
         InvoiceEditedResponse: {
@@ -6838,6 +7000,13 @@ export interface components {
             net: number;
             /** Format: double */
             cost?: number | null;
+        };
+        InvoiceRecipients: {
+            contacts: components["schemas"]["DocumentContact"][];
+            subject: string;
+            body: string;
+            attachmentName: string;
+            blocked?: string | null;
         };
         InvoiceSummary: {
             /** Format: int64 */

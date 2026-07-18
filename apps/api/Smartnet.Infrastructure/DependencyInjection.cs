@@ -114,6 +114,7 @@ public static class DependencyInjection
         // drives the variation the legacy pack expressed as separate _SN/_ST report files.
         services.AddScoped<IJobSheetRenderer, Pdf.JobSheetRenderer>();
         services.AddScoped<IQuotationRenderer, Pdf.QuotationRenderer>();
+        services.AddScoped<IInvoiceRenderer, Pdf.InvoiceRenderer>();
         services.AddScoped<IPurchaseOrderRenderer, Pdf.PurchaseOrderRenderer>();
         services.AddScoped<ICreditNoteRenderer, Pdf.CreditNoteRenderer>();
 
