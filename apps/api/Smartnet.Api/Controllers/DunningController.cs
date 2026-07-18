@@ -52,6 +52,61 @@ public sealed class DunningController : ControllerBase
         _time = time;
     }
 
+    /// <summary>
+    /// Who one customer's statement can be sent to — their saved contacts that have an address.
+    /// </summary>
+    /// <remarks>
+    /// Only offered for a single customer. A bulk run spans many customers with different contact
+    /// lists, so there is no one list to pick from; each falls back to its own address on file.
+    /// </remarks>
+    [HttpGet("outstanding/{customerCode}/recipients")]
+    [RequirePermission(Permissions.CustomerOutstanding)]
+    public async Task<ActionResult<StatementRecipients>> StatementRecipients(
+        string customerCode,
+        CancellationToken cancellationToken)
+    {
+        var contacts = await ContactsAsync(customerCode, cancellationToken).ConfigureAwait(false);
+
+        string? blocked = null;
+
+        if (contacts.Count == 0)
+        {
+            blocked = "This customer has no contact with an email address. Add one on the customer first.";
+        }
+        else if (_company.Active is { } activeCompany)
+        {
+            var settings = await _db.MailSettings
+                .Where(s => s.CompanyId == activeCompany)
+                .Select(s => new { s.Host, s.SendEnabled })
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            blocked = settings is null || string.IsNullOrWhiteSpace(settings.Host)
+                ? "No mail server is configured for this company. Set one in Settings."
+                : settings.SendEnabled
+                    ? null
+                    // Stated, not hidden: the statement is still queued and logged, but nothing leaves.
+                    : "Sending is switched off for this company — the statement will be queued and "
+                      + "logged, but not sent. Turn sending on in Settings.";
+        }
+
+        return Ok(new Contracts.StatementRecipients(contacts, blocked));
+    }
+
+    /// <summary>The customer's saved contacts that can receive mail, document contacts pre-selected.</summary>
+    private async Task<List<DocumentContact>> ContactsAsync(string customerCode, CancellationToken cancellationToken) =>
+        await _db.CustomerContacts
+            .Where(c => c.Customer.Code == customerCode && c.Email != null && c.Email != "")
+            .OrderBy(c => c.Name)
+            .Select(c => new DocumentContact(
+                c.Id,
+                c.Name,
+                c.Email!,
+                c.Usage,
+                c.Usage == Domain.MasterData.ContactUsage.DocumentsAndNotifications))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
     /// <summary>Queues an outstanding statement to each selected customer (sending gated — see remarks).</summary>
     [HttpPost("outstanding")]
     [RequirePermission(Permissions.CustomerOutstanding)]
@@ -105,31 +160,56 @@ public sealed class DunningController : ControllerBase
 
         var userId = long.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (long?)null;
 
+        // Chosen contacts apply to a single customer only — see DunningRequest.ContactIds. Resolved
+        // against that customer's own contacts, so a posted id cannot redirect their statement.
+        var chosenEmails = new List<string>();
+
+        if (codes.Count == 1 && request.ContactIds is { Count: > 0 } contactIds)
+        {
+            chosenEmails = await _db.CustomerContacts
+                .Where(c => c.Customer.Code == codes[0]
+                         && contactIds.Contains(c.Id)
+                         && c.Email != null
+                         && c.Email != "")
+                .Select(c => c.Email!)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         var pending = new List<(EmailLogEntry Log, string Code, string Name, string Email, decimal Outstanding)>();
         var skipped = 0;
 
         foreach (var c in customers)
         {
-            var email = FirstEmail(c.Email);
-            if (string.IsNullOrWhiteSpace(email))
+            // The picked contacts when the user chose them, otherwise the legacy address on file.
+            var addresses = chosenEmails.Count > 0
+                ? chosenEmails
+                : FirstEmail(c.Email) is { } fallback && !string.IsNullOrWhiteSpace(fallback) ? [fallback] : [];
+
+            if (addresses.Count == 0)
             {
                 skipped++; // no address on file — nothing to send
                 continue;
             }
 
-            var log = new EmailLogEntry
+            // One log row and one queue job per address: the log is the record of what was sent to
+            // whom, and collapsing three recipients into one row would lose two of them.
+            foreach (var email in addresses)
             {
-                CompanyId = companyId,
-                Recipient = email,
-                TemplateKey = EmailTemplateKeys.OutstandingBulk,
-                DocumentRef = $"OUTSTANDING:{c.Cuscode}",
-                Status = DunningStatus.Queued,
-                SentAt = _time.GetUtcNow().UtcDateTime,
-                SentBy = userId,
-            };
+                var log = new EmailLogEntry
+                {
+                    CompanyId = companyId,
+                    Recipient = email,
+                    TemplateKey = EmailTemplateKeys.OutstandingBulk,
+                    DocumentRef = $"OUTSTANDING:{c.Cuscode}",
+                    Status = DunningStatus.Queued,
+                    SentAt = _time.GetUtcNow().UtcDateTime,
+                    SentBy = userId,
+                };
 
-            _db.EmailLog.Add(log);
-            pending.Add((log, c.Cuscode!, c.Cusname ?? string.Empty, email, outstanding.GetValueOrDefault(c.Cuscode!, 0m)));
+                _db.EmailLog.Add(log);
+                pending.Add((log, c.Cuscode!, c.Cusname ?? string.Empty, email, outstanding.GetValueOrDefault(c.Cuscode!, 0m)));
+            }
         }
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false); // populates the log ids

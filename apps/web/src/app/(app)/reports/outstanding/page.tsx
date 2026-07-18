@@ -23,6 +23,7 @@ import {
   outstandingDetailExportUrl,
   outstandingReportExportUrl,
   sendDunning,
+  statementRecipients,
   type CompanyFilter,
   type OutstandingRow,
 } from "@/lib/reports";
@@ -30,7 +31,7 @@ import { today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, downloadExcel, type ColumnDef } from "@/components/data-table";
 import { ReportFilterBar, StatTile, formatMoney, formatReportDate } from "@/components/reports";
-import { AnimatedNumber, Badge, Button, Dialog, ErrorBanner, FadeIn, Input, toast } from "@/components/ui";
+import { AnimatedNumber, Badge, Button, Checkbox, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 
 export default function OutstandingReportPage() {
   const [company, setCompany] = useState<CompanyFilter>("all");
@@ -72,11 +73,37 @@ export default function OutstandingReportPage() {
   const toggleAll = () =>
     setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.customerCode)));
 
+  // With exactly one customer selected there is a single contact list to choose from, so the dialog
+  // offers it — the same choice the job sheet gives. A bulk run has no one list; each customer there
+  // falls back to their own address on file, and the server enforces that rule too.
+  const singleCustomer = selected.size === 1 ? [...selected][0] : null;
+
+  const recipients = useQuery({
+    queryKey: ["statement-recipients", singleCustomer],
+    queryFn: () => statementRecipients(singleCustomer!),
+    enabled: confirming && singleCustomer !== null,
+  });
+
+  const [pickedContacts, setPickedContacts] = useState<Set<number> | null>(null);
+
+  const contacts = recipients.data?.contacts ?? [];
+  // Until the user touches anything, the selection is the server's default — the document contacts.
+  const chosenContacts = pickedContacts ?? new Set(contacts.filter((c) => c.selected).map((c) => c.id));
+
+  const toggleContact = (id: number) => {
+    const next = new Set(chosenContacts);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setPickedContacts(next);
+  };
+
   const send = useMutation({
-    mutationFn: () => sendDunning([...selected]),
+    mutationFn: () =>
+      sendDunning([...selected], singleCustomer !== null ? [...chosenContacts] : undefined),
     onSuccess: (result) => {
       toast[result.sendEnabled ? "success" : "info"](result.message);
       setSelected(new Set());
+      setPickedContacts(null);
       setConfirming(false);
     },
     onError: (error: unknown) => toast.error(error instanceof ApiError ? error.message : "That did not work."),
@@ -218,16 +245,41 @@ export default function OutstandingReportPage() {
             <Button variant="ghost" onClick={() => setConfirming(false)}>
               Cancel
             </Button>
-            <Button pending={send.isPending} onClick={() => send.mutate()}>
+            <Button
+              pending={send.isPending}
+              onClick={() => send.mutate()}
+              // With one customer chosen, a send with nobody ticked would go nowhere.
+              disabled={singleCustomer !== null && chosenContacts.size === 0}
+            >
               Queue statements
             </Button>
           </>
         }
       >
         <div className="space-y-3 text-sm text-muted">
+          {singleCustomer !== null && (
+            <div className="space-y-2">
+              <p className="stat-label text-xs font-semibold uppercase tracking-wider">Send to</p>
+              {recipients.isPending && <Skeleton className="h-16" />}
+              {recipients.data?.blocked && (
+                <p className="rounded-md bg-warning/10 p-3 text-sm text-warning">{recipients.data.blocked}</p>
+              )}
+              {contacts.map((contact) => (
+                <Checkbox
+                  key={contact.id}
+                  checked={chosenContacts.has(contact.id)}
+                  onChange={() => toggleContact(contact.id)}
+                  label={contact.name?.trim() ? `${contact.name} — ${contact.email}` : contact.email}
+                  hint={contact.usage === "NotificationsOnly" ? "Notifications only" : undefined}
+                />
+              ))}
+            </div>
+          )}
+
           <p>
-            Each selected customer is queued an outstanding statement and the request returns at once —
-            nothing blocks while mail is sent.
+            {singleCustomer !== null
+              ? "The statement is queued to the contacts you chose and the request returns at once — nothing blocks while mail is sent."
+              : "Each selected customer is queued an outstanding statement and the request returns at once — nothing blocks while mail is sent. Each goes to the address on file; choose a single customer to pick their contacts."}
           </p>
           <p className="flex items-start gap-2 rounded-lg border border-subtle bg-surface-sunken p-3 text-warning-text">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />

@@ -4,7 +4,15 @@ namespace Smartnet.Api.Contracts;
 
 /// <param name="Customers">The customer codes to send an outstanding statement to — the selection off
 /// the outstanding report.</param>
-public sealed record DunningRequest(IReadOnlyList<string> Customers);
+/// <param name="ContactIds">
+/// Which of the customer's saved contacts to send to. Only meaningful for a single customer — a bulk
+/// run has no one contact list to choose from, and each customer there falls back to their own
+/// default address. Ignored when more than one customer is selected.
+/// </param>
+public sealed record DunningRequest(IReadOnlyList<string> Customers, IReadOnlyList<long>? ContactIds = null);
+
+/// <summary>Who a single customer's statement can go to — the same shape the job sheet dialog uses.</summary>
+public sealed record StatementRecipients(IReadOnlyList<DocumentContact> Contacts, string? Blocked);
 
 /// <param name="Queued">How many statements were accepted onto the queue and logged.</param>
 /// <param name="Skipped">Selected customers with no email address on file — nothing to send.</param>

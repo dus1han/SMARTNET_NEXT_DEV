@@ -16,7 +16,7 @@ public sealed class MailSender : IMailSender
         SendMessageAsync(
             settings,
             password,
-            recipient,
+            [recipient],
             "SMARTNET test message",
             new TextPart("plain")
             {
@@ -28,16 +28,43 @@ public sealed class MailSender : IMailSender
     public Task<MailResult> SendAsync(
         MailSettings settings,
         string? password,
-        string recipient,
+        IReadOnlyCollection<string> recipients,
         string subject,
         string htmlBody,
-        CancellationToken cancellationToken = default) =>
-        SendMessageAsync(settings, password, recipient, subject, new TextPart("html") { Text = htmlBody }, cancellationToken);
+        IReadOnlyCollection<MailAttachment>? attachments = null,
+        CancellationToken cancellationToken = default)
+    {
+        MimeEntity body = new TextPart("html") { Text = htmlBody };
+
+        if (attachments is { Count: > 0 })
+        {
+            var multipart = new Multipart("mixed") { body };
+
+            foreach (var file in attachments)
+            {
+                // ContentType.Parse so the part carries the real type (application/pdf), not a generic
+                // octet-stream that some clients then refuse to preview inline.
+                var part = new MimePart(ContentType.Parse(file.ContentType))
+                {
+                    Content = new MimeContent(new MemoryStream(file.Content)),
+                    ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+                    ContentTransferEncoding = ContentEncoding.Base64,
+                    FileName = file.FileName,
+                };
+
+                multipart.Add(part);
+            }
+
+            body = multipart;
+        }
+
+        return SendMessageAsync(settings, password, recipients, subject, body, cancellationToken);
+    }
 
     private static async Task<MailResult> SendMessageAsync(
         MailSettings settings,
         string? password,
-        string recipient,
+        IReadOnlyCollection<string> recipients,
         string subject,
         MimeEntity body,
         CancellationToken cancellationToken)
@@ -66,10 +93,21 @@ public sealed class MailSender : IMailSender
                 Error: "No from-address is configured. Set one before sending.");
         }
 
+        // No recipients is a caller bug, but it would reach the server as a message addressed to nobody
+        // and come back as an opaque SMTP rejection. Answered here instead.
+        if (recipients.Count == 0)
+        {
+            return new MailResult(Sent: false, Error: "No recipient was given.");
+        }
+
         var message = new MimeMessage();
 
         message.From.Add(new MailboxAddress(settings.FromName ?? string.Empty, from));
-        message.To.Add(MailboxAddress.Parse(recipient));
+
+        foreach (var recipient in recipients)
+        {
+            message.To.Add(MailboxAddress.Parse(recipient));
+        }
 
         if (!string.IsNullOrWhiteSpace(settings.Bcc))
         {

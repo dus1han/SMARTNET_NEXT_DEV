@@ -4,6 +4,10 @@ namespace Smartnet.Domain.Settings;
 /// <param name="Error">The provider's message. For the administrator, never for a customer.</param>
 public sealed record MailResult(bool Sent, string? Error = null);
 
+/// <summary>One file attached to a message — held in memory, because the documents this system
+/// sends are single-digit-kilobyte PDFs it has just rendered, never anything streamed from disk.</summary>
+public sealed record MailAttachment(string FileName, string ContentType, byte[] Content);
+
 public interface IMailSender
 {
     /// <summary>
@@ -27,11 +31,20 @@ public interface IMailSender
     /// business turns it on.
     /// </summary>
     /// <param name="password">Already decrypted, by the one caller allowed to (see the test send).</param>
+    /// <param name="recipients">
+    /// One or more addresses, all on the same message. A job sheet goes to the customer's contacts
+    /// together — sending each their own copy would tell them nothing and cost n sends.
+    /// </param>
+    /// <param name="attachments">
+    /// Optional files. The document being sent <i>is</i> the point of most of these messages, so a
+    /// send path that could not carry one would just be a differently-shaped notification.
+    /// </param>
     Task<MailResult> SendAsync(
         MailSettings settings,
         string? password,
-        string recipient,
+        IReadOnlyCollection<string> recipients,
         string subject,
         string htmlBody,
+        IReadOnlyCollection<MailAttachment>? attachments = null,
         CancellationToken cancellationToken = default);
 }

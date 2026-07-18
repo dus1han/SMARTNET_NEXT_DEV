@@ -9,6 +9,7 @@ import type {
   JobCardReportResponse,
   OutstandingResponse,
   SalesReportResponse,
+  StatementRecipients,
   SupplierOption,
   SupplierPaymentResponse,
   ProfitLossResponse,
@@ -222,11 +223,22 @@ export const outstandingDetailExportUrl = (company: CompanyFilter, customers: st
 
 // --- Bulk dunning (the one write) ------------------------------------------------------------
 
-export type { DunningResponse } from "@smartnet/api-client";
+export type { DunningResponse, StatementRecipients } from "@smartnet/api-client";
 
 /**
  * Queues an outstanding statement to each selected customer. Returns at once. Whether anything is
  * actually sent is gated by the company's mail kill switch (off by default) — the response says which.
+ *
+ * `contactIds` names which of the customer's saved contacts to send to. It applies to a single
+ * customer only: a bulk run spans many customers with different contact lists, so there is no one
+ * list to choose from and each falls back to its own address on file. The server enforces the same.
  */
-export const sendDunning = (customers: string[]) =>
-  api<DunningResponse>("/api/dunning/outstanding", { method: "POST", body: { customers } });
+export const sendDunning = (customers: string[], contactIds?: number[]) =>
+  api<DunningResponse>("/api/dunning/outstanding", {
+    method: "POST",
+    body: { customers, contactIds: contactIds ?? null },
+  });
+
+/** Who one customer's statement can go to — their saved contacts, and why sending might be blocked. */
+export const statementRecipients = (customerCode: string) =>
+  api<StatementRecipients>(`/api/dunning/outstanding/${encodeURIComponent(customerCode)}/recipients`);
