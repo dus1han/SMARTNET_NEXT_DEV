@@ -20,6 +20,7 @@ import { me } from "@/lib/auth";
 import { today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
+import { History } from "@/components/history/history";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Select, Skeleton, toast } from "@/components/ui";
 import type { SupplierInvoicePaymentLine } from "@/lib/supplier-invoices";
@@ -127,6 +128,24 @@ export default function SupplierInvoiceViewPage() {
             }}
             pay={(request) => recordSupplierPayment(invoiceId, request)}
           />
+
+          <Card className="p-5">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">History</h2>
+            {isLegacy && (
+              <p className="mb-3 text-sm text-muted">
+                Imported from the legacy system — anything before the migration lives in the old app.
+              </p>
+            )}
+            <History
+              entityType="SupplierInvoice"
+              entityId={invoiceId}
+              document={{
+                docType: "SUPINV",
+                docId: invoiceId,
+                title: `Supplier invoice ${data.supplierReference ?? ""}`.trim(),
+              }}
+            />
+          </Card>
 
           <VoidDialog
             open={voiding}

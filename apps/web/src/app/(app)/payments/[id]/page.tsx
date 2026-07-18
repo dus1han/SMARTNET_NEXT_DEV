@@ -18,6 +18,7 @@ import { getCustomerReceipt, voidCustomerReceipt } from "@/lib/payments";
 import { me } from "@/lib/auth";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
+import { History } from "@/components/history/history";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 import type { ReceiptAllocationLine } from "@/lib/payments";
@@ -86,6 +87,16 @@ export default function CustomerReceiptViewPage() {
               <span className="tabular text-sm text-muted">{formatMoney(data.amount)} across {data.allocations.length} invoice{data.allocations.length === 1 ? "" : "s"}</span>
             </div>
             <DataTable columns={allocationColumns} rows={data.allocations} pageSize={50} />
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">History</h2>
+            {isLegacy && (
+              <p className="mb-3 text-sm text-muted">
+                Imported from the legacy system — anything before the migration lives in the old app.
+              </p>
+            )}
+            <History entityType="CustomerReceipt" entityId={receiptId} />
           </Card>
 
           <VoidDialog

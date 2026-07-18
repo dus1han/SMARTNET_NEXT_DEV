@@ -16,7 +16,7 @@ import {
 } from "@/lib/history";
 import { Badge, Button, ErrorBanner, Skeleton, toast } from "@/components/ui";
 import { useReason } from "@/components/form";
-import { changeRows, fieldLabel, formatValue, isRedacted, snapshotRows, type DiffRow } from "./diff";
+import { changeRows, factRows, fieldLabel, formatValue, isRedacted, snapshotRows, type DiffRow, type Fact } from "./diff";
 import { printVersion } from "./print";
 
 /**
@@ -174,8 +174,17 @@ function Timeline({ events, total, loading }: {
   );
 }
 
+/**
+ * Mutations carry a field-level diff. Everything else — a print, an email, an export, a login — is an
+ * event that happened once, with no "before". Rendering those through the diff table produced a
+ * before/after grid with both columns empty, which reads as "something changed and we lost it".
+ */
+const MUTATIONS = new Set(["Create", "Update", "Delete", "Restore"]);
+
 function Event({ event }: { event: AuditEntry }) {
-  const rows = changeRows(parseChanges(event.changes));
+  const isMutation = MUTATIONS.has(event.action);
+  const rows = isMutation ? changeRows(parseChanges(event.changes)) : [];
+  const facts = isMutation ? [] : factRows(event.changes);
 
   return (
     <article className="rounded-lg border border-subtle bg-surface p-4">
@@ -202,7 +211,27 @@ function Event({ event }: { event: AuditEntry }) {
       )}
 
       {rows.length > 0 && <Diff rows={rows} />}
+      {facts.length > 0 && <Facts facts={facts} />}
     </article>
+  );
+}
+
+/**
+ * What an event was about, stated plainly: "Sent to nimal@…, thilanga@…", "Document Job sheet".
+ *
+ * A list, not a two-column diff — these have one value each, and the second column would be empty
+ * by definition.
+ */
+function Facts({ facts }: { facts: Fact[] }) {
+  return (
+    <dl className="mt-3 space-y-1 text-sm">
+      {facts.map((fact) => (
+        <div key={fact.label} className="flex flex-wrap gap-x-2">
+          <dt className="text-muted">{fact.label}</dt>
+          <dd className="min-w-0 wrap-break-word text-text">{fact.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

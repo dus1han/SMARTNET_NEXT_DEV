@@ -16,6 +16,7 @@ import { ApiError } from "@/lib/api";
 import { getCheque, voidCheque } from "@/lib/cheques";
 import { me } from "@/lib/auth";
 import { PageHeader } from "@/components/shell/app-shell";
+import { History } from "@/components/history/history";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 
@@ -77,6 +78,16 @@ export default function ChequeViewPage() {
             <Detail label="Cheque date" value={data.chequeDate ? formatReportDate(data.chequeDate) : "—"} />
             <Detail label="Due date" value={data.dueDate ? formatReportDate(data.dueDate) : "—"} />
           </div>
+
+          <Card className="p-5">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">History</h2>
+            {isLegacy && (
+              <p className="mb-3 text-sm text-muted">
+                Imported from the legacy system — anything before the migration lives in the old app.
+              </p>
+            )}
+            <History entityType="Cheque" entityId={chequeId} />
+          </Card>
 
           <VoidDialog
             open={voiding}

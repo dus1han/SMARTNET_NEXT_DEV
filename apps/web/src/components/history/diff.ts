@@ -19,6 +19,57 @@ export function changeRows(changes: Record<string, FieldChange>): DiffRow[] {
     .sort((a, b) => a.field.localeCompare(b.field));
 }
 
+/** One stated fact about an event — "Sent to", "nimal@example.com". */
+export interface Fact {
+  label: string;
+  value: string;
+}
+
+/** How an event's detail keys are said in the timeline. Anything unlisted is title-cased. */
+const FACT_LABELS: Record<string, string> = {
+  to: "Sent to",
+  jobNo: "Job",
+  document: "Document",
+  error: "Error",
+  list: "List",
+  rows: "Rows",
+};
+
+/** Detail keys that carry no meaning for a reader — the event's own restatement of itself. */
+const FACT_SKIP = new Set(["sent"]);
+
+/**
+ * The details of a non-mutation event, as plain facts.
+ *
+ * A print or an email has no "before": the audit row's payload is a flat object describing what
+ * happened, not a field diff. Rendering it through {@link changeRows} produced a before/after table
+ * with both columns empty, which reads as lost data rather than as an event.
+ *
+ * A failed send still shows its error — "we tried and it bounced" is the answer someone is looking
+ * for when a customer says they never received it.
+ */
+export function factRows(details: string | null | undefined): Fact[] {
+  if (!details) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(details);
+  } catch {
+    // One unparseable row must not take out the rest of the timeline.
+    return [];
+  }
+
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return [];
+
+  return Object.entries(parsed as Record<string, unknown>)
+    .filter(([key, value]) => !FACT_SKIP.has(key) && value !== null && value !== undefined && value !== "")
+    .map(([key, value]) => ({
+      label: FACT_LABELS[key] ?? key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()),
+      // Arrays are recipient lists — read as a sentence, not as JSON.
+      value: Array.isArray(value) ? value.join(", ") : String(value),
+    }));
+}
+
 /**
  * A field-level diff between two document snapshots.
  *
