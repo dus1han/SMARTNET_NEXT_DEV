@@ -19,11 +19,14 @@ public partial class CusM
 
     public string? Email { get; set; }
 
-    public string? CForm { get; set; }
+    // c_form, pro and climit are numeric in the database. They were varchar when this model was
+    // scaffolded and have since been altered, so a `string` property here throws InvalidCastException
+    // the moment the whole entity is materialised (projections that skip these columns did not notice).
+    public long? CForm { get; set; }
 
-    public string? Pro { get; set; }
+    public long? Pro { get; set; }
 
     public string? Vatnum { get; set; }
 
-    public string Climit { get; set; } = null!;
+    public decimal? Climit { get; set; }
 }

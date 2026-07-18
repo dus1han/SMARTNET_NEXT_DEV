@@ -317,10 +317,10 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .ToTable("cus_m");
 
             entity.Property(e => e.CForm)
-                .HasMaxLength(100)
+                .HasColumnType("bigint(20)")
                 .HasColumnName("c_form");
             entity.Property(e => e.Climit)
-                .HasMaxLength(100)
+                .HasPrecision(18, 4)
                 .HasColumnName("climit");
             entity.Property(e => e.Contactno)
                 .HasMaxLength(100)
@@ -344,7 +344,7 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .HasColumnType("text")
                 .HasColumnName("email");
             entity.Property(e => e.Pro)
-                .HasMaxLength(100)
+                .HasColumnType("bigint(20)")
                 .HasColumnName("pro");
             entity.Property(e => e.Vatnum)
                 .HasMaxLength(100)
