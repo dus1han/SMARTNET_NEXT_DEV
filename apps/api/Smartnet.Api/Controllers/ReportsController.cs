@@ -899,7 +899,7 @@ public sealed class ReportsController : ControllerBase
         var scope = CompanyScope(company);
         if (scope.Count == 0)
         {
-            return new DataExceptionsResponse(0, 0, 0, 0, 0, 0, 0, []);
+            return new DataExceptionsResponse(0, 0, 0, 0, 0, 0, 0, 0, 0, []);
         }
 
         // No soft-delete filter: invoice_h holds only live rows (deletes move to del_invoice_h), exactly as
@@ -939,8 +939,41 @@ public sealed class ReportsController : ControllerBase
             .Where(p => string.IsNullOrWhiteSpace(p.Invoiceno) || !everyInvoiceNo.Contains(p.Invoiceno!.Trim()))
             .ToList();
 
-        var lines = (await _legacy.InvoiceLs.ToListAsync(cancellationToken).ConfigureAwait(false))
+        var allInvoiceLines = await _legacy.InvoiceLs.ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        var lines = allInvoiceLines
             .Where(l => l.Inno != null && invoiceNos.Contains(l.Inno))
+            .ToList();
+
+        // Lines whose header exists nowhere (Finding 3). Judged against every invoice number for the same
+        // reason as the payments above: a line belonging to another company's invoice is not an orphan.
+        var orphanedInvoiceLines = allInvoiceLines
+            .Where(l => !string.IsNullOrWhiteSpace(l.Inno) && !everyInvoiceNo.Contains(l.Inno!.Trim()))
+            .ToList();
+
+        var quotationNos = (await _legacy.QuotationHs
+                .Select(q => q.QNo)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .Where(no => !string.IsNullOrEmpty(no))
+            .Select(no => no!)
+            .ToList();
+
+        var knownQuotationNos = quotationNos.ToHashSet(StringComparer.Ordinal);
+
+        var orphanedQuotationLines = (await _legacy.QuotationLs
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .Where(l => !string.IsNullOrWhiteSpace(l.Qno) && !knownQuotationNos.Contains(l.Qno!.Trim()))
+            .ToList();
+
+        // Finding 9 — a number used twice. The unique index exists on every other document table, so only
+        // quotations can still collide; checking them here means a future collision is reported, not assumed
+        // away.
+        var duplicateNumbers = quotationNos
+            .GroupBy(no => no, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => new DuplicateDocumentNumber("quotation", g.Key, g.Count()))
             .ToList();
 
         // The payables side. supplier_invoice carries a company, so it scopes directly; supplier_inv_pay does
@@ -957,15 +990,16 @@ public sealed class ReportsController : ControllerBase
         var customerNames = await CustomerNames(cancellationToken).ConfigureAwait(false);
         var supplierNames = SupplierNamesFrom(await SupplierParties(cancellationToken).ConfigureAwait(false));
 
-        return DataExceptionsReport.Build(
-            invoices,
-            payments,
-            lines,
-            customerNames,
-            orphanedPayments,
-            supplierInvoices,
-            supplierSettlements,
-            supplierNames);
+        return DataExceptionsReport.Build(invoices, payments, lines, customerNames, new LegacyDataScan
+        {
+            OrphanedPayments = orphanedPayments,
+            SupplierInvoices = supplierInvoices,
+            SupplierSettlements = supplierSettlements,
+            SupplierNames = supplierNames,
+            OrphanedInvoiceLines = orphanedInvoiceLines,
+            OrphanedQuotationLines = orphanedQuotationLines,
+            DuplicateNumbers = duplicateNumbers,
+        });
     }
 
     private async Task<SalesReportResponse> BuildSales(ReportPeriod period, string? company, CancellationToken cancellationToken)

@@ -361,6 +361,8 @@ public sealed record DataExceptionRow(
 /// <param name="Overpaid">Invoices whose payments exceed their total, however those payments were spread.</param>
 /// <param name="OrphanedPayments">Payments naming an invoice that does not exist, or naming none.</param>
 /// <param name="SupplierSettlements">Supplier invoices paid with nothing settling them, or settled twice.</param>
+/// <param name="OrphanedLines">Documents whose line items outlived the header they belonged to.</param>
+/// <param name="DuplicateNumbers">Document numbers used by more than one document.</param>
 public sealed record DataExceptionsResponse(
     int DuplicatePayments,
     int PaidNoPayment,
@@ -368,6 +370,8 @@ public sealed record DataExceptionsResponse(
     int Overpaid,
     int OrphanedPayments,
     int SupplierSettlements,
+    int OrphanedLines,
+    int DuplicateNumbers,
     int Total,
     IReadOnlyList<DataExceptionRow> Rows);
 

@@ -3,6 +3,11 @@
 Run 2026-07-14 against `smartnet_invsys_dev` (a copy of live production) — read-only.
 Server: MariaDB 10.11. 49 tables, ~2,485 invoices, 12,598 invoice lines, 2,275 payments.
 
+> **Re-verified 2026-07-18.** Every finding below now has a live detection rule behind it in
+> Reports → Data exceptions — Findings 3, 4 and 9 did not before, and Finding 9 claimed it did.
+> Findings 12–15 were added by that re-verification. For what to do about each one at cutover, see
+> [MIGRATION-DATA-CHECKS.md](MIGRATION-DATA-CHECKS.md).
+
 ---
 
 ## 🔴 FINDING 1 — Rs. 1,575,374 of duplicate payment records
@@ -43,6 +48,13 @@ decision, not just a code fix.
 > masked a real Rs. 50,000 receivable rather than a negative — was **confirmed owed by the business** and
 > remediated to a 50,000 balance. Applied and verified on the dev copy; **must still be run on live** (with
 > a pre-run snapshot). Full record and cutover steps in [remediation/RECONCILIATION.md](remediation/RECONCILIATION.md).
+>
+> **⚠️ Incomplete — see [Finding 12](#-finding-12--two-of-finding-1s-duplicates-survived-its-remediation).**
+> The remediation matched on same invoice + same amount + **same date**. The example table above was
+> built by comparing recorded payments against the invoice total, which is a wider test. **STI-38 and
+> SNI-915 — two of the four examples listed above — are dated weeks apart, matched neither the rule nor
+> the cleanup, and are still overpaid today.** Re-check with the Overpaid rule after running this on
+> live; do not treat the migration's "49 rows deleted" as meaning no invoice is overpaid.
 
 ---
 
@@ -227,3 +239,74 @@ Critically, **the counter ran straight through the change**: `SNI-1556` was foll
 The rebuild therefore stores the prefix as a **template** (`{YY}{MON}_SNIN_`) rendered at allocation
 time, so August produces `26AUG_SNIN_` without an edit — while the counter keeps climbing. A literal
 prefix would still be stamping JUL on invoices in August.
+
+---
+
+## 🔴 FINDING 12 — Two of Finding 1's duplicates survived its remediation
+
+Found 2026-07-18, after the receivables ledger was rebuilt from the documents.
+
+| Invoice | Total | Paid | Dates | Overpaid |
+|---|---|---|---|---|
+| STI-38 | 71,000 | 142,000 | 2025-06-12, 2025-06-29 | **71,000** |
+| SNI-915 | 23,600 | 47,200 | 2025-01-21, 2025-02-15 | **23,600** |
+
+**These are not new. They are Finding 1's own examples, and its remediation could not reach them.**
+Both appear in the example table under Finding 1 — STI-38 at ×2 and SNI-915 at ×2. That table was
+built by comparing what was recorded as paid against the invoice total, which is an overpayment test.
+The remediation that followed used the *strict* definition instead — same invoice, same amount, **same
+date** — and deleted 49 rows on that key. STI-38's payments are seventeen days apart and SNI-915's
+three weeks apart, so neither matched, and both survived a cleanup that was reported as complete.
+
+The stored `balance` said 0 afterwards, which is what a finished invoice looks like, so nothing
+contradicted the report. The defect was invisible from either direction.
+
+**The lesson for cutover:** a finding's headline query and its remediation query have to be the same
+query, or the difference between them is exactly what survives. The new **Overpaid** rule measures
+payments against the invoice total — the same test that produced Finding 1's table — so what the
+report shows and what a remediation would target can no longer drift apart.
+
+The new **Overpaid** rule measures the payments against the invoice total instead, so it finds them
+however they are spread. It uses the same one-rupee tolerance as Finding 4 so rounding is not
+reported as money.
+
+**Not remediated.** Leaving the customer in credit is a true statement of the position; so is voiding
+the payment that should not be there. That is a business decision, and both are available on the
+payments screen.
+
+---
+
+## 🟠 FINDING 13 — 38 supplier invoices marked paid with nothing settling them
+
+**1,435,253.01 across 38 invoices** (14 in company 1, 24 in company 2). `paymentstat = 'Paid'` with
+no `supplier_inv_pay` row, so the payables outstanding excludes them — that figure is read from
+`paymentstat` — while nothing records who was paid or when.
+
+All 38 are `data_origin = 'legacy'`. The new app dual-writes a settlement row, so this is not its own
+data being misread.
+
+The payables side had no detection at all before this: the payables ledger holds no legacy rows, so
+there was nothing for a ledger-based check to look at.
+
+---
+
+## 🟠 FINDING 14 — A supplier invoice settled twice
+
+Supplier invoice **621** (`invno` 9784, supplier S-35, company 2, **165,000**) has two
+`supplier_inv_pay` rows.
+
+A legacy settlement carries no amount of its own — the row records which invoice was paid and when,
+and the amount *is* the invoice's. Each row therefore stands for the whole invoice, which makes the
+second one a second payment of the same 165,000.
+
+---
+
+## 🟠 FINDING 15 — 82 orphaned quotation lines across 16 quotations
+
+The same defect as Finding 3, in `quotation_l`: 82 rows whose `qno` matches no quotation header.
+Finding 3 only looked at `invoice_l`.
+
+Between them, 690 orphaned line rows across 105 documents, carrying 4,678,439.54 of line value that
+nothing counts and nothing can reach. Harmless to the accounts, fatal to any foreign key.
+
+`po_l` and `cn_l` are clean — zero orphans in both.

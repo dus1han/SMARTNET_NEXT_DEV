@@ -17,7 +17,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Banknote, CopyX, FileWarning, ReceiptText, Truck, Unlink } from "lucide-react";
+import { AlertTriangle, Banknote, Copy, CopyX, FileWarning, ReceiptText, Truck, Unlink, Unplug } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import {
@@ -174,6 +174,20 @@ export default function DataExceptionsPage() {
           color={data && data.supplierSettlements > 0 ? "amber" : "emerald"}
           delayMs={350}
           value={data ? <AnimatedNumber value={data.supplierSettlements} format={formatCount} /> : "—"}
+        />
+        <StatTile
+          label="Lines without a document"
+          icon={Unplug}
+          color={data && data.orphanedLines > 0 ? "amber" : "emerald"}
+          delayMs={420}
+          value={data ? <AnimatedNumber value={data.orphanedLines} format={formatCount} /> : "—"}
+        />
+        <StatTile
+          label="Duplicate numbers"
+          icon={Copy}
+          color={data && data.duplicateNumbers > 0 ? "amber" : "emerald"}
+          delayMs={490}
+          value={data ? <AnimatedNumber value={data.duplicateNumbers} format={formatCount} /> : "—"}
         />
       </div>
 

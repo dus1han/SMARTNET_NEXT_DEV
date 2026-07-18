@@ -179,7 +179,7 @@ public sealed class DataExceptionsReportTests
     {
         var orphaned = new[] { Pay("SNI-1045", "66375", "2025-03-04") };
 
-        var report = DataExceptionsReport.Build([], [], [], Names, orphaned);
+        var report = DataExceptionsReport.Build([], [], [], Names, new LegacyDataScan { OrphanedPayments = orphaned });
 
         report.OrphanedPayments.Should().Be(1);
         var row = report.Rows.Single(r => r.Type == "Payment without an invoice");
@@ -192,7 +192,7 @@ public sealed class DataExceptionsReportTests
     {
         var orphaned = new[] { new Payment { Id = 349, Invoiceno = "", Amount = "3006" } };
 
-        var report = DataExceptionsReport.Build([], [], [], Names, orphaned);
+        var report = DataExceptionsReport.Build([], [], [], Names, new LegacyDataScan { OrphanedPayments = orphaned });
 
         report.OrphanedPayments.Should().Be(1);
         report.Rows.Single(r => r.Type == "Payment without an invoice").Reference.Should().Be("Payment #349");
@@ -203,7 +203,7 @@ public sealed class DataExceptionsReportTests
     {
         var invoices = new[] { SupplierInvoice(1, "SUP-9", amount: "45000", status: "Paid") };
 
-        var report = DataExceptionsReport.Build([], [], [], Names, [], invoices, [], SupplierNames);
+        var report = DataExceptionsReport.Build([], [], [], Names, new LegacyDataScan { SupplierInvoices = invoices, SupplierNames = SupplierNames });
 
         report.SupplierSettlements.Should().Be(1);
         var row = report.Rows.Single(r => r.Type == "Supplier paid, not settled");
@@ -217,7 +217,7 @@ public sealed class DataExceptionsReportTests
         var invoices = new[] { SupplierInvoice(621, "SUP-621", amount: "12000", status: "Paid") };
         var settlements = new[] { Settlement(621), Settlement(621) };
 
-        var report = DataExceptionsReport.Build([], [], [], Names, [], invoices, settlements, SupplierNames);
+        var report = DataExceptionsReport.Build([], [], [], Names, new LegacyDataScan { SupplierInvoices = invoices, SupplierSettlements = settlements, SupplierNames = SupplierNames });
 
         report.SupplierSettlements.Should().Be(1);
         // Each settlement stands for the whole invoice, so the second is a second payment of the same money.
@@ -229,7 +229,7 @@ public sealed class DataExceptionsReportTests
     {
         var invoices = new[] { SupplierInvoice(2, "SUP-2", amount: "8000", status: "Pending") };
 
-        var report = DataExceptionsReport.Build([], [], [], Names, [], invoices, [], SupplierNames);
+        var report = DataExceptionsReport.Build([], [], [], Names, new LegacyDataScan { SupplierInvoices = invoices, SupplierNames = SupplierNames });
 
         report.SupplierSettlements.Should().Be(0);
     }
@@ -241,9 +241,49 @@ public sealed class DataExceptionsReportTests
         var invoices = new[] { SupplierInvoice(0, "SUP-0", amount: "500", status: "Paid") };
         var settlements = new[] { new SupplierInvPay { Id = 1, Supinvid = "", PayMethod = "Cash" } };
 
-        var report = DataExceptionsReport.Build([], [], [], Names, [], invoices, settlements, SupplierNames);
+        var report = DataExceptionsReport.Build([], [], [], Names, new LegacyDataScan { SupplierInvoices = invoices, SupplierSettlements = settlements, SupplierNames = SupplierNames });
 
         report.SupplierSettlements.Should().Be(1, "the blank settlement does not count for invoice 0");
+    }
+
+    [Fact]
+    public void Groups_orphaned_lines_by_the_document_they_name()
+    {
+        var lines = new[] { Line("STI-1159", "500"), Line("STI-1159", "250"), Line("STI-833", "100") };
+
+        var report = DataExceptionsReport.Build([], [], [], Names, new LegacyDataScan { OrphanedInvoiceLines = lines });
+
+        report.OrphanedLines.Should().Be(2, "three lines, but only two documents");
+        var row = report.Rows.Single(r => r.Reference == "STI-1159");
+        row.Type.Should().Be("Lines without a document");
+        row.Amount.Should().Be(750m);
+        row.Detail.Should().Contain("2 lines");
+    }
+
+    [Fact]
+    public void Orphaned_quotation_lines_are_described_as_quotations_not_invoices()
+    {
+        var lines = new[] { new QuotationL { Qno = "STQ-88", Total = "1200" } };
+
+        var report = DataExceptionsReport.Build([], [], [], Names, new LegacyDataScan { OrphanedQuotationLines = lines });
+
+        report.OrphanedLines.Should().Be(1);
+        report.Rows.Single().Detail.Should().Contain("quotation STQ-88");
+    }
+
+    [Fact]
+    public void Flags_a_document_number_used_twice()
+    {
+        // STQ-0 — two quotations, two customers, one number. Carries no amount: nothing is miscounted, but
+        // the unique index cannot be built.
+        var duplicates = new[] { new DuplicateDocumentNumber("quotation", "STQ-0", 2) };
+
+        var report = DataExceptionsReport.Build([], [], [], Names, new LegacyDataScan { DuplicateNumbers = duplicates });
+
+        report.DuplicateNumbers.Should().Be(1);
+        var row = report.Rows.Single();
+        row.Reference.Should().Be("STQ-0");
+        row.Amount.Should().Be(0m);
     }
 
     [Fact]

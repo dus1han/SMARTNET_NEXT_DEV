@@ -9301,8 +9301,10 @@
       },
       "DataExceptionsResponse": {
         "required": [
+          "duplicateNumbers",
           "duplicatePayments",
           "linesNotHeader",
+          "orphanedLines",
           "orphanedPayments",
           "overpaid",
           "paidNoPayment",
@@ -9333,6 +9335,14 @@
             "format": "int32"
           },
           "supplierSettlements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "orphanedLines": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "duplicateNumbers": {
             "type": "integer",
             "format": "int32"
           },

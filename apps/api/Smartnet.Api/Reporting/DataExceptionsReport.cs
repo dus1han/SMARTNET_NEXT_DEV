@@ -32,35 +32,55 @@ namespace Smartnet.Api.Reporting;
 /// payment row, so flagging them would be noise. Overpayment is judged against the same one-rupee tolerance
 /// as the header/lines gap, so rounding drift is not reported as money.
 /// </remarks>
+/// <summary>One document number used by more than one document.</summary>
+public sealed record DuplicateDocumentNumber(string DocumentType, string Number, int Count);
+
+/// <summary>
+/// The inputs whose defect can only be judged against the whole database, gathered by the controller.
+/// </summary>
+/// <remarks>
+/// Every list here is "already known to be wrong" — the controller decides membership, the report only
+/// classifies and describes. That split exists because these defects are defined by something being
+/// <i>absent</i>, and absence cannot be judged from the company-scoped slice the rest of the report reads:
+/// a payment against another company's invoice, or a line whose header belongs to a company this view is
+/// not showing, is not an orphan. Resolving them here against everything and passing the results in keeps
+/// the scoped reads honest and the rules pure.
+/// </remarks>
+public sealed record LegacyDataScan
+{
+    public IReadOnlyList<Payment> OrphanedPayments { get; init; } = [];
+    public IReadOnlyList<SupplierInvoice> SupplierInvoices { get; init; } = [];
+    public IReadOnlyList<SupplierInvPay> SupplierSettlements { get; init; } = [];
+    public IReadOnlyDictionary<string, string> SupplierNames { get; init; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+    public IReadOnlyList<InvoiceL> OrphanedInvoiceLines { get; init; } = [];
+    public IReadOnlyList<QuotationL> OrphanedQuotationLines { get; init; } = [];
+    public IReadOnlyList<DuplicateDocumentNumber> DuplicateNumbers { get; init; } = [];
+}
+
 public static class DataExceptionsReport
 {
     /// <summary>The difference above which a header/lines mismatch is a defect, not rounding drift.</summary>
     private const decimal LineMismatchTolerance = 1m;
 
-    /// <param name="orphanedPayments">Payments naming an invoice that exists nowhere — the controller
-    /// resolves these against every invoice number, not the scoped ones, so a payment against another
-    /// company's invoice is not mistaken for one against nothing.</param>
     public static DataExceptionsResponse Build(
         IReadOnlyList<InvoiceH> invoices,
         IReadOnlyList<Payment> payments,
         IReadOnlyList<InvoiceL> lines,
         IReadOnlyDictionary<string, string> customerNames,
-        IReadOnlyList<Payment>? orphanedPayments = null,
-        IReadOnlyList<SupplierInvoice>? supplierInvoices = null,
-        IReadOnlyList<SupplierInvPay>? supplierSettlements = null,
-        IReadOnlyDictionary<string, string>? supplierNames = null)
+        LegacyDataScan? scan = null)
     {
+        scan ??= new LegacyDataScan();
         var rows = new List<DataExceptionRow>();
 
         rows.AddRange(DuplicatePayments(payments, invoices, customerNames));
         rows.AddRange(PaidNoPayment(invoices, payments, customerNames));
         rows.AddRange(LinesNotHeader(invoices, lines, customerNames));
         rows.AddRange(Overpaid(invoices, payments, customerNames));
-        rows.AddRange(OrphanedPayments(orphanedPayments ?? []));
-        rows.AddRange(SupplierSettlementFaults(
-            supplierInvoices ?? [],
-            supplierSettlements ?? [],
-            supplierNames ?? new Dictionary<string, string>(StringComparer.Ordinal)));
+        rows.AddRange(OrphanedPayments(scan.OrphanedPayments));
+        rows.AddRange(SupplierSettlementFaults(scan.SupplierInvoices, scan.SupplierSettlements, scan.SupplierNames));
+        rows.AddRange(OrphanedLines(scan.OrphanedInvoiceLines, scan.OrphanedQuotationLines));
+        rows.AddRange(DuplicateNumbers(scan.DuplicateNumbers));
 
         var duplicate = rows.Count(r => r.Type == Types.DuplicatePayment);
         var paidNoPayment = rows.Count(r => r.Type == Types.PaidNoPayment);
@@ -68,6 +88,8 @@ public static class DataExceptionsReport
         var overpaid = rows.Count(r => r.Type == Types.Overpaid);
         var orphaned = rows.Count(r => r.Type == Types.OrphanedPayment);
         var supplier = rows.Count(r => r.Type is Types.SupplierPaidNoSettlement or Types.SupplierDuplicateSettlement);
+        var orphanedLines = rows.Count(r => r.Type == Types.OrphanedLines);
+        var duplicateNumbers = rows.Count(r => r.Type == Types.DuplicateNumber);
 
         var ordered = rows
             .OrderByDescending(r => r.Amount)
@@ -81,6 +103,8 @@ public static class DataExceptionsReport
             overpaid,
             orphaned,
             supplier,
+            orphanedLines,
+            duplicateNumbers,
             ordered.Count,
             ordered);
     }
@@ -317,6 +341,70 @@ public static class DataExceptionsReport
         }
     }
 
+    /// <summary>
+    /// Line items whose document no longer exists (DATA-AUDIT Finding 3), grouped by the number they name.
+    /// </summary>
+    /// <remarks>
+    /// 608 invoice lines across 89 invoice numbers, and 82 quotation lines across 16 — headers removed with
+    /// their lines left behind, and not through the app, since none of those numbers appear in
+    /// <c>del_invoice_h</c> either.
+    ///
+    /// <para>They are counted by nothing and reachable by nothing, so they cost no money today. They matter
+    /// because every foreign key the new schema wants to add will refuse to build while they stand, which
+    /// makes them a migration blocker rather than an accounting one — and that is exactly why they need to
+    /// be visible on a screen somebody reads, instead of in an audit document.</para>
+    /// </remarks>
+    private static IEnumerable<DataExceptionRow> OrphanedLines(
+        IReadOnlyList<InvoiceL> invoiceLines,
+        IReadOnlyList<QuotationL> quotationLines)
+    {
+        var groups = invoiceLines
+            .Select(l => (Document: "invoice", Number: l.Inno ?? string.Empty, Value: LegacyValue.Money(l.Tot)))
+            .Concat(quotationLines
+                .Select(l => (Document: "quotation", Number: l.Qno ?? string.Empty, Value: LegacyValue.Money(l.Total))))
+            .GroupBy(l => (l.Document, l.Number));
+
+        foreach (var g in groups)
+        {
+            var (document, number) = g.Key;
+            var count = g.Count();
+            var value = g.Sum(l => l.Value);
+
+            yield return new DataExceptionRow(
+                Types.OrphanedLines,
+                number.Length == 0 ? $"({document}, unnumbered)" : number,
+                string.Empty,
+                $"{count} line{(count == 1 ? "" : "s")} worth {value:N2} belong to {document} {number}, which does not exist",
+                value);
+        }
+    }
+
+    /// <summary>
+    /// One document number shared by two documents (DATA-AUDIT Finding 9).
+    /// </summary>
+    /// <remarks>
+    /// Two different quotations for two different customers are both numbered <c>STQ-0</c>: the legacy app
+    /// takes a number from a ticket table without checking it is unused, and no unique index stopped the
+    /// collision landing. Because of it the unique index on <c>quotation_h.q_no</c> — applied everywhere
+    /// else — cannot be built.
+    ///
+    /// <para>Deliberately not remediated: somebody holds a PDF with STQ-0 printed on it, and renumbering it
+    /// to make an index build is the historical rewriting LEGACY-DATA-POLICY forbids. The finding already
+    /// said it surfaces here; until now it did not.</para>
+    /// </remarks>
+    private static IEnumerable<DataExceptionRow> DuplicateNumbers(IReadOnlyList<DuplicateDocumentNumber> duplicates)
+    {
+        foreach (var d in duplicates)
+        {
+            yield return new DataExceptionRow(
+                Types.DuplicateNumber,
+                d.Number,
+                string.Empty,
+                $"{d.Count} {d.DocumentType}s share this number — the unique index cannot be built while they do",
+                0m);
+        }
+    }
+
     private static class Types
     {
         public const string DuplicatePayment = "Duplicate payment";
@@ -326,5 +414,7 @@ public static class DataExceptionsReport
         public const string OrphanedPayment = "Payment without an invoice";
         public const string SupplierPaidNoSettlement = "Supplier paid, not settled";
         public const string SupplierDuplicateSettlement = "Supplier settled twice";
+        public const string OrphanedLines = "Lines without a document";
+        public const string DuplicateNumber = "Duplicate document number";
     }
 }

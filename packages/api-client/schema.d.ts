@@ -6518,6 +6518,10 @@ export interface components {
             /** Format: int32 */
             supplierSettlements: number;
             /** Format: int32 */
+            orphanedLines: number;
+            /** Format: int32 */
+            duplicateNumbers: number;
+            /** Format: int32 */
             total: number;
             rows: components["schemas"]["DataExceptionRow"][];
         };
