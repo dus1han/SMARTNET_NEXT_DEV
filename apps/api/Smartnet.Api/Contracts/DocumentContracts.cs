@@ -50,7 +50,11 @@ public sealed record EditInvoiceRequest(
     IReadOnlyList<EditInvoiceLineRequest> Lines,
     decimal DocumentDiscountPercent = 0m,
     // A service invoice's document-level cost; null for an item invoice (cost derived from the lines).
-    decimal? DocumentCost = null);
+    decimal? DocumentCost = null,
+    // The document date. Null leaves it alone. Changing it re-rates the invoice at the new date and moves
+    // its ledger and stock entries with it — and is refused once anything depends on the document
+    // (see DocumentDateLockedException).
+    DateOnly? Date = null);
 
 /// <param name="Id">The existing line this maps to, or null for a line the edit adds.</param>
 public sealed record EditInvoiceLineRequest(
@@ -277,7 +281,9 @@ public sealed record EditQuotationRequest(
     IReadOnlyList<EditInvoiceLineRequest> Lines,
     decimal DocumentDiscountPercent = 0m,
     // A service quotation's document-level cost; null for an item quotation (cost derived from the lines).
-    decimal? DocumentCost = null);
+    decimal? DocumentCost = null,
+    // The document date. Null leaves it alone; changing it re-rates the quote at the new date.
+    DateOnly? Date = null);
 
 public sealed record QuotationEditedResponse(long Id, string Number, decimal Total, int VersionNo);
 
@@ -436,6 +442,8 @@ public sealed record CreditNoteDetail(
     decimal TaxAmount,
     decimal Total,
     string Origin,
+    // The row_version the void echoes back, so a stale copy is refused rather than silently reversed.
+    int RowVersion,
     IReadOnlyList<InvoiceLineDetail> Lines);
 
 /// <summary>Server-side validation for a new credit note — the same line rules as an invoice.</summary>
@@ -618,6 +626,80 @@ public sealed record JobCardDetail(
 
 /// <summary>Closing a job — the cost, sell and completion remarks, guarded by the row version.</summary>
 public sealed record CloseJobCardRequest(int ExpectedRowVersion, decimal Cost, decimal Sell, string? CompletionRemarks);
+
+/// <summary>One contact a document can be emailed to — a saved contact of that document's customer.</summary>
+/// <param name="Selected">
+/// Whether the dialog should tick it by default. The customer's document contacts are the people the
+/// document would have been handed to on paper; a notifications-only contact is offered but not assumed.
+/// </param>
+public sealed record DocumentContact(long Id, string? Name, string Email, string Usage, bool Selected);
+
+/// <summary>Who the job sheet can go to, and the message that would be sent — what the dialog renders.</summary>
+/// <param name="Blocked">
+/// Null when mail is configured and armed; otherwise why sending would fail, said up front rather than
+/// after the user has picked recipients and pressed Send.
+/// </param>
+public sealed record JobSheetRecipients(
+    IReadOnlyList<DocumentContact> Contacts,
+    string Subject,
+    string Body,
+    string AttachmentName,
+    string? Blocked);
+
+/// <summary>Emailing a document to the chosen saved contacts. The same body for every document.</summary>
+public sealed record EmailDocumentRequest(IReadOnlyList<long> ContactIds);
+
+/// <param name="Recipients">The addresses it actually went to, for the confirmation message.</param>
+public sealed record EmailDocumentResponse(bool Sent, IReadOnlyList<string> Recipients, string? Error);
+
+/// <summary>An edit to a purchase order. Lines carry ids to reconcile in place; a reason is required.</summary>
+public sealed record EditPurchaseOrderRequest(
+    int ExpectedRowVersion,
+    IReadOnlyList<EditInvoiceLineRequest> Lines,
+    decimal DocumentDiscountPercent = 0m,
+    decimal? DocumentCost = null,
+    // The document date. Null leaves it alone; changing it re-rates the order at the new date.
+    DateOnly? Date = null);
+
+public sealed record PurchaseOrderEditedResponse(long Id, string Number, decimal Total, int VersionNo);
+
+/// <summary>Server-side validation for a purchase-order edit — at least one line.</summary>
+public sealed class EditPurchaseOrderRequestValidator : AbstractValidator<EditPurchaseOrderRequest>
+{
+    public EditPurchaseOrderRequestValidator() =>
+        RuleFor(r => r.Lines).NotEmpty().WithMessage("A purchase order needs at least one line.");
+}
+
+/// <summary>Who a credit note can go to, and the message that would be sent.</summary>
+public sealed record CreditNoteRecipients(
+    IReadOnlyList<DocumentContact> Contacts,
+    string Subject,
+    string Body,
+    string AttachmentName,
+    string? Blocked);
+
+/// <summary>Who a purchase order can go to, and the message that would be sent.</summary>
+public sealed record PurchaseOrderRecipients(
+    IReadOnlyList<DocumentContact> Contacts,
+    string Subject,
+    string Body,
+    string AttachmentName,
+    string? Blocked);
+
+/// <summary>Who a quotation can go to, and the message that would be sent — what its dialog renders.</summary>
+public sealed record QuotationRecipients(
+    IReadOnlyList<DocumentContact> Contacts,
+    string Subject,
+    string Body,
+    string AttachmentName,
+    string? Blocked);
+
+/// <summary>Server-side validation for emailing a job sheet — at least one contact.</summary>
+public sealed class EmailDocumentRequestValidator : AbstractValidator<EmailDocumentRequest>
+{
+    public EmailDocumentRequestValidator() =>
+        RuleFor(r => r.ContactIds).NotEmpty().WithMessage("Choose at least one contact to send to.");
+}
 
 /// <summary>Server-side validation for a new job card — company/customer required, at least one line.</summary>
 public sealed class CreateJobCardRequestValidator : AbstractValidator<CreateJobCardRequest>

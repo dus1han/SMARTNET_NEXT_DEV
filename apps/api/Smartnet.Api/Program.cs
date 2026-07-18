@@ -100,6 +100,9 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<ICompanyAccessService, CompanyAccessService>();
 builder.Services.AddScoped<ICompanyContext, CompanyContext>();
+
+// Emailing a document to a customer's contacts — the part job sheets, statements and quotations share.
+builder.Services.AddScoped<Smartnet.Api.Mailing.DocumentMailer>();
 builder.Services.AddSingleton<IMailSender, MailSender>();
 builder.Services.AddSingleton<IExcelExporter, ExcelExporter>();
 

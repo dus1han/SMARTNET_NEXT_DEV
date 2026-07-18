@@ -54,6 +54,10 @@ public static class DependencyInjection
         // (opposite sign) and, where goods are returned, a stock receipt, at the parent invoice's rate.
         services.AddScoped<ICreditNoteCreator, CreditNoteCreator>();
 
+        // The void: soft, reason-gated, version-guarded, reversing the ledger credit and any stock the
+        // note returned — through new entries, never by erasing.
+        services.AddScoped<ICreditNoteDeleter, CreditNoteDeleter>();
+
         // Legacy invoice adoption (Phase 5, slice 5b, legacy parity): materialise a legacy invoice into the
         // new model on first edit/void — reused by the go-live bulk migration.
         services.AddScoped<ILegacyInvoiceAdopter, LegacyInvoiceAdopter>();
@@ -70,6 +74,16 @@ public static class DependencyInjection
         // + number + snapshot, one transaction, no ledger and no stock (an order, not a payable or a
         // receipt; the payable is the supplier invoice, the receipt the deferred GRN).
         services.AddScoped<IPurchaseOrderCreator, PurchaseOrderCreator>();
+
+        // Legacy purchase-order adoption: materialise an order into the new model on first edit, so the
+        // edit reconciles against real lines and the History tab shows an "as imported" version 1.
+        services.AddScoped<ILegacyPurchaseOrderAdopter, LegacyPurchaseOrderAdopter>();
+
+        // Edit and void: versioned, reason-gated, concurrency-guarded. An order posts nothing, so an edit
+        // re-values the document alone and a void has nothing to reverse. One service behind both.
+        services.AddScoped<PurchaseOrderService>();
+        services.AddScoped<IPurchaseOrderEditor>(sp => sp.GetRequiredService<PurchaseOrderService>());
+        services.AddScoped<IPurchaseOrderDeleter>(sp => sp.GetRequiredService<PurchaseOrderService>());
 
         // Supplier invoices (Phase 6, slice 2): the accounts-payable record — a Purchase payable entry on
         // create, Payment entries for (partial) payments, a soft, reason-gated void that reverses the
@@ -94,6 +108,14 @@ public static class DependencyInjection
         // Data-exception corrections (LEGACY-DATA-POLICY §4): audited, transactional fixes behind the Data
         // Exceptions screen — remove a duplicate payment, record a missing one, or restore a receivable.
         services.AddScoped<IDataExceptionResolver, DataExceptionResolver>();
+
+        // Document PDFs (Phase 8, PDF templates). One renderer per document; each resolves the record
+        // and its company profile, and the profile — VAT registration, bank details, brand colour —
+        // drives the variation the legacy pack expressed as separate _SN/_ST report files.
+        services.AddScoped<IJobSheetRenderer, Pdf.JobSheetRenderer>();
+        services.AddScoped<IQuotationRenderer, Pdf.QuotationRenderer>();
+        services.AddScoped<IPurchaseOrderRenderer, Pdf.PurchaseOrderRenderer>();
+        services.AddScoped<ICreditNoteRenderer, Pdf.CreditNoteRenderer>();
 
         // Supplier payments (Phase 7): the payables mirror — money paid, allocated across supplier invoices
         // (new and adopted-legacy alike), Payment entries on the payables ledger dual-writing supplier_inv_pay

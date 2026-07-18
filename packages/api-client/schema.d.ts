@@ -302,6 +302,189 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/credit-notes/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/credit-notes/{id}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CreditNoteRecipients"];
+                        "application/json": components["schemas"]["CreditNoteRecipients"];
+                        "text/json": components["schemas"]["CreditNoteRecipients"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/credit-notes/{id}/email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["EmailDocumentRequest"];
+                    "text/json": components["schemas"]["EmailDocumentRequest"];
+                    "application/*+json": components["schemas"]["EmailDocumentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["EmailDocumentResponse"];
+                        "application/json": components["schemas"]["EmailDocumentResponse"];
+                        "text/json": components["schemas"]["EmailDocumentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/credit-notes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CreditNoteDetail"];
+                        "application/json": components["schemas"]["CreditNoteDetail"];
+                        "text/json": components["schemas"]["CreditNoteDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CreditNoteDeleted"];
+                        "application/json": components["schemas"]["CreditNoteDeleted"];
+                        "text/json": components["schemas"]["CreditNoteDeleted"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/credit-notes": {
         parameters: {
             query?: never;
@@ -360,45 +543,6 @@ export interface paths {
                 };
             };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/credit-notes/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["CreditNoteDetail"];
-                        "application/json": components["schemas"]["CreditNoteDetail"];
-                        "text/json": components["schemas"]["CreditNoteDetail"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -849,6 +993,45 @@ export interface paths {
                         "text/plain": components["schemas"]["DashboardResponse"];
                         "application/json": components["schemas"]["DashboardResponse"];
                         "text/json": components["schemas"]["DashboardResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dunning/outstanding/{customerCode}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    customerCode: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["StatementRecipients"];
+                        "application/json": components["schemas"]["StatementRecipients"];
+                        "text/json": components["schemas"]["StatementRecipients"];
                     };
                 };
             };
@@ -1990,6 +2173,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/job-cards/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/job-cards/{id}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["JobSheetRecipients"];
+                        "application/json": components["schemas"]["JobSheetRecipients"];
+                        "text/json": components["schemas"]["JobSheetRecipients"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/job-cards/{id}/email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["EmailDocumentRequest"];
+                    "text/json": components["schemas"]["EmailDocumentRequest"];
+                    "application/*+json": components["schemas"]["EmailDocumentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["EmailDocumentResponse"];
+                        "application/json": components["schemas"]["EmailDocumentResponse"];
+                        "text/json": components["schemas"]["EmailDocumentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/job-cards/{id}/close": {
         parameters: {
             query?: never;
@@ -2191,6 +2493,218 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/purchase-orders/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PurchaseOrderDetail"];
+                        "application/json": components["schemas"]["PurchaseOrderDetail"];
+                        "text/json": components["schemas"]["PurchaseOrderDetail"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["EditPurchaseOrderRequest"];
+                    "text/json": components["schemas"]["EditPurchaseOrderRequest"];
+                    "application/*+json": components["schemas"]["EditPurchaseOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PurchaseOrderEditedResponse"];
+                        "application/json": components["schemas"]["PurchaseOrderEditedResponse"];
+                        "text/json": components["schemas"]["PurchaseOrderEditedResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PurchaseOrderDeleted"];
+                        "application/json": components["schemas"]["PurchaseOrderDeleted"];
+                        "text/json": components["schemas"]["PurchaseOrderDeleted"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/purchase-orders/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/purchase-orders/{id}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PurchaseOrderRecipients"];
+                        "application/json": components["schemas"]["PurchaseOrderRecipients"];
+                        "text/json": components["schemas"]["PurchaseOrderRecipients"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/purchase-orders/{id}/email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["EmailDocumentRequest"];
+                    "text/json": components["schemas"]["EmailDocumentRequest"];
+                    "application/*+json": components["schemas"]["EmailDocumentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["EmailDocumentResponse"];
+                        "application/json": components["schemas"]["EmailDocumentResponse"];
+                        "text/json": components["schemas"]["EmailDocumentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/purchase-orders": {
         parameters: {
             query?: never;
@@ -2249,45 +2763,6 @@ export interface paths {
                 };
             };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/purchase-orders/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["PurchaseOrderDetail"];
-                        "application/json": components["schemas"]["PurchaseOrderDetail"];
-                        "text/json": components["schemas"]["PurchaseOrderDetail"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2388,6 +2863,125 @@ export interface paths {
                         "text/plain": components["schemas"]["QuotationCreatedResponse"];
                         "application/json": components["schemas"]["QuotationCreatedResponse"];
                         "text/json": components["schemas"]["QuotationCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quotations/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quotations/{id}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["QuotationRecipients"];
+                        "application/json": components["schemas"]["QuotationRecipients"];
+                        "text/json": components["schemas"]["QuotationRecipients"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quotations/{id}/email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["EmailDocumentRequest"];
+                    "text/json": components["schemas"]["EmailDocumentRequest"];
+                    "application/*+json": components["schemas"]["EmailDocumentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["EmailDocumentResponse"];
+                        "application/json": components["schemas"]["EmailDocumentResponse"];
+                        "text/json": components["schemas"]["EmailDocumentResponse"];
                     };
                 };
             };
@@ -4037,6 +4631,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/company/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /** Format: binary */
+                        file?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/business-rules": {
         parameters: {
             query?: never;
@@ -5357,6 +6025,7 @@ export interface components {
             name: string;
             isVatRegistered: boolean;
             vatNumber?: string | null;
+            businessRegistrationNo?: string | null;
             addressLine1?: string | null;
             addressLine2?: string | null;
             city?: string | null;
@@ -5369,6 +6038,7 @@ export interface components {
             bankAccountName?: string | null;
             bankAccountNumber?: string | null;
             brandColour?: string | null;
+            hasLogo: boolean;
         };
         CompanySummary: {
             /** Format: int64 */
@@ -5612,6 +6282,11 @@ export interface components {
             /** Format: double */
             total: number;
         };
+        CreditNoteDeleted: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+        };
         CreditNoteDetail: {
             /** Format: int64 */
             id: number;
@@ -5639,7 +6314,16 @@ export interface components {
             /** Format: double */
             total: number;
             origin: string;
+            /** Format: int32 */
+            rowVersion: number;
             lines: components["schemas"]["InvoiceLineDetail"][];
+        };
+        CreditNoteRecipients: {
+            contacts: components["schemas"]["DocumentContact"][];
+            subject: string;
+            body: string;
+            attachmentName: string;
+            blocked?: string | null;
         };
         CreditNoteSummary: {
             /** Format: int64 */
@@ -5877,6 +6561,14 @@ export interface components {
             deletedByName?: string | null;
             reason?: string | null;
         };
+        DocumentContact: {
+            /** Format: int64 */
+            id: number;
+            name?: string | null;
+            email: string;
+            usage: string;
+            selected: boolean;
+        };
         DocumentSeriesDto: {
             /** Format: int64 */
             id: number;
@@ -5921,6 +6613,7 @@ export interface components {
         };
         DunningRequest: {
             customers: string[];
+            contactIds?: number[] | null;
         };
         DunningResponse: {
             /** Format: int32 */
@@ -5956,6 +6649,19 @@ export interface components {
             documentDiscountPercent: number;
             /** Format: double */
             documentCost?: number | null;
+            /** Format: date */
+            date?: string | null;
+        };
+        EditPurchaseOrderRequest: {
+            /** Format: int32 */
+            expectedRowVersion: number;
+            lines: components["schemas"]["EditInvoiceLineRequest"][];
+            /** Format: double */
+            documentDiscountPercent: number;
+            /** Format: double */
+            documentCost?: number | null;
+            /** Format: date */
+            date?: string | null;
         };
         EditQuotationRequest: {
             /** Format: int32 */
@@ -5967,6 +6673,16 @@ export interface components {
             documentDiscountPercent: number;
             /** Format: double */
             documentCost?: number | null;
+            /** Format: date */
+            date?: string | null;
+        };
+        EmailDocumentRequest: {
+            contactIds: number[];
+        };
+        EmailDocumentResponse: {
+            sent: boolean;
+            recipients: string[];
+            error?: string | null;
         };
         EmailTemplateDto: {
             /** Format: int64 */
@@ -6236,6 +6952,13 @@ export interface components {
             status: string;
             origin: string;
         };
+        JobSheetRecipients: {
+            contacts: components["schemas"]["DocumentContact"][];
+            subject: string;
+            body: string;
+            attachmentName: string;
+            blocked?: string | null;
+        };
         LoginRequest: {
             username: string;
             password: string;
@@ -6403,6 +7126,11 @@ export interface components {
             /** Format: double */
             total: number;
         };
+        PurchaseOrderDeleted: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+        };
         PurchaseOrderDetail: {
             /** Format: int64 */
             id: number;
@@ -6431,6 +7159,22 @@ export interface components {
             rowVersion: number;
             origin: string;
             lines: components["schemas"]["InvoiceLineDetail"][];
+        };
+        PurchaseOrderEditedResponse: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: double */
+            total: number;
+            /** Format: int32 */
+            versionNo: number;
+        };
+        PurchaseOrderRecipients: {
+            contacts: components["schemas"]["DocumentContact"][];
+            subject: string;
+            body: string;
+            attachmentName: string;
+            blocked?: string | null;
         };
         PurchaseOrderSummary: {
             /** Format: int64 */
@@ -6499,6 +7243,13 @@ export interface components {
             total: number;
             /** Format: int32 */
             versionNo: number;
+        };
+        QuotationRecipients: {
+            contacts: components["schemas"]["DocumentContact"][];
+            subject: string;
+            body: string;
+            attachmentName: string;
+            blocked?: string | null;
         };
         QuotationSummary: {
             /** Format: int64 */
@@ -6698,6 +7449,10 @@ export interface components {
         };
         SetUserPermissionsRequest: {
             permissions: string[];
+        };
+        StatementRecipients: {
+            contacts: components["schemas"]["DocumentContact"][];
+            blocked?: string | null;
         };
         StockBatchDto: {
             /** Format: int64 */

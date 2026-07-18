@@ -354,6 +354,226 @@
         }
       }
     },
+    "/api/credit-notes/{id}/pdf": {
+      "get": {
+        "tags": [
+          "CreditNotes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/credit-notes/{id}/recipients": {
+      "get": {
+        "tags": [
+          "CreditNotes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditNoteRecipients"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditNoteRecipients"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditNoteRecipients"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/credit-notes/{id}/email": {
+      "post": {
+        "tags": [
+          "CreditNotes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/credit-notes/{id}": {
+      "delete": {
+        "tags": [
+          "CreditNotes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "expectedRowVersion",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditNoteDeleted"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditNoteDeleted"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditNoteDeleted"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "CreditNotes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditNoteDetail"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditNoteDetail"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditNoteDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/credit-notes": {
       "get": {
         "tags": [
@@ -443,46 +663,6 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreditNoteCreatedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/credit-notes/{id}": {
-      "get": {
-        "tags": [
-          "CreditNotes"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreditNoteDetail"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreditNoteDetail"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreditNoteDetail"
                 }
               }
             }
@@ -1022,6 +1202,45 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DashboardResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dunning/outstanding/{customerCode}/recipients": {
+      "get": {
+        "tags": [
+          "Dunning"
+        ],
+        "parameters": [
+          {
+            "name": "customerCode",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementRecipients"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementRecipients"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementRecipients"
                 }
               }
             }
@@ -2516,6 +2735,140 @@
         }
       }
     },
+    "/api/job-cards/{id}/pdf": {
+      "get": {
+        "tags": [
+          "JobCards"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/job-cards/{id}/recipients": {
+      "get": {
+        "tags": [
+          "JobCards"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobSheetRecipients"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobSheetRecipients"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobSheetRecipients"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/job-cards/{id}/email": {
+      "post": {
+        "tags": [
+          "JobCards"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/job-cards/{id}/close": {
       "post": {
         "tags": [
@@ -2769,6 +3122,295 @@
         }
       }
     },
+    "/api/purchase-orders/{id}": {
+      "put": {
+        "tags": [
+          "PurchaseOrders"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EditPurchaseOrderRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EditPurchaseOrderRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EditPurchaseOrderRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderEditedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderEditedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderEditedResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "PurchaseOrders"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "expectedRowVersion",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderDeleted"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderDeleted"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderDeleted"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "PurchaseOrders"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderDetail"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderDetail"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/purchase-orders/{id}/pdf": {
+      "get": {
+        "tags": [
+          "PurchaseOrders"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/purchase-orders/{id}/recipients": {
+      "get": {
+        "tags": [
+          "PurchaseOrders"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderRecipients"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderRecipients"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderRecipients"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/purchase-orders/{id}/email": {
+      "post": {
+        "tags": [
+          "PurchaseOrders"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/purchase-orders": {
       "get": {
         "tags": [
@@ -2858,46 +3500,6 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PurchaseOrderCreatedResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/purchase-orders/{id}": {
-      "get": {
-        "tags": [
-          "PurchaseOrders"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/PurchaseOrderDetail"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PurchaseOrderDetail"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PurchaseOrderDetail"
                 }
               }
             }
@@ -3041,6 +3643,140 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/QuotationCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quotations/{id}/pdf": {
+      "get": {
+        "tags": [
+          "Quotations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/quotations/{id}/recipients": {
+      "get": {
+        "tags": [
+          "Quotations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationRecipients"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationRecipients"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationRecipients"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quotations/{id}/email": {
+      "post": {
+        "tags": [
+          "Quotations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmailDocumentRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailDocumentResponse"
                 }
               }
             }
@@ -5013,6 +5749,58 @@
         }
       }
     },
+    "/api/settings/company/logo": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              },
+              "encoding": {
+                "file": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/settings/business-rules": {
       "get": {
         "tags": [
@@ -6919,6 +7707,7 @@
       },
       "CompanyProfile": {
         "required": [
+          "hasLogo",
           "id",
           "isVatRegistered",
           "name"
@@ -6936,6 +7725,10 @@
             "type": "boolean"
           },
           "vatNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "businessRegistrationNo": {
             "type": "string",
             "nullable": true
           },
@@ -6986,6 +7779,9 @@
           "brandColour": {
             "type": "string",
             "nullable": true
+          },
+          "hasLogo": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -7774,6 +8570,23 @@
         },
         "additionalProperties": false
       },
+      "CreditNoteDeleted": {
+        "required": [
+          "id",
+          "number"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "CreditNoteDetail": {
         "required": [
           "date",
@@ -7786,6 +8599,7 @@
           "number",
           "origin",
           "returnsStock",
+          "rowVersion",
           "subtotal",
           "taxAmount",
           "taxRatePercentage",
@@ -7857,11 +8671,46 @@
           "origin": {
             "type": "string"
           },
+          "rowVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
           "lines": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/InvoiceLineDetail"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreditNoteRecipients": {
+        "required": [
+          "attachmentName",
+          "body",
+          "contacts",
+          "subject"
+        ],
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentContact"
+            }
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "attachmentName": {
+            "type": "string"
+          },
+          "blocked": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -8633,6 +9482,35 @@
         },
         "additionalProperties": false
       },
+      "DocumentContact": {
+        "required": [
+          "email",
+          "id",
+          "selected",
+          "usage"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "string"
+          },
+          "selected": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "DocumentSeriesDto": {
         "required": [
           "docType",
@@ -8773,6 +9651,14 @@
             "items": {
               "type": "string"
             }
+          },
+          "contactIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -8883,6 +9769,46 @@
             "type": "number",
             "format": "double",
             "nullable": true
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EditPurchaseOrderRequest": {
+        "required": [
+          "documentDiscountPercent",
+          "expectedRowVersion",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRowVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EditInvoiceLineRequest"
+            }
+          },
+          "documentDiscountPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "documentCost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -8920,6 +9846,50 @@
           "documentCost": {
             "type": "number",
             "format": "double",
+            "nullable": true
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EmailDocumentRequest": {
+        "required": [
+          "contactIds"
+        ],
+        "type": "object",
+        "properties": {
+          "contactIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "EmailDocumentResponse": {
+        "required": [
+          "recipients",
+          "sent"
+        ],
+        "type": "object",
+        "properties": {
+          "sent": {
+            "type": "boolean"
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "error": {
+            "type": "string",
             "nullable": true
           }
         },
@@ -9782,6 +10752,37 @@
         },
         "additionalProperties": false
       },
+      "JobSheetRecipients": {
+        "required": [
+          "attachmentName",
+          "body",
+          "contacts",
+          "subject"
+        ],
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentContact"
+            }
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "attachmentName": {
+            "type": "string"
+          },
+          "blocked": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "LoginRequest": {
         "required": [
           "password",
@@ -10324,6 +11325,23 @@
         },
         "additionalProperties": false
       },
+      "PurchaseOrderDeleted": {
+        "required": [
+          "id",
+          "number"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "PurchaseOrderDetail": {
         "required": [
           "date",
@@ -10409,6 +11427,64 @@
             "items": {
               "$ref": "#/components/schemas/InvoiceLineDetail"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "PurchaseOrderEditedResponse": {
+        "required": [
+          "id",
+          "number",
+          "total",
+          "versionNo"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "number": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "versionNo": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PurchaseOrderRecipients": {
+        "required": [
+          "attachmentName",
+          "body",
+          "contacts",
+          "subject"
+        ],
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentContact"
+            }
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "attachmentName": {
+            "type": "string"
+          },
+          "blocked": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -10621,6 +11697,37 @@
           "versionNo": {
             "type": "integer",
             "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuotationRecipients": {
+        "required": [
+          "attachmentName",
+          "body",
+          "contacts",
+          "subject"
+        ],
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentContact"
+            }
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "attachmentName": {
+            "type": "string"
+          },
+          "blocked": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -11313,6 +12420,25 @@
             "items": {
               "type": "string"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "StatementRecipients": {
+        "required": [
+          "contacts"
+        ],
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentContact"
+            }
+          },
+          "blocked": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false

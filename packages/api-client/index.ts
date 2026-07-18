@@ -113,6 +113,7 @@ export type CompanyOption = Schemas["CompanyOption"];
 export type OutstandingResponse = Schemas["OutstandingResponse"];
 export type OutstandingRow = Schemas["OutstandingRow"];
 export type DunningResponse = Schemas["DunningResponse"];
+export type StatementRecipients = Schemas["StatementRecipients"];
 
 // --- Documents (Phase 5) ---------------------------------------------------------------------
 
@@ -167,6 +168,17 @@ export type JobCardSummary = Schemas["JobCardSummary"];
 export type JobCardDetail = Schemas["JobCardDetail"];
 export type JobCardLineDetail = Schemas["JobCardLineDetail"];
 export type CloseJobCardRequest = Schemas["CloseJobCardRequest"];
+export type DocumentContact = Schemas["DocumentContact"];
+export type JobSheetRecipients = Schemas["JobSheetRecipients"];
+export type QuotationRecipients = Schemas["QuotationRecipients"];
+export type PurchaseOrderRecipients = Schemas["PurchaseOrderRecipients"];
+export type CreditNoteRecipients = Schemas["CreditNoteRecipients"];
+export type CreditNoteDeleted = Schemas["CreditNoteDeleted"];
+export type EditPurchaseOrderRequest = Schemas["EditPurchaseOrderRequest"];
+export type PurchaseOrderEditedResponse = Schemas["PurchaseOrderEditedResponse"];
+export type PurchaseOrderDeleted = Schemas["PurchaseOrderDeleted"];
+export type EmailDocumentRequest = Schemas["EmailDocumentRequest"];
+export type EmailDocumentResponse = Schemas["EmailDocumentResponse"];
 
 // --- Customer receipts (Phase 7) --------------------------------------------------------------
 
