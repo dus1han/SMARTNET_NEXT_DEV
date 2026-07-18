@@ -58,4 +58,20 @@ public interface ISupplierPaymentCreator
 public interface ISupplierPaymentVoider
 {
     Task VoidAsync(long paymentId, int expectedRowVersion, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Voids a payment the old system made, identified by its <c>supplier_inv_pay</c> row id.
+    /// </summary>
+    /// <remarks>
+    /// A legacy supplier payment settles its invoice in full: the row records which invoice was paid and
+    /// when, but carries no amount of its own — the amount <i>is</i> the invoice's, which is how the
+    /// detail screen shows one. So voiding it is not the reversal of a part-payment; it puts the invoice
+    /// back to <c>Pending</c> and removes the settlement.
+    ///
+    /// <para>Nothing is posted to the payables ledger, because a legacy payment never posted to it —
+    /// the ledger holds no legacy rows at all, and a legacy invoice's outstanding is read from
+    /// <c>paymentstat</c>. Inventing entries here would put a figure into a ledger that nothing else
+    /// reads for this invoice.</para>
+    /// </remarks>
+    Task VoidLegacyAsync(long legacyPaymentId, CancellationToken cancellationToken = default);
 }

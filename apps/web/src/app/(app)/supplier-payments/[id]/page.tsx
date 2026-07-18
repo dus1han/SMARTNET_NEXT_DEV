@@ -40,7 +40,10 @@ export default function SupplierPaymentViewPage() {
   const error = payment.error as ApiError | null;
   const data = payment.data;
   const isLegacy = data?.origin === "legacy";
-  const canModify = data != null && !isLegacy && (user.data?.permissions.includes("supplier_in") ?? false);
+  // A legacy settlement is voidable too. supplier_inv_pay carries no amount — the settlement is the whole
+  // invoice, which is why the screen shows the invoice's amount — so voiding puts the invoice back to
+  // Pending and removes the settlement. The list shows it under a negative id.
+  const canModify = data != null && (user.data?.permissions.includes("supplier_in") ?? false);
 
   return (
     <FadeIn className="space-y-6">

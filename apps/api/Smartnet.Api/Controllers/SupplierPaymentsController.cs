@@ -360,6 +360,13 @@ public sealed class SupplierPaymentsController : ControllerBase
     [RequireChangeReason]
     public async Task<IActionResult> Delete(long id, [FromQuery] int expectedRowVersion, CancellationToken cancellationToken)
     {
+        // A negative id is a settlement the old system made: the lists show supplier_inv_pay rows under
+        // -id, because they have no supplier_payments row of their own to be identified by.
+        if (id < 0)
+        {
+            return await VoidLegacyAsync(-id, cancellationToken).ConfigureAwait(false);
+        }
+
         var accessible = _company.Accessible.ToList();
         var companyId = await _db.SupplierPayments
             .IgnoreQueryFilters()
@@ -383,6 +390,48 @@ public sealed class SupplierPaymentsController : ControllerBase
             return Problem(
                 statusCode: StatusCodes.Status409Conflict,
                 title: "This payment was changed by someone else. Reload and try again.");
+        }
+    }
+
+    /// <summary>
+    /// Voids a settlement the old system made, guarded by the company that owns its invoice.
+    /// </summary>
+    /// <remarks>
+    /// No row_version to check: a legacy settlement is a row in the old table, not a document this app
+    /// versions. It can only be voided once — a second attempt finds the row gone.
+    /// </remarks>
+    private async Task<IActionResult> VoidLegacyAsync(long legacyPaymentId, CancellationToken cancellationToken)
+    {
+        var accessibleText = _company.Accessible
+            .Select(c => c.ToString(CultureInfo.InvariantCulture))
+            .ToHashSet(StringComparer.Ordinal);
+
+        // supplier_inv_pay.supinvid is a varchar holding the invoice's id, so the join is made in SQL
+        // rather than LINQ — the two sides are not the same CLR type.
+        var company = await _db.Database
+            .SqlQuery<string?>(
+                $"""
+                SELECT si.`company` AS Value
+                FROM `supplier_inv_pay` p
+                JOIN `supplier_invoice` si ON si.`id` = p.`supinvid`
+                WHERE p.`id` = {legacyPaymentId}
+                """)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (company is null || !accessibleText.Contains(company))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            await _voider.VoidLegacyAsync(legacyPaymentId, cancellationToken).ConfigureAwait(false);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: ex.Message);
         }
     }
 }

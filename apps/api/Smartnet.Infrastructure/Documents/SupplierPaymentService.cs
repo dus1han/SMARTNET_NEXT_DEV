@@ -241,4 +241,44 @@ public sealed class SupplierPaymentService : ISupplierPaymentCreator, ISupplierP
             """,
             cancellationToken).ConfigureAwait(false);
     }
+
+    /// <inheritdoc />
+    public async Task VoidLegacyAsync(long legacyPaymentId, CancellationToken cancellationToken = default)
+    {
+        // supplier_inv_pay carries no amount — the settlement is the whole invoice — so everything this
+        // needs comes through supinvid.
+        var settlement = await _db.Database
+            .SqlQuery<LegacySettlement>(
+                $"""
+                SELECT p.`id` AS PaymentId, p.`supinvid` AS SupplierInvoiceId, si.`paymentstat` AS PaymentStat
+                FROM `supplier_inv_pay` p
+                JOIN `supplier_invoice` si ON si.`id` = p.`supinvid`
+                WHERE p.`id` = {legacyPaymentId}
+                """)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException(
+                $"Legacy supplier payment {legacyPaymentId} does not exist, or names an invoice that does not.");
+
+        await using var transaction = await _db.Database
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // The invoice is owed again. Nothing is posted to the payables ledger: a legacy payment never
+        // posted to it, and a legacy invoice's outstanding is read from this flag.
+        await _db.Database.ExecuteSqlAsync(
+            $"UPDATE `supplier_invoice` SET `paymentstat` = 'Pending' WHERE `id` = {settlement.SupplierInvoiceId}",
+            cancellationToken).ConfigureAwait(false);
+
+        // The settlement itself goes. Unlike a customer payment there is no amount to reverse with an
+        // opposite row — the row *is* the settlement, and a reversing one would read as a second payment.
+        await _db.Database.ExecuteSqlAsync(
+            $"DELETE FROM `supplier_inv_pay` WHERE `id` = {legacyPaymentId}",
+            cancellationToken).ConfigureAwait(false);
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>What a legacy settlement row and its invoice say, read together.</summary>
+    private sealed record LegacySettlement(long PaymentId, long SupplierInvoiceId, string? PaymentStat);
 }
