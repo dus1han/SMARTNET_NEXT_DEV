@@ -7,8 +7,30 @@
  * correlation id is the entire link between "it broke" and the log line that says why.
  */
 
-/** The API origin. Exported so the file-download path (which cannot use `api()`) hits the same host. */
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5080";
+/**
+ * The API origin — empty in a deployment, so every call is same-origin.
+ *
+ * **Relative on purpose.** Nginx routes /api to the API container and everything else to this app, so
+ * the browser and the API share an origin and a bare "/api/..." resolves correctly with no
+ * configuration at all. Three things follow from that, each of which bit the alternative:
+ *
+ *   - `NEXT_PUBLIC_*` is inlined at **build** time, so an absolute origin would bake one image per
+ *     environment and the artefact tested in staging could never be the one that ships.
+ *   - The old fallback was `http://localhost:5080`. In a user's browser that is *their* machine, so a
+ *     misconfigured deployment failed by quietly calling the wrong computer.
+ *   - The auth cookie is SameSite=Strict. Same-origin is unambiguously fine; a cross-origin absolute
+ *     URL is one mistake away from the cookie not being sent and every call reading as logged out.
+ *
+ * Development is the genuine exception: `next dev` serves :3000 while the API runs on :5080, so they
+ * really are different origins. Keyed on NODE_ENV, which Next replaces at build time, so the localhost
+ * default cannot leak into a production bundle — and a fresh clone still runs with no env file.
+ *
+ * Exported because the download and preview paths cannot use `api()` and must hit the same host.
+ */
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL
+  ?? (process.env.NODE_ENV === "development" ? "http://localhost:5080" : "");
+
 const BASE_URL = API_BASE_URL;
 
 /** RFC 9457 ProblemDetails, plus the extensions our API adds. */

@@ -37,8 +37,9 @@ services:
       # apps/web and would not exist in a narrower context. See apps/web/Dockerfile.
       context: ..
       dockerfile: apps/web/Dockerfile
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5080}
+    # No NEXT_PUBLIC_API_URL. The client calls /api relatively and nginx routes it, so nothing
+    # environment-specific is baked into the frontend image — the same artefact runs anywhere. Setting
+    # it here would do nothing regardless: NEXT_PUBLIC_* is inlined at build time, not read at runtime.
     ports:
       - "3000:3000"
     depends_on:
