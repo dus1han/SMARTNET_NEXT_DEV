@@ -6568,6 +6568,15 @@ export interface components {
             email?: string | null;
             usage: string;
         };
+        CustomerDebt: {
+            name: string;
+            /** Format: double */
+            owed: number;
+            /** Format: int32 */
+            invoices: number;
+            /** Format: int32 */
+            oldestDays: number;
+        };
         CustomerReceiptCreatedResponse: {
             /** Format: int64 */
             id: number;
@@ -6711,6 +6720,9 @@ export interface components {
             invoiceCount: number;
             /** Format: double */
             averageInvoice: number;
+            overdueByCustomer: components["schemas"]["CustomerDebt"][];
+            topSuppliers: components["schemas"]["SupplierShare"][];
+            newCustomers: components["schemas"]["Trend"];
         };
         DashboardCompanyOption: {
             /** Format: int64 */
@@ -7919,6 +7931,13 @@ export interface components {
             /** Format: double */
             pendingBalance: number;
             hasDataIssue: boolean;
+        };
+        SupplierShare: {
+            name: string;
+            /** Format: double */
+            spend: number;
+            /** Format: double */
+            share: number;
         };
         SupplierSummary: {
             /** Format: int64 */

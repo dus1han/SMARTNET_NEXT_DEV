@@ -16,6 +16,9 @@ public sealed class DashboardAnalyticsTests
     private static readonly IReadOnlyDictionary<string, string> Names =
         new Dictionary<string, string>(StringComparer.Ordinal) { ["C-1"] = "Vogue Tex", ["C-2"] = "Astron" };
 
+    private static readonly IReadOnlyDictionary<string, string> SupplierNames =
+        new Dictionary<string, string>(StringComparer.Ordinal) { ["S-1"] = "Better Choice" };
+
     private static InvoiceH Invoice(string date, string total, string cost = "0", string balance = "0", string customer = "C-1") =>
         new() { Invoiceno = $"I-{date}-{total}", Indate = date, Totamount = total, Cost = cost, Balance = balance, Customer = customer };
 
@@ -26,14 +29,17 @@ public sealed class DashboardAnalyticsTests
         IEnumerable<InvoiceH>? invoices = null,
         IEnumerable<Payment>? payments = null,
         IEnumerable<InvoiceL>? lines = null,
-        IEnumerable<(DateOnly?, decimal)>? supplierPayments = null) =>
+        IEnumerable<(DateOnly?, decimal)>? supplierPayments = null,
+        IEnumerable<(string, decimal)>? supplierSpend = null) =>
         DashboardAnalyticsBuilder.Build(
             (invoices ?? []).ToList(),
             (lines ?? []).ToList(),
             (payments ?? []).ToList(),
             [],
             (supplierPayments ?? []).ToList(),
+            (supplierSpend ?? []).ToList(),
             Names,
+            SupplierNames,
             Today);
 
     [Fact]
@@ -167,7 +173,7 @@ public sealed class DashboardAnalyticsTests
                 new InvoiceH { Invoiceno = "A", Indate = "2026-07-02", Totamount = "300", Cost = "0", Balance = "0", Customer = "C-1", Invtype = "Cash" },
                 new InvoiceH { Invoiceno = "B", Indate = "2026-07-03", Totamount = "700", Cost = "0", Balance = "700", Customer = "C-1", Invtype = "Credit" },
             ],
-            [], [], [], [], Names, Today);
+            [], [], [], [], [], Names, SupplierNames, Today);
 
         report.Mix.Cash.Should().Be(300m);
         report.Mix.Credit.Should().Be(700m);
@@ -196,6 +202,45 @@ public sealed class DashboardAnalyticsTests
         report.MonthlyTrend[0].Month.Should().Be(new DateOnly(2025, 8, 1));
         // Empty months stay in, so a gap in trading reads as a gap rather than being closed up.
         report.MonthlyTrend.Count(p => p.Revenue == 0m).Should().Be(11);
+    }
+
+    [Fact]
+    public void Overdue_by_customer_names_who_is_late_and_how_late()
+    {
+        var report = Build([
+            Invoice("2026-07-15", "500", balance: "500", customer: "C-2"),   // current, not chased
+            Invoice("2025-05-01", "900", balance: "900", customer: "C-1"),   // long overdue
+            Invoice("2026-05-20", "100", balance: "100", customer: "C-1"),
+        ]);
+
+        report.OverdueByCustomer.Should().ContainSingle("only C-1 is past the current bucket");
+        var debt = report.OverdueByCustomer[0];
+        debt.Name.Should().Be("Vogue Tex");
+        debt.Owed.Should().Be(1000m);
+        debt.Invoices.Should().Be(2);
+        debt.OldestDays.Should().BeGreaterThan(400, "the oldest invoice sets this, not the average");
+    }
+
+    [Fact]
+    public void Supplier_spend_is_ranked_all_time_with_its_share()
+    {
+        var report = Build(supplierSpend: [("S-1", 750m), ("S-2", 250m)]);
+
+        report.TopSuppliers[0].Name.Should().Be("Better Choice");
+        report.TopSuppliers[0].Share.Should().Be(75m);
+        report.TopSuppliers[1].Name.Should().Be("S-2", "an unknown code falls back to the code itself");
+    }
+
+    [Fact]
+    public void New_customers_counts_only_a_first_ever_invoice()
+    {
+        var report = Build([
+            Invoice("2026-07-05", "100", customer: "C-1"),
+            Invoice("2025-03-05", "100", customer: "C-1"),   // C-1 is not new — it bought last year
+            Invoice("2026-07-06", "100", customer: "C-2"),   // C-2 is new
+        ]);
+
+        report.NewCustomers.Value.Should().Be(1);
     }
 
     [Fact]

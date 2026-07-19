@@ -18,7 +18,7 @@
  */
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Banknote, CalendarClock, Clock, Coins, FileText, TrendingUp, Wallet } from "lucide-react";
+import { AlertTriangle, Banknote, CalendarClock, Clock, Coins, FileText, TrendingUp, UserPlus, Wallet } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import { getDashboardAnalytics, type CompanyFilter } from "@/lib/dashboard";
@@ -107,7 +107,7 @@ export default function DashboardPage() {
           </div>
 
           <Reveal delayMs={90}>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <StatTile
                 label="Days to collect"
                 icon={Clock}
@@ -130,6 +130,14 @@ export default function DashboardPage() {
                 delayMs={140}
                 value={<AnimatedNumber value={a.mix.cash} format={formatMoney} />}
                 sub={`${a.mix.cashCount} invoice${a.mix.cashCount === 1 ? "" : "s"}, settled at the counter`}
+              />
+              <StatTile
+                label="New customers"
+                icon={UserPlus}
+                color="rose"
+                delayMs={280}
+                value={<AnimatedNumber value={a.newCustomers.value} format={(n) => String(Math.round(n))} />}
+                sub={<Delta change={a.newCustomers.changePercent} />}
               />
               <StatTile
                 label="Credit sales"
@@ -160,6 +168,27 @@ export default function DashboardPage() {
                   description="Open balances by age. Anything past the first bar has stopped moving."
                 />
                 <AgeingChart buckets={a.ageing} />
+
+                {a.overdueByCustomer.length > 0 && (
+                  <div className="mt-5 border-t border-subtle pt-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
+                      Who to chase
+                    </p>
+                    <ul className="space-y-2">
+                      {a.overdueByCustomer.map((c) => (
+                        <li key={c.name} className="flex items-baseline justify-between gap-3 text-sm">
+                          <span className="truncate text-text" title={c.name}>{c.name}</span>
+                          <span className="shrink-0 text-right">
+                            <span className="tabular text-text">{formatMoney(c.owed)}</span>
+                            <span className="ml-2 text-xs text-muted">
+                              {c.invoices} inv · oldest {c.oldestDays}d
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </Card>
             </Reveal>
 
@@ -174,18 +203,33 @@ export default function DashboardPage() {
             </Reveal>
           </div>
 
-          <Reveal delayMs={320}>
-            <Card>
-              <CardHeader
-                title="Biggest customers this month"
-                description={`The top five are ${a.topCustomerShare.toFixed(1)}% of the month’s revenue.`}
-              />
-              <RankedBars
-                rows={a.topCustomers.map((c) => ({ label: c.name, value: c.revenue, share: c.share }))}
-                emptyLabel="No customer revenue this month."
-              />
-            </Card>
-          </Reveal>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Reveal delayMs={320}>
+              <Card className="h-full">
+                <CardHeader
+                  title="Biggest customers this month"
+                  description={`The top five are ${a.topCustomerShare.toFixed(1)}% of the month’s revenue.`}
+                />
+                <RankedBars
+                  rows={a.topCustomers.map((c) => ({ label: c.name, value: c.revenue, share: c.share }))}
+                  emptyLabel="No customer revenue this month."
+                />
+              </Card>
+            </Reveal>
+
+            <Reveal delayMs={380}>
+              <Card className="h-full">
+                <CardHeader
+                  title="Biggest suppliers"
+                  description="All time — a buying relationship is built over years, not in a month."
+                />
+                <RankedBars
+                  rows={a.topSuppliers.map((sup) => ({ label: sup.name, value: sup.spend, share: sup.share }))}
+                  emptyLabel="No supplier purchases recorded."
+                />
+              </Card>
+            </Reveal>
+          </div>
         </>
       ) : null}
     </FadeIn>

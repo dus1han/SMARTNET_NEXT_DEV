@@ -42,7 +42,9 @@ public static class DashboardAnalyticsBuilder
         IReadOnlyList<Payment> payments,
         IReadOnlyList<ExpenseTr> expenses,
         IReadOnlyList<(DateOnly? Date, decimal Amount)> supplierPayments,
+        IReadOnlyList<(string SupplierCode, decimal Amount)> supplierSpend,
         IReadOnlyDictionary<string, string> customerNames,
+        IReadOnlyDictionary<string, string> supplierNames,
         DateOnly today)
     {
         var monthStart = new DateOnly(today.Year, today.Month, 1);
@@ -95,7 +97,10 @@ public static class DashboardAnalyticsBuilder
                 thisMonth.Count(s => s.IsCredit)),
             DaysToCollect: DaysToCollect(dated, payments, monthStart),
             InvoiceCount: thisMonth.Count,
-            AverageInvoice: thisMonth.Count == 0 ? 0m : decimal.Round(thisMonth.Sum(s => s.Total) / thisMonth.Count, 2));
+            AverageInvoice: thisMonth.Count == 0 ? 0m : decimal.Round(thisMonth.Sum(s => s.Total) / thisMonth.Count, 2),
+            OverdueByCustomer: OverdueByCustomer(dated, customerNames, today),
+            TopSuppliers: TopSuppliers(supplierSpend, supplierNames),
+            NewCustomers: NewCustomers(dated, monthStart));
     }
 
     /// <summary>Revenue and profit by month, oldest first, with empty months kept so gaps show as gaps.</summary>
@@ -245,6 +250,77 @@ public static class DashboardAnalyticsBuilder
             .ToList();
 
         return spans.Count == 0 ? null : (int)Math.Round(spans.Average());
+    }
+
+    /// <summary>
+    /// Who the overdue money is with, worst first.
+    /// </summary>
+    /// <remarks>
+    /// The ageing chart says how much is late; it cannot say who, and "who" is the only part anybody can
+    /// act on. Restricted to balances past the current bucket so it lists people to chase rather than
+    /// everybody who happens to owe something this week.
+    /// </remarks>
+    private static List<CustomerDebt> OverdueByCustomer(
+        IReadOnlyList<Sale> sales,
+        IReadOnlyDictionary<string, string> customerNames,
+        DateOnly today)
+    {
+        return sales
+            .Where(s => s.Balance > 0m && today.DayNumber - s.Date!.Value.DayNumber > 30)
+            .GroupBy(s => s.CustomerCode, StringComparer.Ordinal)
+            .Select(g => new CustomerDebt(
+                customerNames.GetValueOrDefault(g.Key, g.Key.Length == 0 ? "Unknown" : g.Key),
+                g.Sum(s => s.Balance),
+                g.Count(),
+                g.Max(s => today.DayNumber - s.Date!.Value.DayNumber)))
+            .OrderByDescending(c => c.Owed)
+            .Take(TopN)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The suppliers the most has been bought from — the mirror of customer concentration.
+    /// </summary>
+    /// <remarks>
+    /// All time rather than the month, unlike the customer ranking. A buying relationship is a standing
+    /// dependency built over years, and one month of purchasing says very little about who the business
+    /// would struggle to replace.
+    /// </remarks>
+    private static List<SupplierShare> TopSuppliers(
+        IReadOnlyList<(string SupplierCode, decimal Amount)> spend,
+        IReadOnlyDictionary<string, string> supplierNames)
+    {
+        var total = spend.Sum(s => s.Amount);
+
+        return spend
+            .Where(s => s.SupplierCode.Length > 0)
+            .GroupBy(s => s.SupplierCode, StringComparer.Ordinal)
+            .Select(g => new SupplierShare(
+                supplierNames.GetValueOrDefault(g.Key, g.Key),
+                g.Sum(s => s.Amount),
+                Percent(g.Sum(s => s.Amount), total)))
+            .OrderByDescending(s => s.Spend)
+            .Take(TopN)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Customers whose first-ever invoice fell in the month — new business, as opposed to repeat.
+    /// </summary>
+    /// <remarks>
+    /// "First-ever" is judged across every invoice in scope, not just the window shown, so somebody who
+    /// last bought two years ago counts as returning rather than new.
+    /// </remarks>
+    private static Trend NewCustomers(IReadOnlyList<Sale> sales, DateOnly monthStart)
+    {
+        var firstSale = sales
+            .Where(s => s.CustomerCode.Length > 0)
+            .GroupBy(s => s.CustomerCode, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Min(s => s.Date!.Value), StringComparer.Ordinal);
+
+        return new Trend(
+            firstSale.Count(f => InMonth(f.Value, monthStart)),
+            firstSale.Count(f => InMonth(f.Value, monthStart.AddMonths(-1))));
     }
 
     private static bool InMonth(DateOnly date, DateOnly monthStart) =>

@@ -9065,6 +9065,33 @@
         },
         "additionalProperties": false
       },
+      "CustomerDebt": {
+        "required": [
+          "invoices",
+          "name",
+          "oldestDays",
+          "owed"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "owed": {
+            "type": "number",
+            "format": "double"
+          },
+          "invoices": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "oldestDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "CustomerReceiptCreatedResponse": {
         "required": [
           "alreadyExisted",
@@ -9471,10 +9498,13 @@
           "marginPercent",
           "mix",
           "monthlyTrend",
+          "newCustomers",
           "overdue",
+          "overdueByCustomer",
           "revenue",
           "topCustomers",
-          "topCustomerShare"
+          "topCustomerShare",
+          "topSuppliers"
         ],
         "type": "object",
         "properties": {
@@ -9554,6 +9584,25 @@
           "averageInvoice": {
             "type": "number",
             "format": "double"
+          },
+          "overdueByCustomer": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerDebt"
+            }
+          },
+          "topSuppliers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupplierShare"
+            }
+          },
+          "newCustomers": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Trend"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -13514,6 +13563,28 @@
           },
           "hasDataIssue": {
             "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SupplierShare": {
+        "required": [
+          "name",
+          "share",
+          "spend"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "spend": {
+            "type": "number",
+            "format": "double"
+          },
+          "share": {
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false

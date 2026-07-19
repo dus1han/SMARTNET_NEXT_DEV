@@ -60,6 +60,19 @@ public sealed record AgeingBucket(string Label, decimal Amount, int Invoices);
 /// <summary>One customer's contribution to revenue over the window.</summary>
 public sealed record CustomerShare(string Name, decimal Revenue, decimal Share);
 
+/// <summary>
+/// One customer and what they are late paying — the answer to the question the ageing chart raises.
+/// </summary>
+/// <remarks>
+/// <paramref name="OldestDays"/> is the age of their oldest unpaid invoice, not an average. Somebody
+/// owing a little for four hundred days is a different conversation from somebody owing a lot for
+/// forty, and a mean over their invoices would hide exactly that.
+/// </remarks>
+public sealed record CustomerDebt(string Name, decimal Owed, int Invoices, int OldestDays);
+
+/// <summary>One supplier and what has been bought from them — concentration, on the buying side.</summary>
+public sealed record SupplierShare(string Name, decimal Spend, decimal Share);
+
 /// <summary>How the month split between cash and credit, and what that is worth.</summary>
 public sealed record SalesMix(decimal Cash, decimal Credit, int CashCount, int CreditCount);
 
@@ -119,4 +132,13 @@ public sealed record DashboardAnalytics(
     /// <summary>Invoices raised this month, and their average value.</summary>
     int InvoiceCount,
 
-    decimal AverageInvoice);
+    decimal AverageInvoice,
+
+    /// <summary>Who is behind the overdue figure, worst first.</summary>
+    IReadOnlyList<CustomerDebt> OverdueByCustomer,
+
+    /// <summary>The suppliers the most is bought from, all time.</summary>
+    IReadOnlyList<SupplierShare> TopSuppliers,
+
+    /// <summary>Customers whose first-ever invoice fell in this month, against last month.</summary>
+    Trend NewCustomers);

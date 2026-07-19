@@ -137,7 +137,7 @@ public sealed class DashboardController : ControllerBase
 
         if (scopeIds.Count == 0)
         {
-            return Ok(DashboardAnalyticsBuilder.Build([], [], [], [], [], new Dictionary<string, string>(), today));
+            return Ok(DashboardAnalyticsBuilder.Build([], [], [], [], [], [], new Dictionary<string, string>(), new Dictionary<string, string>(), today));
         }
 
         var invoices = await _legacy.InvoiceHs
@@ -171,9 +171,21 @@ public sealed class DashboardController : ControllerBase
         // dated by the settlement.
         var supplierInvoices = await _legacy.SupplierInvoices
             .Where(i => scopeIds.Contains(i.Company!))
-            .Select(i => new { i.Id, i.Amount })
+            .Select(i => new { i.Id, i.Amount, i.Supcode })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        var supplierSpend = supplierInvoices
+            .Select(i => (SupplierCode: i.Supcode ?? string.Empty, Amount: LegacyValue.Money(i.Amount)))
+            .ToList();
+
+        var supplierNames = (await _legacy.SupMs
+                .Select(x => new { x.Supcode, x.Supname })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .Where(x => !string.IsNullOrEmpty(x.Supcode))
+            .GroupBy(x => x.Supcode!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Supname ?? string.Empty, StringComparer.Ordinal);
 
         var amountByInvoice = supplierInvoices
             .GroupBy(i => i.Id)
@@ -201,7 +213,8 @@ public sealed class DashboardController : ControllerBase
             .ToDictionary(g => g.Key, g => g.First().Cusname ?? string.Empty, StringComparer.Ordinal);
 
         return Ok(DashboardAnalyticsBuilder.Build(
-            invoices, lines, payments, expenses, supplierPayments, customerNames, today));
+            invoices, lines, payments, expenses, supplierPayments, supplierSpend,
+            customerNames, supplierNames, today));
     }
 
     /// <summary>This user's display name — the legacy <c>preparedby</c> value — from their id claim.</summary>

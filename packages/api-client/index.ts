@@ -245,3 +245,5 @@ export type AgeingBucket = Schemas["AgeingBucket"];
 export type CustomerShare = Schemas["CustomerShare"];
 export type SalesMix = Schemas["SalesMix"];
 export type Trend = Schemas["Trend"];
+export type CustomerDebt = Schemas["CustomerDebt"];
+export type SupplierShare = Schemas["SupplierShare"];
