@@ -81,7 +81,22 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          # --pull always so a retag of :latest is actually fetched; --remove-orphans so a service
-          # deleted from the compose file stops rather than lingering.
+          # Ship infra/ (compose + nginx routing) BEFORE pulling, so the server runs the config
+          # from the repo, not a stale hand-placed copy. --delete makes the server a true mirror
+          # (a removed nginx location block actually disappears); the production .env is safe
+          # because it lives in /var/www/sys-secrets, outside this target. sql/ is a one-off DBA
+          # script, not runtime, so it is excluded.
+          rsync -az --delete --exclude 'sql/' \
+            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes" \
+            infra/ "$SSH_USER@$SSH_HOST:/var/www/sys/"
+
+          # --env-file points at the server-only secret (connection string, environment, cors).
+          # pull: fetch the images CI just pushed. up -d --remove-orphans: apply, and stop any
+          # service deleted from the compose file. nginx -s reload: re-read default.conf, since a
+          # changed mounted file does not reload a running container on its own — this is what makes
+          # each strangler cutover take effect.
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" \
-            "cd /var/www/sys && docker compose pull && docker compose up -d --remove-orphans"
+            "cd /var/www/sys && \
+             docker compose --env-file /var/www/sys-secrets/.env pull && \
+             docker compose --env-file /var/www/sys-secrets/.env up -d --remove-orphans && \
+             docker compose --env-file /var/www/sys-secrets/.env exec -T nginx nginx -s reload"
