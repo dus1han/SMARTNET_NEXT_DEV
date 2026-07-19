@@ -102,9 +102,13 @@ function Key({ colour, children }: { colour: string; children: string }) {
 /**
  * The hover read-out, floated over the plot at the band being pointed at.
  *
- * Previously this was a line of text beneath the chart, which is exactly where a reader is not looking:
- * the eye is on the bar. It follows the band now, flipping to the other side near the right edge so it
- * never runs off the card, and it is `pointer-events-none` so it cannot steal the hover that summoned it.
+ * It follows the band, flipping to the other side near the right edge so it never runs off the card, and
+ * it is `pointer-events-none` so it cannot steal the hover that summoned it.
+ *
+ * **It must be rendered inside the plot's `relative` box**, not after it. Absolute positioning resolves
+ * against the nearest positioned ancestor, so a tooltip that sits outside the box anchors to whatever is
+ * further up the tree and lands somewhere else on the page entirely — which is how this first shipped.
+ * Being inside the scroll container is also what keeps it aligned with its band once the chart scrolls.
  */
 function Tooltip({ x, width, children }: { x: number; width: number; children: React.ReactNode }) {
   const flip = x > width * 0.62;
@@ -187,13 +191,6 @@ export function MonthlyTrendChart({ points }: { points: MonthPoint[] }) {
 
             return (
               <g key={p.month}>
-                {/* Hit target spans the whole band, so hovering never demands precision. */}
-                <rect
-                  x={PAD.left + band * i} y={PAD.top} width={band} height={plotH}
-                  fill="transparent"
-                  onMouseEnter={() => setHovered(i)}
-                  onMouseLeave={() => setHovered(null)}
-                />
                 {isHot && <rect className="viz-hot" x={PAD.left + band * i} y={PAD.top} width={band} height={plotH} />}
 
                 <rect
@@ -208,20 +205,33 @@ export function MonthlyTrendChart({ points }: { points: MonthPoint[] }) {
                 />
 
                 <text className="viz-axis" x={cx} y={H - 10} textAnchor="middle">{monthLabel(p.month)}</text>
+
+                {/*
+                  The hit target goes last, so it sits above the bars in paint order and keeps the
+                  pointer for the whole band. Underneath them — where it started — the bars swallowed
+                  the pointer on their way past, firing mouseleave and closing the tooltip exactly when
+                  the reader arrived at the thing they were aiming for.
+                */}
+                <rect
+                  x={PAD.left + band * i} y={PAD.top} width={band} height={plotH}
+                  fill="transparent"
+                  onMouseEnter={() => setHovered(i)}
+                  onMouseLeave={() => setHovered(null)}
+                />
               </g>
             );
           })}
         </svg>
-      </div>
 
-      {hovered !== null && points[hovered] && (
-        <Tooltip x={PAD.left + band * hovered + band / 2} width={width}>
-          <p className="mb-1 font-medium text-text">{monthFull(points[hovered].month)}</p>
-          <TipRow colour="var(--revenue)" label="Revenue" value={formatMoney(points[hovered].revenue)} />
-          <TipRow colour="var(--profit)" label="Gross profit" value={formatMoney(points[hovered].profit)} />
-          <TipRow label="Cost" value={formatMoney(points[hovered].revenue - points[hovered].profit)} />
-        </Tooltip>
-      )}
+        {hovered !== null && points[hovered] && (
+          <Tooltip x={PAD.left + band * hovered + band / 2} width={width}>
+            <p className="mb-1 font-medium text-text">{monthFull(points[hovered].month)}</p>
+            <TipRow colour="var(--revenue)" label="Revenue" value={formatMoney(points[hovered].revenue)} />
+            <TipRow colour="var(--profit)" label="Gross profit" value={formatMoney(points[hovered].profit)} />
+            <TipRow label="Cost" value={formatMoney(points[hovered].revenue - points[hovered].profit)} />
+          </Tooltip>
+        )}
+      </div>
         </>
       )}
     </div>
@@ -329,12 +339,6 @@ export function CashFlowChart({ points }: { points: CashFlowPoint[] }) {
 
             return (
               <g key={p.month}>
-                <rect
-                  x={PAD.left + band * i} y={PAD.top} width={band} height={plotH}
-                  fill="transparent"
-                  onMouseEnter={() => setHovered(i)}
-                  onMouseLeave={() => setHovered(null)}
-                />
                 {hovered === i && <rect className="viz-hot" x={PAD.left + band * i} y={PAD.top} width={band} height={plotH} />}
 
                 <rect className="viz-bar" style={{ animationDelay: `${i * 50}ms` }}
@@ -343,20 +347,28 @@ export function CashFlowChart({ points }: { points: CashFlowPoint[] }) {
                   x={cx + 1} y={y(p.out)} width={barW} height={Math.max(0, plotH - (y(p.out) - PAD.top))} rx={3} fill="var(--out)" />
 
                 <text className="viz-axis" x={cx} y={H - 10} textAnchor="middle">{monthLabel(p.month)}</text>
+
+                {/* Above the bars, for the reason given in the trend chart. */}
+                <rect
+                  x={PAD.left + band * i} y={PAD.top} width={band} height={plotH}
+                  fill="transparent"
+                  onMouseEnter={() => setHovered(i)}
+                  onMouseLeave={() => setHovered(null)}
+                />
               </g>
             );
           })}
         </svg>
-      </div>
 
-      {hovered !== null && points[hovered] && (
-        <Tooltip x={PAD.left + band * hovered + band / 2} width={width}>
-          <p className="mb-1 font-medium text-text">{monthFull(points[hovered].month)}</p>
-          <TipRow colour="var(--in)" label="Received" value={formatMoney(points[hovered].in)} />
-          <TipRow colour="var(--out)" label="Paid out" value={formatMoney(points[hovered].out)} />
-          <TipRow label="Net" value={formatMoney(points[hovered].in - points[hovered].out)} />
-        </Tooltip>
-      )}
+        {hovered !== null && points[hovered] && (
+          <Tooltip x={PAD.left + band * hovered + band / 2} width={width}>
+            <p className="mb-1 font-medium text-text">{monthFull(points[hovered].month)}</p>
+            <TipRow colour="var(--in)" label="Received" value={formatMoney(points[hovered].in)} />
+            <TipRow colour="var(--out)" label="Paid out" value={formatMoney(points[hovered].out)} />
+            <TipRow label="Net" value={formatMoney(points[hovered].in - points[hovered].out)} />
+          </Tooltip>
+        )}
+      </div>
     </div>
   );
 }
