@@ -16,7 +16,10 @@ services:
       dockerfile: Dockerfile
     environment:
       # supplied from ../.env — never baked into the image
-      ConnectionStrings__Smartnet: ${ConnectionStrings__Smartnet}
+      # :? makes compose refuse to start with a named message when the variable is absent, rather
+      # than bringing the container up to crash on its first query. A missing secret should stop the
+      # deploy, not produce a service that looks running.
+      ConnectionStrings__Smartnet: ${ConnectionStrings__Smartnet:?set it in the server env file}
       # Production by default, and the default is the safety. Development is not a verbosity setting
       # here — it turns on Swagger, mounts an ANONYMOUS /api/dev/seed-payment endpoint that writes
       # real payments, drops Secure from the auth cookie (AuthCookie.Options takes isDevelopment), and
@@ -28,6 +31,17 @@ services:
       # same-origin and never preflight. It stays because the setting is the API's allow-list, and a
       # default of localhost:3000 on a production host is the kind of leftover that looks deliberate.
       Cors__WebOrigin: ${Cors__WebOrigin:-https://sys.smart-net.lk}
+
+      # Double underscore is the section separator: Jwt__SigningKey binds to Jwt:SigningKey, which is
+      # what JwtOptions reads. An env var named JWT_SIGNING_KEY binds to nothing and the API stops at
+      # startup with a validation error, because ValidateOnStart refuses an empty signing key.
+      #
+      # No default, ever. A signing key with a fallback is a key everybody holding this file already
+      # knows, and anyone holding it can mint a token for any user.
+      Jwt__SigningKey: ${Jwt__SigningKey:?set it in the server env file - at least 32 bytes of real entropy}
+      Jwt__Issuer: ${Jwt__Issuer:-smartnet}
+      Jwt__Audience: ${Jwt__Audience:-smartnet}
+      Jwt__AccessTokenMinutes: ${Jwt__AccessTokenMinutes:-30}
     # NOT published. nginx reaches this over the compose network as `api:5080` — see the upstream in
     # nginx/default.conf — so there is nothing for a host port to serve except the public internet.
     #

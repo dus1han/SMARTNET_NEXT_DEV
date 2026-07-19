@@ -13,7 +13,7 @@ public sealed class JwtOptions
     /// because anyone holding it can mint a token for any user.
     /// </summary>
     [Required]
-    [MinLength(32, ErrorMessage = "JWT_SIGNING_KEY must be at least 32 bytes of real entropy.")]
+    [MinLength(32, ErrorMessage = "Jwt__SigningKey must be at least 32 bytes of real entropy.")]
     public string SigningKey { get; init; } = string.Empty;
 
     [Required]
