@@ -83,74 +83,85 @@ public sealed class InvoicesController : ControllerBase
     /// </remarks>
     [HttpGet]
     [RequirePermission(Permissions.SearchInvoice)]
-    public async Task<ActionResult<IReadOnlyList<InvoiceSummary>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<InvoiceSummary>>> List(
+        [FromQuery] PageRequest paging,
+        CancellationToken cancellationToken)
     {
         var accessible = _company.Accessible.ToList();
+        var accessibleText = PageRequest.AsText(accessible).ToList();
 
-        // --- New invoices (this app's own) ----------------------------------------------------------
-        var invoices = await _db.Invoices
-            .Where(i => i.CompanyId != null && accessible.Contains(i.CompanyId.Value))
-            .Select(i => new { i.Id, i.Number, i.Date, i.CustomerId, i.Type, i.Total })
+        // New and legacy invoices are the SAME TABLE — invoice_h, split by data_origin — so the page
+        // is taken in one ordered query over it rather than by reading both sets whole and merging in
+        // memory. That is what makes paging correct here: a merge cannot be paged without reading
+        // everything it merges.
+        var query = _legacy.InvoiceHs.Where(h => h.Company != null && accessibleText.Contains(h.Company));
+
+        // Customer names live in another table (and another context), so a name search resolves to
+        // codes and ids first. The master is 223 rows; this is cheaper than it looks and keeps the
+        // name searchable, which is how people actually look for an invoice.
+        if (paging.LikePattern is { } pattern)
+        {
+            var matchedCodes = await _db.Customers
+                .Where(c => c.Code != null && EF.Functions.Like(c.Name, pattern))
+                .Select(c => c.Code!)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            query = query.Where(h =>
+                EF.Functions.Like(h.Invoiceno!, pattern)
+                || (h.Customer != null && matchedCodes.Contains(h.Customer)));
+        }
+
+        var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        // indate is a varchar, but every one of the 2,485 rows is ISO yyyy-MM-dd, so ordering it as
+        // text is chronological. Id is the tiebreaker, and it is not decoration: without a total
+        // order, rows shift between pages and a person paging through sees some twice and misses
+        // others.
+        var page = await query
+            .OrderByDescending(h => h.Indate)
+            .ThenByDescending(h => h.Id)
+            .Skip(paging.Skip)
+            .Take(paging.SafePageSize)
+            .Select(h => new { h.Id, h.Invoiceno, h.Indate, h.Customer, h.Invtype, h.Totamount, h.Balance, h.DataOrigin })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var customerIds = invoices.Select(i => i.CustomerId).Distinct().ToList();
-        var names = await _db.Customers
-            .Where(c => customerIds.Contains(c.Id))
-            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken)
-            .ConfigureAwait(false);
+        // Everything below is scoped to the page — twenty-five rows, not the table.
+        var newIds = page.Where(h => h.DataOrigin == "new").Select(h => h.Id).ToList();
 
-        // Outstanding is derived, per invoice, from the ledger — never a stored column (B3).
-        var invoiceIds = invoices.Select(i => i.Id).ToList();
-        var outstanding = await _db.ReceivablesLedger
-            .Where(e => e.InvoiceId != null && invoiceIds.Contains(e.InvoiceId.Value))
-            .GroupBy(e => e.InvoiceId!.Value)
-            .Select(g => new { InvoiceId = g.Key, Balance = g.Sum(e => e.Amount) })
-            .ToDictionaryAsync(x => x.InvoiceId, x => x.Balance, cancellationToken)
-            .ConfigureAwait(false);
+        // Outstanding is derived from the ledger, never a stored column (B3).
+        var outstanding = newIds.Count == 0
+            ? new Dictionary<long, decimal>()
+            : await _db.ReceivablesLedger
+                .Where(e => e.InvoiceId != null && newIds.Contains(e.InvoiceId.Value))
+                .GroupBy(e => e.InvoiceId!.Value)
+                .Select(g => new { InvoiceId = g.Key, Balance = g.Sum(e => e.Amount) })
+                .ToDictionaryAsync(x => x.InvoiceId, x => x.Balance, cancellationToken)
+                .ConfigureAwait(false);
 
-        var rows = invoices.Select(i => new InvoiceSummary(
-            i.Id,
-            i.Number,
-            i.Date,
-            names.GetValueOrDefault(i.CustomerId),
-            i.Type.ToString(),
-            i.Total,
-            outstanding.GetValueOrDefault(i.Id),
-            "new")).ToList();
-
-        // --- Legacy invoices (adopted from the old system) ------------------------------------------
-        // The legacy company column is a varchar holding the id; match the accessible ids as strings.
-        var accessibleText = accessible.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToHashSet();
-
-        var legacy = await _legacy.InvoiceHs
-            .Where(h => h.DataOrigin != "new") // legacy rows only — the new ones are already above
-            .Select(h => new { h.Id, h.Invoiceno, h.Indate, h.Customer, h.Invtype, h.Totamount, h.Balance, h.Company })
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        legacy = legacy.Where(h => h.Company != null && accessibleText.Contains(h.Company)).ToList();
-
-        // Resolve customer names by code from the adopted customer master, in one pass.
-        var legacyCodes = legacy.Select(h => h.Customer).Where(c => c != null).Distinct().ToList();
+        var codes = page.Select(h => h.Customer).Where(c => c != null).Select(c => c!).Distinct().ToList();
         var namesByCode = (await _db.Customers
-            .Where(c => c.Code != null && legacyCodes.Contains(c.Code))
-            .Select(c => new { c.Code, c.Name })
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false))
-            .ToDictionary(c => c.Code!, c => c.Name);
+                .Where(c => c.Code != null && codes.Contains(c.Code))
+                .Select(c => new { c.Code, c.Name })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .ToDictionary(c => c.Code!, c => c.Name, StringComparer.Ordinal);
 
-        rows.AddRange(legacy.Select(h => new InvoiceSummary(
+        var rows = page.Select(h => new InvoiceSummary(
             h.Id,
             h.Invoiceno ?? "—",
             LegacyValue.Date(h.Indate) ?? DateOnly.MinValue,
             h.Customer is not null ? namesByCode.GetValueOrDefault(h.Customer) : null,
             h.Invtype ?? "—",
             LegacyValue.Money(h.Totamount),
-            LegacyValue.Money(h.Balance),
-            "legacy")));
+            // A new invoice owns a ledger; a legacy one carries the old balance column.
+            h.DataOrigin == "new"
+                ? outstanding.GetValueOrDefault(h.Id)
+                : LegacyValue.Money(h.Balance),
+            h.DataOrigin == "new" ? "new" : "legacy")).ToList();
 
-        return Ok(rows.OrderByDescending(r => r.Date).ThenByDescending(r => r.Id).ToList());
+        return Ok(new PagedResult<InvoiceSummary>(rows, total, paging.SafePage, paging.SafePageSize));
     }
 
     /// <summary>

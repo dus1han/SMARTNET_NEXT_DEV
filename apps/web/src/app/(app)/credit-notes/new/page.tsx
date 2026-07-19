@@ -10,9 +10,9 @@
  * posted whole, once (D4).
  */
 
-import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowLeft, Search } from "lucide-react";
 import { ApiError } from "@/lib/api";
@@ -36,7 +36,14 @@ import {
 export default function NewCreditNotePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const invoices = useQuery({ queryKey: ["invoices"], queryFn: getInvoices });
+  // The picker searches on the server now that the list is paged, so every invoice stays findable
+  // rather than only the first page of them. Fifty matches is more than anyone scrolls.
+  const [pickerSearch, setPickerSearch] = useState("");
+  const invoices = useQuery({
+    queryKey: ["invoices", "picker", pickerSearch],
+    queryFn: () => getInvoices({ page: 1, pageSize: 50, search: pickerSearch }),
+    placeholderData: keepPreviousData,
+  });
 
   const [invoiceId, setInvoiceId] = useState<number | null>(null);
   const [date, setDate] = useState(today);
@@ -127,7 +134,8 @@ export default function NewCreditNotePage() {
       <Card className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <InvoiceCombobox
-            invoices={invoices.data ?? []}
+            invoices={invoices.data?.rows ?? []}
+            onQueryChange={setPickerSearch}
             value={invoiceId}
             onChange={pickInvoice}
           />
@@ -203,16 +211,25 @@ export default function NewCreditNotePage() {
  * nobody can find their invoice in. Type a number or any word in the customer name; arrow and Enter, or
  * click. The same shape as the customer combobox in the shared editor.
  */
-function InvoiceCombobox({ invoices, value, onChange }: {
+function InvoiceCombobox({ invoices, value, onChange, onQueryChange }: {
   invoices: readonly InvoiceSummary[];
   value: number | null;
   onChange: (id: number) => void;
+  /** Reports what the user typed, so the server can search beyond the invoices already loaded. */
+  onQueryChange: (query: string) => void;
 }) {
   const listboxId = useId();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlighted, setHighlighted] = useState(0);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Debounced, so typing an invoice number is one request rather than one per character.
+  useEffect(() => {
+    const timer = setTimeout(() => onQueryChange(query), 300);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the callback is stable enough; the term is what matters
+  }, [query]);
 
   const selected = invoices.find((i) => i.id === value) ?? null;
   const results = useMemo(() => searchInvoices(query, invoices), [query, invoices]);

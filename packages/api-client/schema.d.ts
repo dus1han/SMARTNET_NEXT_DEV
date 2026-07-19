@@ -1238,7 +1238,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    inline?: boolean;
+                };
                 header?: never;
                 path: {
                     id: number;
@@ -1802,7 +1804,11 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    Page?: number;
+                    PageSize?: number;
+                    Search?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1815,9 +1821,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["InvoiceSummary"][];
-                        "application/json": components["schemas"]["InvoiceSummary"][];
-                        "text/json": components["schemas"]["InvoiceSummary"][];
+                        "text/plain": components["schemas"]["InvoiceSummaryPagedResult"];
+                        "application/json": components["schemas"]["InvoiceSummaryPagedResult"];
+                        "text/json": components["schemas"]["InvoiceSummaryPagedResult"];
                     };
                 };
             };
@@ -7420,6 +7426,15 @@ export interface components {
             /** Format: double */
             outstanding: number;
             origin: string;
+        };
+        InvoiceSummaryPagedResult: {
+            rows: components["schemas"]["InvoiceSummary"][];
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
         };
         InvoiceTaxRate: {
             /** Format: int64 */

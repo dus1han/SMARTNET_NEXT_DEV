@@ -15,6 +15,7 @@ import type {
   InvoiceTaxRate,
 } from "@smartnet/api-client";
 import { api } from "./api";
+import type { Paged } from "./paging";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
 export type {
@@ -34,7 +35,23 @@ export type {
 } from "@smartnet/api-client";
 
 /** The invoices this app has raised, newest first — outstanding derived from the ledger. */
-export const getInvoices = () => api<InvoiceSummary[]>("/api/invoices");
+/**
+ * One page of invoices, searched and ordered by the server.
+ *
+ * The whole list used to come back — 2,485 rows, 342 KB — so the browser could page through it. The
+ * server pages it now, which also means the search box searches every invoice rather than the page
+ * that happens to be loaded.
+ */
+export const getInvoices = (params: { page: number; pageSize?: number; search?: string }) => {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    pageSize: String(params.pageSize ?? 25),
+  });
+
+  if (params.search?.trim()) query.set("search", params.search.trim());
+
+  return api<Paged<InvoiceSummary>>(`/api/invoices?${query}`);
+};
 
 /** One invoice in full, with its lines. */
 export const getInvoice = (id: number) => api<InvoiceDetail>(`/api/invoices/${id}`);

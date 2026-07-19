@@ -8,11 +8,13 @@
  * as settled because its charge and its at-issue payment net to zero.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import { getInvoices, type InvoiceSummary } from "@/lib/invoices";
 import { daysDueLabel } from "@/lib/period";
+import { DEFAULT_PAGE_SIZE, FIRST_PAGE } from "@/lib/paging";
 import { PageHeader } from "@/components/shell/app-shell";
 import { Plus } from "lucide-react";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -21,7 +23,16 @@ import { Badge, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function InvoicesPage() {
   const router = useRouter();
-  const invoices = useQuery({ queryKey: ["invoices"], queryFn: getInvoices });
+  const [page, setPage] = useState(FIRST_PAGE);
+  const [search, setSearch] = useState("");
+
+  const invoices = useQuery({
+    queryKey: ["invoices", page, search],
+    queryFn: () => getInvoices({ page, search }),
+    // Keeps the current page on screen while the next one loads, so paging does not blink through
+    // an empty table.
+    placeholderData: keepPreviousData,
+  });
   const error = invoices.error as ApiError | null;
 
   return (
@@ -35,9 +46,18 @@ export default function InvoicesPage() {
 
       <DataTable
         columns={columns}
-        rows={invoices.data}
+        rows={invoices.data?.rows}
         loading={invoices.isPending}
+        // The server searches number and customer name; this stays as the description of what is
+        // searchable, and is unused in server mode.
         searchable={(row) => `${row.number} ${row.customerName ?? ""}`}
+        server={{
+          total: invoices.data?.total ?? 0,
+          page,
+          onPageChange: setPage,
+          search,
+          onSearchChange: setSearch,
+        }}
         searchPlaceholder="Search by number or customer…"
         defaultSort={{ id: "date", desc: true }}
         actions={

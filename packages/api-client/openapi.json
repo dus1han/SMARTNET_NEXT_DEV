@@ -1482,6 +1482,13 @@
               "type": "integer",
               "format": "int64"
             }
+          },
+          {
+            "name": "inline",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -2180,32 +2187,48 @@
         "tags": [
           "Invoices"
         ],
+        "parameters": [
+          {
+            "name": "Page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "Search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "text/plain": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InvoiceSummary"
-                  }
+                  "$ref": "#/components/schemas/InvoiceSummaryPagedResult"
                 }
               },
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InvoiceSummary"
-                  }
+                  "$ref": "#/components/schemas/InvoiceSummaryPagedResult"
                 }
               },
               "text/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InvoiceSummary"
-                  }
+                  "$ref": "#/components/schemas/InvoiceSummaryPagedResult"
                 }
               }
             }
@@ -11391,6 +11414,36 @@
           },
           "origin": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvoiceSummaryPagedResult": {
+        "required": [
+          "page",
+          "pageSize",
+          "rows",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

@@ -20,7 +20,7 @@ import {
   Inbox,
   Search,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 import { Button, Input, Skeleton, toast } from "@/components/ui";
 import { downloadExcel } from "./export";
@@ -87,6 +87,25 @@ export interface DataTableProps<T> {
   pageSize?: number;
 
   /**
+   * Hands paging and searching to the server.
+   *
+   * Without this the component holds every row and pages in the browser, which is right for a list
+   * of eight and wrong for one of 2,485. With it, `rows` is one page, the pager counts from `total`,
+   * and typing in the search box asks the server rather than filtering what is already here — which
+   * it must, since what is already here is one page and the match may be on another.
+   */
+  server?: {
+    /** Rows matching the current search, across every page — what the pager counts from. */
+    total: number;
+    /** The page being shown, 1-based. */
+    page: number;
+    onPageChange: (page: number) => void;
+    /** The current search term, owned by the caller so it can go into the query key. */
+    search: string;
+    onSearchChange: (search: string) => void;
+  };
+
+  /**
    * The column the list is sorted by when it first loads, and its direction.
    *
    * Without this a list renders in whatever order the API returned, which reads as jumbled the
@@ -108,18 +127,47 @@ export function DataTable<T>({
   empty,
   onRowClick,
   pageSize = 25,
+  server,
   defaultSort,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>(
     defaultSort ? [{ id: defaultSort.id, desc: defaultSort.desc ?? false }] : [],
   );
-  const [query, setQuery] = useState("");
+
+  // In server mode the box is driven locally and reported upward on a delay, so a five-letter search
+  // is one request rather than five. The caller still owns the committed term.
+  const [query, setQuery] = useState(server?.search ?? "");
   const [exporting, setExporting] = useState(false);
+
+  // Debounced hand-off to the server. Resets to page 1, because the page you were on rarely exists
+  // in the results of a different search.
+  useEffect(() => {
+    if (!server) return;
+    if (query === server.search) return;
+
+    const timer = setTimeout(() => {
+      server.onSearchChange(query);
+      server.onPageChange(1);
+    }, 300);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- server identity changes every render; the term is what matters
+  }, [query, server?.search]);
 
   const table = useReactTable({
     data: rows ?? [],
     columns,
-    state: { sorting, globalFilter: query },
+
+    // Server mode: the rows given ARE the page, so the table must not filter or slice them again.
+    manualPagination: server !== undefined,
+    manualFiltering: server !== undefined,
+    pageCount: server ? Math.max(1, Math.ceil(server.total / pageSize)) : undefined,
+
+    state: {
+      sorting,
+      globalFilter: server ? "" : query,
+      ...(server ? { pagination: { pageIndex: server.page - 1, pageSize } } : {}),
+    },
     onSortingChange: setSorting,
     onGlobalFilterChange: setQuery,
 
@@ -144,8 +192,18 @@ export function DataTable<T>({
   }
 
   const visible = table.getRowModel().rows;
-  const filtered = table.getFilteredRowModel().rows.length;
-  const total = rows?.length ?? 0;
+
+  // In server mode `rows` is one page, so counting it would report "25 rows" for a list of 2,485.
+  // The server's total is the only thing that knows how many there are.
+  const filtered = server ? server.total : table.getFilteredRowModel().rows.length;
+  const total = server ? server.total : (rows?.length ?? 0);
+
+  const pageCount = server ? Math.max(1, Math.ceil(server.total / pageSize)) : table.getPageCount();
+  const currentPage = server ? server.page : table.getState().pagination.pageIndex + 1;
+  const canPrevious = server ? server.page > 1 : table.getCanPreviousPage();
+  const canNext = server ? server.page < pageCount : table.getCanNextPage();
+  const goPrevious = () => (server ? server.onPageChange(server.page - 1) : table.previousPage());
+  const goNext = () => (server ? server.onPageChange(server.page + 1) : table.nextPage());
 
   return (
     <div className="space-y-3">
@@ -305,7 +363,7 @@ export function DataTable<T>({
         )}
       </div>
 
-      {table.getPageCount() > 1 && (
+      {pageCount > 1 && (
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-muted">
             {filtered === total ? (
@@ -333,7 +391,7 @@ export function DataTable<T>({
             </Button>
 
             <span className="tabular px-2 text-sm text-muted">
-              {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
+              {currentPage} / {pageCount}
             </span>
 
             <Button
