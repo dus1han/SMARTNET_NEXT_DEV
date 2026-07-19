@@ -56,7 +56,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="group grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
+    <div className="group grid min-h-dvh overflow-y-auto lg:grid-cols-[1.05fr_1fr]">
       <BrandPanel />
 
       <main className="relative flex items-center justify-center overflow-hidden p-6">

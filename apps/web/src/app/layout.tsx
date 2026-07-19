@@ -31,7 +31,16 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-canvas text-text">
+      {/*
+        The window never scrolls; the app does. `.app-canvas` is h-dvh with overflow-hidden and <main>
+        carries overflow-y-auto, so scrolling belongs to the content area — but `min-h-full` left the
+        document itself scrollable, and anything that made it a pixel taller than the viewport (a
+        horizontal scrollbar stealing height, a rounding difference between 100% and 100dvh) produced a
+        second scrollbar at the window edge on top of the app's own.
+
+        Pages outside the shell — login, change-password — scroll within their own container instead.
+      */}
+      <body className="flex h-full flex-col overflow-hidden bg-canvas text-text">
         <Providers>{children}</Providers>
       </body>
     </html>

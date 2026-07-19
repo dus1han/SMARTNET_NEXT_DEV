@@ -46,7 +46,7 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
+    <main className="flex min-h-screen items-center justify-center overflow-y-auto p-6">
       <Card className="w-full max-w-sm">
         <CardHeader
           title="Choose a new password"
