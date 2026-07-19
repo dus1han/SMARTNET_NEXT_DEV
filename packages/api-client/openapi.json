@@ -1270,6 +1270,45 @@
         }
       }
     },
+    "/api/dashboard/customer/{code}": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerInsight"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerInsight"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerInsight"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/dunning/outstanding/{customerCode}/recipients": {
       "get": {
         "tags": [
@@ -8810,6 +8849,7 @@
       },
       "CreditBreach": {
         "required": [
+          "code",
           "excess",
           "limit",
           "name",
@@ -8817,6 +8857,9 @@
         ],
         "type": "object",
         "properties": {
+          "code": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -9094,6 +9137,7 @@
       },
       "CustomerDebt": {
         "required": [
+          "code",
           "invoices",
           "name",
           "oldestDays",
@@ -9101,6 +9145,9 @@
         ],
         "type": "object",
         "properties": {
+          "code": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -9115,6 +9162,162 @@
           "oldestDays": {
             "type": "integer",
             "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CustomerInsight": {
+        "required": [
+          "code",
+          "invoiceCount",
+          "invoices",
+          "lifetime",
+          "monthlyTrend",
+          "name",
+          "outstanding",
+          "overdue",
+          "payments"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "vatNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "creditLimit": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "lifetime": {
+            "type": "number",
+            "format": "double"
+          },
+          "outstanding": {
+            "type": "number",
+            "format": "double"
+          },
+          "overdue": {
+            "type": "number",
+            "format": "double"
+          },
+          "invoiceCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "firstPurchase": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "lastPurchase": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "silentDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "daysToCollect": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "monthlyTrend": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MonthPoint"
+            }
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerInvoiceRow"
+            }
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerPaymentRow"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "CustomerInvoiceRow": {
+        "required": [
+          "ageDays",
+          "balance",
+          "number",
+          "total",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "type": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "ageDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CustomerPaymentRow": {
+        "required": [
+          "amount",
+          "invoiceNo",
+          "method"
+        ],
+        "type": "object",
+        "properties": {
+          "invoiceNo": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "method": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -9326,12 +9529,16 @@
       },
       "CustomerShare": {
         "required": [
+          "code",
           "name",
           "revenue",
           "share"
         ],
         "type": "object",
         "properties": {
+          "code": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -11321,6 +11528,7 @@
       },
       "LapsedCustomer": {
         "required": [
+          "code",
           "lastPurchase",
           "lifetime",
           "name",
@@ -11329,6 +11537,9 @@
         ],
         "type": "object",
         "properties": {
+          "code": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },

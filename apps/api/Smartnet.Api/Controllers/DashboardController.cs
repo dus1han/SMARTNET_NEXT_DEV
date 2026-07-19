@@ -227,6 +227,60 @@ public sealed class DashboardController : ControllerBase
             customerNames, supplierNames, creditLimits, today));
     }
 
+    /// <summary>
+    /// One customer in full — the drill-down every dashboard panel points at.
+    /// </summary>
+    /// <remarks>
+    /// Keyed by the legacy customer <i>code</i>, not an id, because that is what the documents carry and
+    /// what the dashboard's panels already hold. Scoped to the caller's companies like everything else:
+    /// the account shows only invoices from companies they may see, so the totals here and the totals on
+    /// the dashboard are the same figures.
+    /// </remarks>
+    [HttpGet("customer/{code}")]
+    [Authorize]
+    public async Task<ActionResult<CustomerInsight>> Customer(string code, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+        var accessible = _company.Accessible.ToList();
+        var scopeIds = accessible.Select(i => i.ToString(CultureInfo.InvariantCulture)).ToList();
+
+        var customer = await _legacy.CusMs
+            .Where(c => c.Cuscode == code)
+            .Select(c => new { c.Cuscode, c.Cusname, c.Cusadd, c.Contactno, c.Vatnum, c.Climit })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (customer is null)
+        {
+            return NotFound();
+        }
+
+        var invoices = await _legacy.InvoiceHs
+            .Where(h => h.Customer == code && scopeIds.Contains(h.Company!))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var numbers = invoices
+            .Where(h => !string.IsNullOrEmpty(h.Invoiceno))
+            .Select(h => h.Invoiceno!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var payments = (await _legacy.Payments.ToListAsync(cancellationToken).ConfigureAwait(false))
+            .Where(p => p.Invoiceno != null && numbers.Contains(p.Invoiceno))
+            .ToList();
+
+        return Ok(CustomerInsightBuilder.Build(
+            customer.Cuscode ?? code,
+            customer.Cusname ?? code,
+            customer.Cusadd,
+            customer.Contactno,
+            customer.Vatnum,
+            customer.Climit,
+            invoices,
+            payments,
+            today));
+    }
+
     /// <summary>This user's display name — the legacy <c>preparedby</c> value — from their id claim.</summary>
     private async Task<string?> CurrentUserName(CancellationToken cancellationToken)
     {

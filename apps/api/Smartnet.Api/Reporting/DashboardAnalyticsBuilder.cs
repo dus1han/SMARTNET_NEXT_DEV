@@ -214,6 +214,7 @@ public static class DashboardAnalyticsBuilder
         return byCustomer
             .Take(TopN)
             .Select(x => new CustomerShare(
+                x.Code,
                 customerNames.GetValueOrDefault(x.Code, x.Code),
                 x.Revenue,
                 Percent(x.Revenue, total)))
@@ -274,6 +275,7 @@ public static class DashboardAnalyticsBuilder
             .Where(s => s.Balance > 0m && today.DayNumber - s.Date!.Value.DayNumber > 30)
             .GroupBy(s => s.CustomerCode, StringComparer.Ordinal)
             .Select(g => new CustomerDebt(
+                g.Key,
                 customerNames.GetValueOrDefault(g.Key, g.Key.Length == 0 ? "Unknown" : g.Key),
                 g.Sum(s => s.Balance),
                 g.Count(),
@@ -352,6 +354,7 @@ public static class DashboardAnalyticsBuilder
             })
             .Where(c => c.Limit > 0m && c.Owed > c.Limit)
             .Select(c => new CreditBreach(
+                c.Code,
                 customerNames.GetValueOrDefault(c.Code, c.Code),
                 c.Limit,
                 c.Owed,
@@ -403,6 +406,7 @@ public static class DashboardAnalyticsBuilder
             .OrderByDescending(c => c.Lifetime)
             .Take(TopN)
             .Select(c => new LapsedCustomer(
+                c.Code,
                 customerNames.GetValueOrDefault(c.Code, c.Code),
                 c.Last,
                 c.Silent,

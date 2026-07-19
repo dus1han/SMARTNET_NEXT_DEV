@@ -249,3 +249,6 @@ export type CustomerDebt = Schemas["CustomerDebt"];
 export type SupplierShare = Schemas["SupplierShare"];
 export type CreditBreach = Schemas["CreditBreach"];
 export type LapsedCustomer = Schemas["LapsedCustomer"];
+export type CustomerInsight = Schemas["CustomerInsight"];
+export type CustomerInvoiceRow = Schemas["CustomerInvoiceRow"];
+export type CustomerPaymentRow = Schemas["CustomerPaymentRow"];

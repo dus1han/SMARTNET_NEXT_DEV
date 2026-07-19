@@ -19,6 +19,7 @@
  * does not.
  */
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { AgeingBucket, CashFlowPoint, MonthPoint } from "@/lib/dashboard";
 import { formatMoney } from "@/components/reports";
@@ -385,7 +386,7 @@ export function RankedBars({
   rows,
   emptyLabel,
 }: {
-  rows: { label: string; value: number; share: number; note?: string }[];
+  rows: { label: string; value: number; share: number; note?: string; href?: string }[];
   emptyLabel: string;
 }) {
   if (rows.length === 0) return <Empty>{emptyLabel}</Empty>;
@@ -397,7 +398,13 @@ export function RankedBars({
       {rows.map((r, i) => (
         <div key={r.label} className="space-y-1">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="truncate text-sm text-text" title={r.label}>{r.label}</span>
+            {r.href ? (
+              <Link href={r.href} className="truncate text-sm text-text underline-offset-2 hover:underline" title={r.label}>
+                {r.label}
+              </Link>
+            ) : (
+              <span className="truncate text-sm text-text" title={r.label}>{r.label}</span>
+            )}
             <span className="tabular shrink-0 text-sm text-text">
               {formatMoney(r.value)}
               <span className="ml-2 text-xs text-muted">{r.share.toFixed(1)}%</span>

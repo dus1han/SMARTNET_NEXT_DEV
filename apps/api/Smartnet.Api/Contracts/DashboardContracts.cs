@@ -58,7 +58,7 @@ public sealed record CashFlowPoint(DateOnly Month, decimal In, decimal Out);
 public sealed record AgeingBucket(string Label, decimal Amount, int Invoices);
 
 /// <summary>One customer's contribution to revenue over the window.</summary>
-public sealed record CustomerShare(string Name, decimal Revenue, decimal Share);
+public sealed record CustomerShare(string Code, string Name, decimal Revenue, decimal Share);
 
 /// <summary>
 /// One customer and what they are late paying — the answer to the question the ageing chart raises.
@@ -68,7 +68,7 @@ public sealed record CustomerShare(string Name, decimal Revenue, decimal Share);
 /// owing a little for four hundred days is a different conversation from somebody owing a lot for
 /// forty, and a mean over their invoices would hide exactly that.
 /// </remarks>
-public sealed record CustomerDebt(string Name, decimal Owed, int Invoices, int OldestDays);
+public sealed record CustomerDebt(string Code, string Name, decimal Owed, int Invoices, int OldestDays);
 
 /// <summary>
 /// A customer owing more than their agreed credit limit.
@@ -78,7 +78,7 @@ public sealed record CustomerDebt(string Name, decimal Owed, int Invoices, int O
 /// worth a panel rather than a validation rule alone: the control already exists on paper and is simply
 /// not being applied.
 /// </remarks>
-public sealed record CreditBreach(string Name, decimal Limit, decimal Owed, decimal Excess);
+public sealed record CreditBreach(string Code, string Name, decimal Limit, decimal Owed, decimal Excess);
 
 /// <summary>
 /// A customer who used to buy and has gone quiet.
@@ -88,7 +88,7 @@ public sealed record CreditBreach(string Name, decimal Limit, decimal Owed, deci
 /// simply stopped buying; one who still owes is a relationship that ended with money outstanding, which
 /// is a different problem and a more urgent one.
 /// </remarks>
-public sealed record LapsedCustomer(string Name, DateOnly LastPurchase, int SilentDays, decimal Lifetime, decimal StillOwed);
+public sealed record LapsedCustomer(string Code, string Name, DateOnly LastPurchase, int SilentDays, decimal Lifetime, decimal StillOwed);
 
 /// <summary>One supplier and what has been bought from them — concentration, on the buying side.</summary>
 public sealed record SupplierShare(string Name, decimal Spend, decimal Share);
@@ -173,3 +173,52 @@ public sealed record DashboardAnalytics(
     int LapsedCount,
 
     decimal LapsedValue);
+
+// --- Customer insight (the drill-down behind every dashboard panel) ------------------------------
+
+/// <summary>One invoice on the customer's account, with how old and how settled it is.</summary>
+public sealed record CustomerInvoiceRow(
+    string Number,
+    DateOnly? Date,
+    string Type,
+    decimal Total,
+    decimal Balance,
+    int AgeDays);
+
+/// <summary>One receipt against the account.</summary>
+public sealed record CustomerPaymentRow(string InvoiceNo, DateOnly? Date, decimal Amount, string Method);
+
+/// <summary>
+/// Everything about one customer, gathered for the question the dashboard makes a reader ask.
+/// </summary>
+/// <remarks>
+/// <b>This is the page the panels point at.</b> The dashboard can say Sunx Technologies owes 1,174,480
+/// and last bought thirteen months ago; it cannot say which invoices, what was ever paid, or whether
+/// there was a dispute — and those are what somebody needs before picking up the phone. Every reading
+/// here is the same defensive parse of the same legacy columns the dashboard uses, so the two can never
+/// disagree about the same customer.
+/// </remarks>
+public sealed record CustomerInsight(
+    string Code,
+    string Name,
+    string? Address,
+    string? Phone,
+    string? VatNumber,
+
+    /// <summary>Their agreed limit, or null when none is recorded — 198 of 223 have none.</summary>
+    decimal? CreditLimit,
+
+    decimal Lifetime,
+    decimal Outstanding,
+    decimal Overdue,
+    int InvoiceCount,
+    DateOnly? FirstPurchase,
+    DateOnly? LastPurchase,
+    int? SilentDays,
+
+    /// <summary>Their own average days from invoice to settlement — how this one pays, not the average customer.</summary>
+    int? DaysToCollect,
+
+    IReadOnlyList<MonthPoint> MonthlyTrend,
+    IReadOnlyList<CustomerInvoiceRow> Invoices,
+    IReadOnlyList<CustomerPaymentRow> Payments);

@@ -1079,6 +1079,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dashboard/customer/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CustomerInsight"];
+                        "application/json": components["schemas"]["CustomerInsight"];
+                        "text/json": components["schemas"]["CustomerInsight"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dunning/outstanding/{customerCode}/recipients": {
         parameters: {
             query?: never;
@@ -6492,6 +6531,7 @@ export interface components {
             temporaryPassword: string;
         };
         CreditBreach: {
+            code: string;
             name: string;
             /** Format: double */
             limit: number;
@@ -6578,6 +6618,7 @@ export interface components {
             usage: string;
         };
         CustomerDebt: {
+            code: string;
             name: string;
             /** Format: double */
             owed: number;
@@ -6585,6 +6626,54 @@ export interface components {
             invoices: number;
             /** Format: int32 */
             oldestDays: number;
+        };
+        CustomerInsight: {
+            code: string;
+            name: string;
+            address?: string | null;
+            phone?: string | null;
+            vatNumber?: string | null;
+            /** Format: double */
+            creditLimit?: number | null;
+            /** Format: double */
+            lifetime: number;
+            /** Format: double */
+            outstanding: number;
+            /** Format: double */
+            overdue: number;
+            /** Format: int32 */
+            invoiceCount: number;
+            /** Format: date */
+            firstPurchase?: string | null;
+            /** Format: date */
+            lastPurchase?: string | null;
+            /** Format: int32 */
+            silentDays?: number | null;
+            /** Format: int32 */
+            daysToCollect?: number | null;
+            monthlyTrend: components["schemas"]["MonthPoint"][];
+            invoices: components["schemas"]["CustomerInvoiceRow"][];
+            payments: components["schemas"]["CustomerPaymentRow"][];
+        };
+        CustomerInvoiceRow: {
+            number: string;
+            /** Format: date */
+            date?: string | null;
+            type: string;
+            /** Format: double */
+            total: number;
+            /** Format: double */
+            balance: number;
+            /** Format: int32 */
+            ageDays: number;
+        };
+        CustomerPaymentRow: {
+            invoiceNo: string;
+            /** Format: date */
+            date?: string | null;
+            /** Format: double */
+            amount: number;
+            method: string;
         };
         CustomerReceiptCreatedResponse: {
             /** Format: int64 */
@@ -6651,6 +6740,7 @@ export interface components {
             hasDataIssue: boolean;
         };
         CustomerShare: {
+            code: string;
             name: string;
             /** Format: double */
             revenue: number;
@@ -7249,6 +7339,7 @@ export interface components {
             blocked?: string | null;
         };
         LapsedCustomer: {
+            code: string;
             name: string;
             /** Format: date */
             lastPurchase: string;

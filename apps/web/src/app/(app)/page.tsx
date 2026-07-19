@@ -19,6 +19,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Banknote, CalendarClock, Clock, Coins, FileText, TrendingUp, UserPlus, Wallet } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import { getDashboardAnalytics, type CompanyFilter } from "@/lib/dashboard";
@@ -176,8 +177,14 @@ export default function DashboardPage() {
                     </p>
                     <ul className="space-y-2">
                       {a.overdueByCustomer.map((c) => (
-                        <li key={c.name} className="flex items-baseline justify-between gap-3 text-sm">
-                          <span className="truncate text-text" title={c.name}>{c.name}</span>
+                        <li key={c.code} className="flex items-baseline justify-between gap-3 text-sm">
+                          <Link
+                            href={customerHref(c.code)}
+                            className="truncate text-text underline-offset-2 hover:underline"
+                            title={c.name}
+                          >
+                            {c.name}
+                          </Link>
                           <span className="shrink-0 text-right">
                             <span className="tabular text-text">{formatMoney(c.owed)}</span>
                             <span className="ml-2 text-xs text-muted">
@@ -197,8 +204,14 @@ export default function DashboardPage() {
                     </p>
                     <ul className="space-y-2">
                       {a.overCreditLimit.map((c) => (
-                        <li key={c.name} className="flex items-baseline justify-between gap-3 text-sm">
-                          <span className="truncate text-text" title={c.name}>{c.name}</span>
+                        <li key={c.code} className="flex items-baseline justify-between gap-3 text-sm">
+                          <Link
+                            href={customerHref(c.code)}
+                            className="truncate text-text underline-offset-2 hover:underline"
+                            title={c.name}
+                          >
+                            {c.name}
+                          </Link>
                           <span className="shrink-0 text-right">
                             <span className="tabular text-text">{formatMoney(c.owed)}</span>
                             <span className="ml-2 text-xs text-muted">
@@ -233,7 +246,12 @@ export default function DashboardPage() {
                   description={`The top five are ${a.topCustomerShare.toFixed(1)}% of the month’s revenue.`}
                 />
                 <RankedBars
-                  rows={a.topCustomers.map((c) => ({ label: c.name, value: c.revenue, share: c.share }))}
+                  rows={a.topCustomers.map((c) => ({
+                    label: c.name,
+                    value: c.revenue,
+                    share: c.share,
+                    href: customerHref(c.code),
+                  }))}
                   emptyLabel="No customer revenue this month."
                 />
               </Card>
@@ -269,6 +287,7 @@ export default function DashboardPage() {
                 }
               />
 
+              <div className="viz-ageing">
               {a.lapsedCustomers.length === 0 ? (
                 <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-subtle text-sm text-muted">
                   Every customer has bought recently.
@@ -287,10 +306,21 @@ export default function DashboardPage() {
                     </thead>
                     <tbody>
                       {a.lapsedCustomers.map((c) => (
-                        <tr key={c.name} className="border-b border-subtle/60 last:border-0">
-                          <td className="py-2.5 pr-4 text-text">{c.name}</td>
+                        <tr key={c.code} className="border-b border-subtle/60 last:border-0">
+                          <td className="py-2.5 pr-4">
+                            <Link href={customerHref(c.code)} className="text-text underline-offset-2 hover:underline">
+                              {c.name}
+                            </Link>
+                          </td>
                           <td className="whitespace-nowrap py-2.5 pr-4 text-muted">{formatReportDate(c.lastPurchase)}</td>
-                          <td className="tabular whitespace-nowrap py-2.5 pr-4 text-right text-muted">{c.silentDays} days</td>
+                          <td className="whitespace-nowrap py-2.5 pr-4 text-right">
+                            <span
+                              className="tabular inline-block rounded-md px-2 py-0.5 text-xs font-medium text-white"
+                              style={{ background: silenceColour(c.silentDays) }}
+                            >
+                              {c.silentDays} days
+                            </span>
+                          </td>
                           <td className="tabular py-2.5 pr-4 text-right text-text">{formatMoney(c.lifetime)}</td>
                           {/* Gone and still owing is a different problem from merely gone, so it is its
                               own column rather than a note tucked beside the name. */}
@@ -303,12 +333,36 @@ export default function DashboardPage() {
                   </table>
                 </div>
               )}
+              </div>
             </Card>
           </Reveal>
         </>
       ) : null}
     </FadeIn>
   );
+}
+
+/**
+ * How long a customer has been silent, as a step on the ageing ramp.
+ *
+ * Sequential, not categorical — silence is one quantity getting worse. The figure is printed inside the
+ * pill in every case, so the colour never carries the value on its own.
+ */
+/** Where a customer name links to — their account, which is what every panel here provokes a question about. */
+function customerHref(code: string): string {
+  return `/customers/${encodeURIComponent(code)}`;
+}
+
+function monthName(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { month: "long" });
+}
+
+function silenceColour(days: number): string {
+  if (days > 365) return "var(--age-3)";
+  if (days > 270) return "var(--age-2)";
+  if (days > 180) return "var(--age-1)";
+  return "var(--age-0)";
 }
 
 /**
@@ -324,8 +378,12 @@ export default function DashboardPage() {
  * Derived here rather than on the server — it is a sum of figures already on the page, and a round trip
  * to add up six numbers the client is holding would be a request for nothing.
  */
-function CashSummary({ points }: { points: { in: number; out: number }[] }) {
+function CashSummary({ points }: { points: { month: string; in: number; out: number }[] }) {
   if (points.length === 0) return null;
+
+  const byNet = [...points].sort((x, z) => (z.in - z.out) - (x.in - x.out));
+  const best = byNet[0];
+  const worst = byNet[byNet.length - 1];
 
   const received = points.reduce((sum, p) => sum + p.in, 0);
   const paidOut = points.reduce((sum, p) => sum + p.out, 0);
@@ -361,6 +419,28 @@ function CashSummary({ points }: { points: { in: number; out: number }[] }) {
           ? "Every month took in more than it paid out."
           : `${negativeMonths} of these ${points.length} months paid out more than came in.`}
       </p>
+
+      {/* Which months, not just how many — the answer to the question the count provokes. */}
+      {best && worst && best.month !== worst.month && (
+        <dl className="mt-3 space-y-1.5 border-t border-subtle pt-3 text-sm">
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted">Strongest</dt>
+            <dd className="text-right">
+              <span className="text-text">{monthName(best.month)}</span>
+              <span className="tabular ml-2 text-success-text">+{formatMoney(best.in - best.out)}</span>
+            </dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted">Weakest</dt>
+            <dd className="text-right">
+              <span className="text-text">{monthName(worst.month)}</span>
+              <span className={worst.in - worst.out >= 0 ? "tabular ml-2 text-muted" : "tabular ml-2 text-warning-text"}>
+                {worst.in - worst.out >= 0 ? "+" : "−"}{formatMoney(Math.abs(worst.in - worst.out))}
+              </span>
+            </dd>
+          </div>
+        </dl>
+      )}
     </div>
   );
 }
