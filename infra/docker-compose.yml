@@ -97,11 +97,9 @@ services:
       # rather than needing root to bind 80.
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
-    # host.docker.internal is automatic on Docker Desktop but not on Linux,
-    # where the legacy app will actually be deployed. Map it explicitly so the
-    # same compose file works in both places.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # No extra_hosts. It existed to reach a legacy app on the host at host.docker.internal:8081,
+    # and nginx no longer routes anywhere but the two containers beside it. Put it back alongside
+    # the legacy upstream if one ever returns — left here, it advertises a dependency that is not.
     # The compose SERVICE names — api and web. Not new_api/new_web: those are upstream labels inside
     # nginx.conf, which point AT these services. Naming them here would fail with "no such service".
     depends_on:
