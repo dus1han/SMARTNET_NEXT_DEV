@@ -128,28 +128,29 @@ copy, `docstore.pdfdoc` is **9.8 MB across 18 rows** (largest 1.98 MB). The secu
 leave the web root and sit behind a permission check — but the space is not the reason to do it, and it
 is not a reason to hurry step 6.
 
-### Three quotation dates have a five-digit year
+### Four dates have a five-digit year
 
-Found while moving the lists onto server-side paging, which orders on the stored `varchar` date:
+Found while moving the lists onto server-side paging, which orders on the stored `varchar` date. All
+four are legacy typos from an app that never validated the field:
 
-| Quotation | Stored `qdate` | Almost certainly |
-|---|---|---|
-| SNQ-752 | `32024-11-11` | 2024-11-11 |
-| SNQ-927 | `42025-05-24` | 2025-05-24 |
-| SNQ-953 | `20225-05-16` | 2025-05-16 |
+| Record | Table | Stored date | Almost certainly |
+|---|---|---|---|
+| SNQ-752 | `quotation_h` | `32024-11-11` | 2024-11-11 |
+| SNQ-927 | `quotation_h` | `42025-05-24` | 2025-05-24 |
+| SNQ-953 | `quotation_h` | `20225-05-16` | 2025-05-16 |
+| payment id 799 (supplier invoice 862, ref CASH) | `supplier_inv_pay` | `22025-02-11` | 2025-02-11 |
 
-Every other date in `quotation_h`, `invoice_h` and `supplier_invoice` is ISO `yyyy-MM-dd`, which is why
-ordering on the text is chronological and paging is sound. These three are typos from the legacy
-app, which never validated the field.
+Every other date in `invoice_h`, `quotation_h`, `supplier_invoice`, `payments` and `supplier_inv_pay`
+is ISO `yyyy-MM-dd`, which is what makes ordering on the text chronological and the paging sound.
 
-**They moved.** The old screen parsed the date in C#, failed, and used `DateOnly.MinValue`, so they
-sorted to the *bottom* of the list. Ordered as text in SQL, `3…` and `4…` sort above `2…`, so they now
-appear at the *top* as though they were the newest quotations. Nothing is lost or duplicated — paging
-was verified complete over all 2,119 rows — but three quotations are in the wrong place until the dates
-are corrected.
+**They moved.** The old screens parsed the date in C#, failed, and fell back to `DateOnly.MinValue`, so
+these sorted to the *bottom* of their lists. Ordered as text, `2 2…`, `3…` and `4…` sort above `2 0…`,
+so they now appear at the *top* as though they were the newest. Nothing is lost or duplicated — paging
+was verified complete over every row of all five lists — but four records are in the wrong place until
+the dates are corrected.
 
-Correcting them is a one-line update each and does not need a migration; it is listed here because it
-is a decision about someone's document, not something to fix silently.
+Each is a one-line update and needs no migration; they are listed here because they are decisions about
+someone's documents, not something to fix silently.
 
 ### Not on the exceptions screen, but check anyway
 
