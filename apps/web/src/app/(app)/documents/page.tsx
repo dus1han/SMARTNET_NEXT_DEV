@@ -9,14 +9,16 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, FileText, Trash2, Upload } from "lucide-react";
+import { Download, Eye, FileText, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { ApiError } from "@/lib/api";
 import {
   ACCEPTED_FILE_TYPES,
   MAX_UPLOAD_BYTES,
+  canPreview,
   deleteDocument,
   documentContentUrl,
+  documentPreviewUrl,
   formatFileSize,
   getDocuments,
   uploadDocument,
@@ -26,10 +28,11 @@ import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { formatReportDate } from "@/components/reports";
 import { useReason } from "@/components/form";
-import { Button, ErrorBanner, FadeIn, Input, toast } from "@/components/ui";
+import { Button, Dialog, ErrorBanner, FadeIn, Input, toast } from "@/components/ui";
 
 export default function DocumentsPage() {
   const [title, setTitle] = useState("");
+  const [previewing, setPreviewing] = useState<DocumentSummary | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const queryClient = useQueryClient();
@@ -81,12 +84,25 @@ export default function DocumentsPage() {
       id: "title",
       header: "Title",
       accessorFn: (row) => row.title,
-      cell: ({ row }) => (
-        <span className="flex items-center gap-2">
-          <FileText className="size-4 shrink-0 text-muted" aria-hidden />
-          <span className="text-text">{row.original.title}</span>
-        </span>
-      ),
+      cell: ({ row }) =>
+        // The title opens the preview where there is one to open, because clicking the name of a
+        // document is what people try first. Where there is not, it stays plain text rather than
+        // becoming a button that does nothing.
+        canPreview(row.original.contentType) ? (
+          <button
+            type="button"
+            onClick={() => setPreviewing(row.original)}
+            className="flex items-center gap-2 text-left text-text underline-offset-2 hover:underline"
+          >
+            <FileText className="size-4 shrink-0 text-muted" aria-hidden />
+            {row.original.title}
+          </button>
+        ) : (
+          <span className="flex items-center gap-2">
+            <FileText className="size-4 shrink-0 text-muted" aria-hidden />
+            <span className="text-text">{row.original.title}</span>
+          </span>
+        ),
     },
     {
       id: "originalFileName",
@@ -116,6 +132,18 @@ export default function DocumentsPage() {
       meta: { align: "right" },
       cell: ({ row }) => (
         <span className="flex items-center justify-end gap-1">
+          {canPreview(row.original.contentType) && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-text hover:bg-surface-sunken"
+              title={`Preview ${row.original.title}`}
+              onClick={() => setPreviewing(row.original)}
+            >
+              <Eye className="size-4" aria-hidden />
+              <span className="sr-only">Preview</span>
+            </button>
+          )}
+
           {/*
             A plain link, not a fetch: the browser takes the filename from the Content-Disposition
             header, which a blob assembled in JavaScript would lose.
@@ -159,32 +187,39 @@ export default function DocumentsPage() {
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-subtle bg-surface p-4">
-        <Input
-          label="Title (optional)"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Defaults to the file's name"
-          className="min-w-[16rem] flex-1"
-        />
+      {/*
+        The accepted types belong in the upload panel, not in a paragraph of their own below it — as a
+        sibling it took a full space-y-6 gap to say one line, which is most of what made this page
+        scroll past its own content.
+      */}
+      <div className="rounded-lg border border-subtle bg-surface p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <Input
+            label="Title (optional)"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Defaults to the file's name"
+            className="min-w-[16rem] flex-1"
+          />
 
-        <input
-          ref={fileInput}
-          type="file"
-          accept={ACCEPTED_FILE_TYPES}
-          className="hidden"
-          onChange={(e) => onFileChosen(e.target.files?.[0])}
-        />
+          <input
+            ref={fileInput}
+            type="file"
+            accept={ACCEPTED_FILE_TYPES}
+            className="hidden"
+            onChange={(e) => onFileChosen(e.target.files?.[0])}
+          />
 
-        <Button pending={upload.isPending} onClick={() => fileInput.current?.click()}>
-          <Upload className="size-4" aria-hidden />
-          Upload a file
-        </Button>
+          <Button pending={upload.isPending} onClick={() => fileInput.current?.click()}>
+            <Upload className="size-4" aria-hidden />
+            Upload a file
+          </Button>
+        </div>
+
+        <p className="mt-3 text-xs text-muted">
+          PDF, Word, Excel, CSV, text and images, up to 25 MB. Anything else is refused.
+        </p>
       </div>
-
-      <p className="text-xs text-muted">
-        PDF, Word, Excel, CSV, text and images, up to 25 MB. Anything else is refused.
-      </p>
 
       <DataTable
         columns={columns}
@@ -199,7 +234,66 @@ export default function DocumentsPage() {
         }}
       />
 
+      <Dialog
+        open={previewing !== null}
+        onOpenChange={(next) => !next && setPreviewing(null)}
+        size="lg"
+        title={previewing?.title ?? ""}
+        description={
+          previewing
+            ? `${previewing.originalFileName} · ${formatFileSize(previewing.byteSize)}`
+            : undefined
+        }
+        footer={
+          previewing && (
+            <>
+              <Button variant="ghost" onClick={() => setPreviewing(null)}>
+                Close
+              </Button>
+              <a
+                href={documentContentUrl(previewing.id)}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-text shadow-sm shadow-primary/25 hover:bg-primary-hover"
+              >
+                <Download className="size-4" aria-hidden />
+                Download
+              </a>
+            </>
+          )
+        }
+      >
+        {previewing && <DocumentPreview document={previewing} />}
+      </Dialog>
+
       {reasonDialog}
     </FadeIn>
+  );
+}
+
+/**
+ * The preview body — an image or a PDF, rendered from the inline endpoint.
+ *
+ * <b>An iframe rather than a fetched blob.</b> A blob URL would mean holding the whole file in memory
+ * and re-implementing the PDF viewer's chrome; the browser already has one, and pointing it at a URL
+ * that streams costs nothing. The auth cookie rides along because the request is same-origin in
+ * production, where nginx serves the API and the app from one host.
+ */
+function DocumentPreview({ document }: { document: DocumentSummary }) {
+  const url = documentPreviewUrl(document.id);
+
+  if (document.contentType.startsWith("image/")) {
+    return (
+      <div className="flex max-h-[70vh] justify-center overflow-auto rounded-lg bg-surface-sunken p-2">
+        {/* eslint-disable-next-line @next/next/no-img-element -- a streamed private file, not a static asset the optimiser can reach */}
+        <img src={url} alt={document.title} className="max-h-full max-w-full object-contain" />
+      </div>
+    );
+  }
+
+  return (
+    <iframe
+      src={url}
+      title={document.title}
+      className="h-[70vh] w-full rounded-lg border border-subtle bg-surface-sunken"
+    />
   );
 }

@@ -138,9 +138,15 @@ public sealed class DocumentsController : ControllerBase
     /// Streamed rather than buffered, so a 25 MB file does not become 25 MB of server memory per concurrent
     /// download. Served as the content type recorded at upload — never one the client asks for.
     /// </remarks>
+    /// <param name="inline">
+    /// Render in place rather than download — what the preview dialog asks for.
+    /// </param>
     [HttpGet("{id:long}/content")]
     [RequirePermission(Permissions.DocStorage)]
-    public async Task<IActionResult> Download(long id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Download(
+        long id,
+        [FromQuery] bool inline,
+        CancellationToken cancellationToken)
     {
         var accessible = _company.Accessible.ToList();
 
@@ -166,7 +172,16 @@ public sealed class DocumentsController : ControllerBase
                 title: "The file for this document is missing from storage.");
         }
 
-        return File(stream, document.ContentType, document.OriginalFileName);
+        // Inline is safe *because of* the whitelist, not in spite of it. Rendering attacker-supplied
+        // content on our own origin is how an upload becomes stored XSS — but HTML, SVG and scripts are
+        // not admissible types, so what can arrive here is a PDF, an image or an office file, none of
+        // which the browser executes as script against this origin.
+        //
+        // Passing a filename is what makes it an attachment: File(stream, type, name) sets
+        // Content-Disposition: attachment, and the browser downloads instead of rendering.
+        return inline
+            ? File(stream, document.ContentType)
+            : File(stream, document.ContentType, document.OriginalFileName);
     }
 
     /// <summary>Removes a document — soft on the row, and the bytes with it.</summary>

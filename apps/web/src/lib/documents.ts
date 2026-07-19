@@ -55,6 +55,24 @@ export const uploadDocument = (input: {
  */
 export const documentContentUrl = (id: number) => `${API_BASE_URL}/api/documents/${id}/content`;
 
+/**
+ * The same bytes, served for rendering rather than saving.
+ *
+ * Without `inline` the response carries a filename, which makes it an attachment — the browser
+ * downloads it and the preview frame stays blank.
+ */
+export const documentPreviewUrl = (id: number) =>
+  `${API_BASE_URL}/api/documents/${id}/content?inline=true`;
+
+/**
+ * Whether a document can be shown in the browser at all.
+ *
+ * PDFs and images render natively. Word and Excel do not — no browser displays them without a
+ * converter, so offering a preview that renders a blank frame would be worse than not offering one.
+ */
+export const canPreview = (contentType: string) =>
+  contentType === "application/pdf" || contentType.startsWith("image/");
+
 /** Removes a document — soft on the row, and the file with it. Audited, so a reason is required. */
 export const deleteDocument = (id: number, expectedRowVersion: number, reason: string) =>
   api<void>(`/api/documents/${id}?expectedRowVersion=${expectedRowVersion}`, {
