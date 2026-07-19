@@ -1079,6 +1079,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dashboard/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    company?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["OperationsDashboard"];
+                        "application/json": components["schemas"]["OperationsDashboard"];
+                        "text/json": components["schemas"]["OperationsDashboard"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dashboard/customer/{code}": {
         parameters: {
             query?: never;
@@ -7398,6 +7437,22 @@ export interface components {
             now: string;
             nextMonth: string;
         };
+        OperationsDashboard: {
+            /** Format: int32 */
+            invoicesToday: number;
+            /** Format: double */
+            salesThisMonth: number;
+            /** Format: int32 */
+            invoicesThisMonth: number;
+            /** Format: double */
+            toCollect: number;
+            /** Format: double */
+            overdue: number;
+            ageing: components["schemas"]["AgeingBucket"][];
+            overdueByCustomer: components["schemas"]["CustomerDebt"][];
+            overCreditLimit: components["schemas"]["CreditBreach"][];
+            recentInvoices: components["schemas"]["RecentDocument"][];
+        };
         OutstandingInvoiceLine: {
             /** Format: int64 */
             invoiceId: number;
@@ -7673,6 +7728,15 @@ export interface components {
             invoiceAmount: number;
             /** Format: double */
             amount: number;
+        };
+        RecentDocument: {
+            number: string;
+            /** Format: date */
+            date?: string | null;
+            customer: string;
+            /** Format: double */
+            total: number;
+            preparedBy: string;
         };
         RecordHistoryResponse: {
             entries: components["schemas"]["AuditEntry"][];

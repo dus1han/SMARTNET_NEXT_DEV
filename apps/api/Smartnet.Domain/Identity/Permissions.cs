@@ -37,9 +37,32 @@ public static class Permissions
     /// <summary>The general ledger / trial balance — a surface the legacy app never had.</summary>
     public const string GeneralLedger = "general_ledger";
 
+    /// <summary>
+    /// The operations dashboard — the day-to-day one, without the money insights.
+    /// </summary>
+    /// <remarks>
+    /// The counterpart to <see cref="Dashboard"/>, which is the management view: profit, margin, cost,
+    /// supplier spend and customer concentration. This one shows what somebody serving customers needs
+    /// and nothing about what the business earns.
+    ///
+    /// <para><b>Exactly one of the two is required</b> — see <see cref="DashboardPermissions"/>. Holding
+    /// neither leaves a user with no landing page at all; holding both is not a superset but a
+    /// contradiction, because the whole point of this one is what it withholds.</para>
+    /// </remarks>
+    public const string DashboardOperations = "dashboard.operations";
+
+    /// <summary>
+    /// The two dashboards. A user must hold exactly one.
+    /// </summary>
+    /// <remarks>
+    /// Kept as a set rather than checked by name in three places, so the rule and the list cannot drift
+    /// apart if a third dashboard is ever added.
+    /// </remarks>
+    public static readonly IReadOnlyList<string> DashboardPermissions = [Dashboard, DashboardOperations];
+
     /// <summary>The new permissions, in the order they should appear in the admin UI.</summary>
     public static readonly IReadOnlyList<string> NewPermissions =
-        [SystemDevAdmin, RolesManage, SettingsManage, AuditView, GeneralLedger];
+        [SystemDevAdmin, RolesManage, SettingsManage, AuditView, GeneralLedger, DashboardOperations];
 
     // --- The 35 legacy flags -----------------------------------------------------------------
 

@@ -222,3 +222,35 @@ public sealed record CustomerInsight(
     IReadOnlyList<MonthPoint> MonthlyTrend,
     IReadOnlyList<CustomerInvoiceRow> Invoices,
     IReadOnlyList<CustomerPaymentRow> Payments);
+
+// --- The operations dashboard (the day-to-day one) -----------------------------------------------
+
+/// <summary>One document raised recently — the running record of what the counter has been doing.</summary>
+public sealed record RecentDocument(string Number, DateOnly? Date, string Customer, decimal Total, string PreparedBy);
+
+/// <summary>
+/// The operations dashboard — what somebody serving customers needs, and nothing about what the
+/// business earns.
+/// </summary>
+/// <remarks>
+/// <b>Defined by what it withholds.</b> No profit, no margin, no cost, no supplier spend, no customer
+/// lifetime value or concentration. What remains is not a cut-down management view but a different
+/// question: not "how are we doing" but "what should I do, and can I sell to this person".
+///
+/// <para>Company-wide rather than per-user, deliberately. A clerk needs to know a customer is ninety
+/// days late and over their limit <i>before</i> selling to them on credit, and whether it was their
+/// own colleague who raised the last invoice has nothing to do with it.</para>
+/// </remarks>
+public sealed record OperationsDashboard(
+    int InvoicesToday,
+    decimal SalesThisMonth,
+    int InvoicesThisMonth,
+
+    /// <summary>Everything still owed — what the counter is collecting against.</summary>
+    decimal ToCollect,
+
+    decimal Overdue,
+    IReadOnlyList<AgeingBucket> Ageing,
+    IReadOnlyList<CustomerDebt> OverdueByCustomer,
+    IReadOnlyList<CreditBreach> OverCreditLimit,
+    IReadOnlyList<RecentDocument> RecentInvoices);

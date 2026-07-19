@@ -228,6 +228,60 @@ public sealed class DashboardController : ControllerBase
     }
 
     /// <summary>
+    /// The operations dashboard — the day-to-day view, without the money insights.
+    /// </summary>
+    /// <remarks>
+    /// Gated on its own permission rather than served to whoever lacks the management one. A user holds
+    /// exactly one of the two (enforced when permissions are saved), so which dashboard somebody gets is
+    /// a decision recorded against them rather than a fallback they land in.
+    /// </remarks>
+    [HttpGet("operations")]
+    [RequirePermission(Permissions.DashboardOperations)]
+    public async Task<ActionResult<OperationsDashboard>> Operations(
+        [FromQuery] string? company,
+        CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+        var accessible = _company.Accessible.ToList();
+
+        long? selectedId = long.TryParse(company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            && accessible.Contains(id)
+            ? id
+            : null;
+
+        var scopeIds = (selectedId is { } only ? [only] : accessible)
+            .Select(i => i.ToString(CultureInfo.InvariantCulture))
+            .ToList();
+
+        if (scopeIds.Count == 0)
+        {
+            return Ok(DashboardAnalyticsBuilder.BuildOperations([], new Dictionary<string, string>(), new Dictionary<string, decimal>(), today));
+        }
+
+        var invoices = await _legacy.InvoiceHs
+            .Where(h => scopeIds.Contains(h.Company!))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var customers = await _legacy.CusMs
+            .Select(c => new { c.Cuscode, c.Cusname, c.Climit })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var names = customers
+            .Where(c => !string.IsNullOrEmpty(c.Cuscode))
+            .GroupBy(c => c.Cuscode!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Cusname ?? string.Empty, StringComparer.Ordinal);
+
+        var limits = customers
+            .Where(c => !string.IsNullOrEmpty(c.Cuscode) && c.Climit is > 0)
+            .GroupBy(c => c.Cuscode!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Climit!.Value, StringComparer.Ordinal);
+
+        return Ok(DashboardAnalyticsBuilder.BuildOperations(invoices, names, limits, today));
+    }
+
+    /// <summary>
     /// One customer in full — the drill-down every dashboard panel points at.
     /// </summary>
     /// <remarks>

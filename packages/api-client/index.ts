@@ -252,3 +252,5 @@ export type LapsedCustomer = Schemas["LapsedCustomer"];
 export type CustomerInsight = Schemas["CustomerInsight"];
 export type CustomerInvoiceRow = Schemas["CustomerInvoiceRow"];
 export type CustomerPaymentRow = Schemas["CustomerPaymentRow"];
+export type OperationsDashboard = Schemas["OperationsDashboard"];
+export type RecentDocument = Schemas["RecentDocument"];

@@ -1270,6 +1270,44 @@
         }
       }
     },
+    "/api/dashboard/operations": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "parameters": [
+          {
+            "name": "company",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsDashboard"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsDashboard"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsDashboard"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/dashboard/customer/{code}": {
       "get": {
         "tags": [
@@ -11736,6 +11774,67 @@
         },
         "additionalProperties": false
       },
+      "OperationsDashboard": {
+        "required": [
+          "ageing",
+          "invoicesThisMonth",
+          "invoicesToday",
+          "overCreditLimit",
+          "overdue",
+          "overdueByCustomer",
+          "recentInvoices",
+          "salesThisMonth",
+          "toCollect"
+        ],
+        "type": "object",
+        "properties": {
+          "invoicesToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "salesThisMonth": {
+            "type": "number",
+            "format": "double"
+          },
+          "invoicesThisMonth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "toCollect": {
+            "type": "number",
+            "format": "double"
+          },
+          "overdue": {
+            "type": "number",
+            "format": "double"
+          },
+          "ageing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgeingBucket"
+            }
+          },
+          "overdueByCustomer": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerDebt"
+            }
+          },
+          "overCreditLimit": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreditBreach"
+            }
+          },
+          "recentInvoices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentDocument"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "OutstandingInvoiceLine": {
         "required": [
           "date",
@@ -12602,6 +12701,36 @@
           "amount": {
             "type": "number",
             "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecentDocument": {
+        "required": [
+          "customer",
+          "number",
+          "preparedBy",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "customer": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "preparedBy": {
+            "type": "string"
           }
         },
         "additionalProperties": false

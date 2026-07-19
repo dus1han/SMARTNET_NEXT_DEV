@@ -352,6 +352,21 @@ public sealed class UsersController : ControllerBase
                 title: $"'{unknown}' is not a known permission.");
         }
 
+        // Exactly one dashboard. Neither leaves the user landing on a page they cannot load; both is a
+        // contradiction rather than a superset, since the operations dashboard is defined by what it
+        // withholds. Refused here rather than resolved silently: which dashboard somebody gets is a
+        // decision, and guessing it is how a clerk ends up looking at the margin.
+        var dashboards = Permissions.DashboardPermissions.Where(desired.Contains).ToList();
+
+        if (dashboards.Count != 1)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: dashboards.Count == 0
+                    ? "A user needs one dashboard — either the management or the operations one."
+                    : "A user gets one dashboard, not both. The operations dashboard is not a subset of the management one.");
+        }
+
         // The superuser bit is not something a Company_Admin can hand out — to anyone, by any route.
         if (desired.Contains(Permissions.SystemDevAdmin) && !CurrentUserIsDevAdmin)
         {

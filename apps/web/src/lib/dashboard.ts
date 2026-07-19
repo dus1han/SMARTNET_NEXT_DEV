@@ -1,8 +1,8 @@
-import type { DashboardResponse, DashboardAnalytics, CustomerInsight } from "@smartnet/api-client";
+import type { DashboardResponse, DashboardAnalytics, CustomerInsight, OperationsDashboard } from "@smartnet/api-client";
 import { api } from "./api";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
-export type { DashboardResponse, DailySalesPoint, DashboardCompanyOption, DashboardAnalytics, MonthPoint, CashFlowPoint, AgeingBucket, CustomerShare, SalesMix, CustomerDebt, SupplierShare, CreditBreach, LapsedCustomer, CustomerInsight, CustomerInvoiceRow, CustomerPaymentRow, Trend } from "@smartnet/api-client";
+export type { DashboardResponse, DailySalesPoint, DashboardCompanyOption, DashboardAnalytics, MonthPoint, CashFlowPoint, AgeingBucket, CustomerShare, SalesMix, CustomerDebt, SupplierShare, CreditBreach, LapsedCustomer, CustomerInsight, CustomerInvoiceRow, CustomerPaymentRow, OperationsDashboard, RecentDocument, Trend } from "@smartnet/api-client";
 
 /** The company the dashboard is scoped to: a specific company id, or "all" (every accessible one). */
 export type CompanyFilter = number | "all";
@@ -32,3 +32,12 @@ export const getDashboardAnalytics = (company: CompanyFilter) =>
  */
 export const getCustomerInsight = (code: string) =>
   api<CustomerInsight>(`/api/dashboard/customer/${encodeURIComponent(code)}`);
+
+/**
+ * The operations dashboard — the day-to-day view, for users without the management one.
+ *
+ * A separate endpoint rather than a filtered response: the figures a normal user must not see are never
+ * sent, so they cannot be read off the network tab.
+ */
+export const getOperationsDashboard = (company: CompanyFilter) =>
+  api<OperationsDashboard>(`/api/dashboard/operations${company === "all" ? "" : `?company=${company}`}`);

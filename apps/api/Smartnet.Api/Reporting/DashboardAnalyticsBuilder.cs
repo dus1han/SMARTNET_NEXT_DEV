@@ -108,6 +108,64 @@ public static class DashboardAnalyticsBuilder
             LapsedValue: lapsedValue);
     }
 
+    /// <summary>
+    /// The operations dashboard — the same readings, minus everything about what the business earns.
+    /// </summary>
+    /// <remarks>
+    /// Built here, beside the management one, and off the same <c>Sale</c> projection and the same
+    /// helpers. The two dashboards show overlapping figures to different people, and a clerk quoting an
+    /// overdue total that does not match the one the owner is looking at is worse than either of them
+    /// being absent.
+    /// </remarks>
+    public static OperationsDashboard BuildOperations(
+        IReadOnlyList<InvoiceH> invoices,
+        IReadOnlyDictionary<string, string> customerNames,
+        IReadOnlyDictionary<string, decimal> creditLimits,
+        DateOnly today)
+    {
+        var monthStart = new DateOnly(today.Year, today.Month, 1);
+
+        var dated = invoices
+            .Select(h => new Sale(
+                LegacyValue.Date(h.Indate),
+                LegacyValue.Money(h.Totamount),
+                LegacyValue.Money(h.Cost),
+                LegacyValue.Money(h.Balance),
+                h.Customer ?? string.Empty,
+                h.Invoiceno ?? string.Empty,
+                string.Equals(h.Invtype, "Credit", StringComparison.OrdinalIgnoreCase)))
+            .Where(s => s.Date is not null)
+            .ToList();
+
+        var thisMonth = dated.Where(s => InMonth(s.Date!.Value, monthStart)).ToList();
+        var ageing = Ageing(dated, today);
+
+        return new OperationsDashboard(
+            InvoicesToday: dated.Count(s => s.Date!.Value == today),
+            SalesThisMonth: thisMonth.Sum(s => s.Total),
+            InvoicesThisMonth: thisMonth.Count,
+            ToCollect: dated.Sum(s => s.Balance),
+            Overdue: ageing.Where(b => b.Label != "Current").Sum(b => b.Amount),
+            Ageing: ageing,
+            OverdueByCustomer: OverdueByCustomer(dated, customerNames, today),
+            OverCreditLimit: OverCreditLimit(dated, customerNames, creditLimits),
+            RecentInvoices: invoices
+                .Select(h => new
+                {
+                    Number = (h.Invoiceno ?? string.Empty).Trim(),
+                    Date = LegacyValue.Date(h.Indate),
+                    Customer = customerNames.GetValueOrDefault(h.Customer ?? string.Empty, h.Customer ?? string.Empty),
+                    Total = LegacyValue.Money(h.Totamount),
+                    PreparedBy = (h.Preparedby ?? string.Empty).Trim(),
+                })
+                .Where(r => r.Date is not null)
+                .OrderByDescending(r => r.Date!.Value)
+                .ThenByDescending(r => r.Number, StringComparer.Ordinal)
+                .Take(10)
+                .Select(r => new RecentDocument(r.Number, r.Date, r.Customer, r.Total, r.PreparedBy))
+                .ToList());
+    }
+
     /// <summary>Revenue and profit by month, oldest first, with empty months kept so gaps show as gaps.</summary>
     private static List<MonthPoint> Trend12(IReadOnlyList<Sale> sales, DateOnly monthStart)
     {
