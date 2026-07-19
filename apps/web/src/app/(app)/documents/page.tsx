@@ -215,10 +215,6 @@ export default function DocumentsPage() {
         columns={columns}
         rows={documents.data}
         loading={documents.isPending}
-        // 10, not the default 25. At ~51px a row, 25 rows is 1,275px of table on a page that also
-        // carries a header and an upload panel — so the default guaranteed the page scrolled, and
-        // scrolled past the end of its own content. Ten rows fit a laptop viewport whole.
-        pageSize={10}
         defaultSort={{ id: "uploadedAt", desc: true }}
         searchable={(r) => `${r.title} ${r.originalFileName}`}
         searchPlaceholder="Search documents…"
