@@ -5,65 +5,19 @@
  *
  * A standalone list: this app's own cheques and the legacy ones adopted. No ledger, no balance.
  *
- * Each row prints from here. The register is where somebody stands with the stationery already in the
- * printer, so making them open the cheque first was a step that bought nothing.
+ * Printing is on the cheque itself, not here. A row shows how many times one has been printed, which is
+ * the part that belongs in a register — the printing is an act performed on a single cheque.
  */
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Plus, Printer } from "lucide-react";
+import { Plus } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { getCheques, type ChequeSummary } from "@/lib/cheques";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
-import { PrintPreview } from "@/components/print-preview";
 import { Badge, Button, ErrorBanner, FadeIn } from "@/components/ui";
-
-/**
- * The print button for one row of the register.
- *
- * Its own component because each row needs its own open/closed state — one shared flag would open
- * every preview at once, and the register is the screen most likely to print several in a sitting.
- *
- * Fetching the preview is what records the print, so the list is invalidated when it loads and the
- * count in the next column moves without a refresh.
- */
-function PrintCell({ cheque }: { cheque: ChequeSummary }) {
-  const [printing, setPrinting] = useState(false);
-  const queryClient = useQueryClient();
-
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={(e) => {
-          e.stopPropagation();
-          setPrinting(true);
-        }}
-      >
-        <Printer />
-        Print
-      </Button>
-
-      <div onClick={(e) => e.stopPropagation()}>
-        <PrintPreview
-        open={printing}
-        onOpenChange={setPrinting}
-        path={`/api/cheques/${cheque.id}/pdf`}
-        title={`Cheque ${cheque.chequeNumber ?? ""}`.trim()}
-        onLoaded={() => {
-          void queryClient.invalidateQueries({ queryKey: ["cheques"] });
-          void queryClient.invalidateQueries({ queryKey: ["cheque", cheque.id] });
-          void queryClient.invalidateQueries({ queryKey: ["history", "Cheque", String(cheque.id)] });
-        }}
-        />
-      </div>
-    </>
-  );
-}
 
 export default function ChequesPage() {
   const router = useRouter();
@@ -74,7 +28,7 @@ export default function ChequesPage() {
     <FadeIn className="space-y-6">
       <PageHeader
         title="Cheques"
-        description="Cheques written — this app's own and the legacy ones. Print one straight onto its stationery; every print is logged."
+        description="Cheques written — this app's own and the legacy ones. Open a cheque to print it; every print is logged."
       />
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
@@ -152,13 +106,6 @@ const columns: ColumnDef<ChequeSummary, unknown>[] = [
     header: "Amount",
     meta: { align: "right" },
     cell: ({ row }) => <span className="tabular font-medium text-text">{formatMoney(row.original.amount)}</span>,
-  },
-  {
-    id: "print",
-    header: "",
-    enableSorting: false,
-    meta: { align: "right" },
-    cell: ({ row }) => <PrintCell cheque={row.original} />,
   },
   {
     id: "printed",
