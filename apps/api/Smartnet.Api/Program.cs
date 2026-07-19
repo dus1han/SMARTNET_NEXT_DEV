@@ -66,8 +66,20 @@ builder.Services.AddSmartnetPersistence(conn);
 // Where uploaded documents are written (Phase 7, slice 4). In Docker this must point at a mounted
 // volume: the container filesystem is replaced on every deploy, so an unmounted path would silently
 // discard every document the business uploaded since the last release.
-builder.Services.Configure<DocumentStorageOptions>(
-    builder.Configuration.GetSection(DocumentStorageOptions.Section));
+// A relative path is resolved against the CONTENT ROOT, not the process working directory. Those are
+// the same under "dotnet run" from the project folder and different under almost anything else — an
+// IDE, a service, a run from another directory — and when they differ the store silently points at an
+// empty folder. Uploads appear to work and every download 410s, because the row is in the database
+// and the file is somewhere else entirely. That is exactly the fault this comment is replacing.
+builder.Services.Configure<DocumentStorageOptions>(options =>
+{
+    builder.Configuration.GetSection(DocumentStorageOptions.Section).Bind(options);
+
+    if (!Path.IsPathRooted(options.RootPath))
+    {
+        options.RootPath = Path.Combine(builder.Environment.ContentRootPath, options.RootPath);
+    }
+});
 
 // ---------------------------------------------------------------------------
 // Audit: the "who, why, from where" of every request, read off the HTTP context
