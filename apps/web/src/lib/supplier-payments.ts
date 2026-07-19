@@ -6,6 +6,7 @@ import type {
   OutstandingSupplierInvoiceLine,
 } from "@smartnet/api-client";
 import { api } from "./api";
+import type { Paged } from "./paging";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
 export type {
@@ -19,7 +20,22 @@ export type {
 } from "@smartnet/api-client";
 
 /** The supplier payments this app has recorded, newest first. */
-export const getSupplierPayments = () => api<SupplierPaymentSummary[]>("/api/supplier-payments");
+/**
+ * One page of supplier payments, ordered across both origins by the server.
+ *
+ * This list merges two different tables (1,640 legacy settlements plus what this app records), so the server decides the
+ * order over both before taking a page — paging one and merging after would drop or repeat rows.
+ */
+export const getSupplierPayments = (params: { page: number; pageSize?: number; search?: string }) => {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    pageSize: String(params.pageSize ?? 25),
+  });
+
+  if (params.search?.trim()) query.set("search", params.search.trim());
+
+  return api<Paged<SupplierPaymentSummary>>(`/api/supplier-payments?${query}`);
+};
 
 /** One supplier payment in full, with its per-invoice allocations. */
 export const getSupplierPayment = (id: number) => api<SupplierPaymentDetail>(`/api/supplier-payments/${id}`);

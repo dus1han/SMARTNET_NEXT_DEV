@@ -8,10 +8,12 @@
  * truth), dual-writing the legacy supplier_inv_pay row and paymentstat for the surviving report.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { FIRST_PAGE } from "@/lib/paging";
 import { getSupplierPayments, type SupplierPaymentSummary } from "@/lib/supplier-payments";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -20,7 +22,15 @@ import { Badge, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function SupplierPaymentsPage() {
   const router = useRouter();
-  const payments = useQuery({ queryKey: ["supplier-payments"], queryFn: getSupplierPayments });
+  const [page, setPage] = useState(FIRST_PAGE);
+  const [search, setSearch] = useState("");
+
+  const payments = useQuery({
+    queryKey: ["supplier-payments", page, search],
+    queryFn: () => getSupplierPayments({ page, search }),
+    // Holds the current page on screen while the next loads, so paging does not blink.
+    placeholderData: keepPreviousData,
+  });
   const error = payments.error as ApiError | null;
 
   return (
@@ -34,9 +44,16 @@ export default function SupplierPaymentsPage() {
 
       <DataTable
         columns={columns}
-        rows={payments.data}
+        rows={payments.data?.rows}
         loading={payments.isPending}
         searchable={(row) => `${row.supplierName ?? ""} ${row.reference ?? ""} ${row.method ?? ""}`}
+        server={{
+          total: payments.data?.total ?? 0,
+          page,
+          onPageChange: setPage,
+          search,
+          onSearchChange: setSearch,
+        }}
         searchPlaceholder="Search by supplier, reference or method…"
         defaultSort={{ id: "date", desc: true }}
         actions={

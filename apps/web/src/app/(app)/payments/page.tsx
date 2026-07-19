@@ -8,10 +8,12 @@
  * invoice_h.balance for the surviving outstanding report.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { FIRST_PAGE } from "@/lib/paging";
 import { getCustomerReceipts, type CustomerReceiptSummary } from "@/lib/payments";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -20,7 +22,15 @@ import { Badge, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function PaymentsPage() {
   const router = useRouter();
-  const receipts = useQuery({ queryKey: ["customer-receipts"], queryFn: getCustomerReceipts });
+  const [page, setPage] = useState(FIRST_PAGE);
+  const [search, setSearch] = useState("");
+
+  const receipts = useQuery({
+    queryKey: ["customer-receipts", page, search],
+    queryFn: () => getCustomerReceipts({ page, search }),
+    // Holds the current page on screen while the next loads, so paging does not blink.
+    placeholderData: keepPreviousData,
+  });
   const error = receipts.error as ApiError | null;
 
   return (
@@ -34,9 +44,16 @@ export default function PaymentsPage() {
 
       <DataTable
         columns={columns}
-        rows={receipts.data}
+        rows={receipts.data?.rows}
         loading={receipts.isPending}
         searchable={(row) => `${row.customerName ?? ""} ${row.reference ?? ""} ${row.method ?? ""}`}
+        server={{
+          total: receipts.data?.total ?? 0,
+          page,
+          onPageChange: setPage,
+          search,
+          onSearchChange: setSearch,
+        }}
         searchPlaceholder="Search by customer, reference or method…"
         defaultSort={{ id: "date", desc: true }}
         actions={

@@ -6,6 +6,7 @@ import type {
   OutstandingInvoiceLine,
 } from "@smartnet/api-client";
 import { api } from "./api";
+import type { Paged } from "./paging";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
 export type {
@@ -19,7 +20,22 @@ export type {
 } from "@smartnet/api-client";
 
 /** The receipts this app has recorded, newest first. */
-export const getCustomerReceipts = () => api<CustomerReceiptSummary[]>("/api/customer-receipts");
+/**
+ * One page of receipts, ordered across both origins by the server.
+ *
+ * This list merges two different tables (2,226 legacy payments plus what this app records), so the server decides the
+ * order over both before taking a page — paging one and merging after would drop or repeat rows.
+ */
+export const getCustomerReceipts = (params: { page: number; pageSize?: number; search?: string }) => {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    pageSize: String(params.pageSize ?? 25),
+  });
+
+  if (params.search?.trim()) query.set("search", params.search.trim());
+
+  return api<Paged<CustomerReceiptSummary>>(`/api/customer-receipts?${query}`);
+};
 
 /** One receipt in full, with its per-invoice allocations. */
 export const getCustomerReceipt = (id: number) => api<CustomerReceiptDetail>(`/api/customer-receipts/${id}`);

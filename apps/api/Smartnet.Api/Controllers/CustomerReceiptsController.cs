@@ -95,46 +95,172 @@ public sealed class CustomerReceiptsController : ControllerBase
     /// <summary>Every receipt the caller may see, newest first.</summary>
     [HttpGet]
     [RequirePermission(Permissions.Payments)]
-    public async Task<ActionResult<IReadOnlyList<CustomerReceiptSummary>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<CustomerReceiptSummary>>> List(
+        [FromQuery] PageRequest paging,
+        CancellationToken cancellationToken)
     {
         var accessible = _company.Accessible.ToList();
+        var accessibleText = PageRequest.AsText(accessible).ToList();
 
-        var receipts = await _db.CustomerReceipts
-            .Where(r => r.CompanyId != null && accessible.Contains(r.CompanyId.Value))
-            .Select(r => new
-            {
-                r.Id,
-                r.Date,
-                r.CustomerId,
-                r.Amount,
-                r.Method,
-                r.Reference,
-                Invoices = r.Allocations.Count,
-            })
+        // Unlike invoices and quotations, the two halves of this list are DIFFERENT TABLES —
+        // customer_receipts for what this app records, payments for the pre-cutover history. A union
+        // of two tables cannot be paged by skipping rows in one of them: page 2 would drop or repeat
+        // rows depending on how the two interleave.
+        //
+        // So the ORDER is decided over both, and only then is a page taken. What crosses the wire per
+        // request is (id, date) — two numbers a row — and only the 25 rows on the page are then read
+        // in full. The browser receives 25 rows instead of 2,226, which is the point; if payments ever
+        // reaches the millions, this key merge is the part to revisit.
+        //
+        // The signed id is not a trick invented here: a legacy payment is already listed negative
+        // (it is display-only and must not collide with a receipt id), so the sign says which table a
+        // row came from.
+        long? searchCustomerId = null;
+        List<string> searchCodes = [];
+        List<long> searchIds = [];
+
+        if (paging.LikePattern is { } pattern)
+        {
+            var matched = await _db.Customers
+                .Where(c => EF.Functions.Like(c.Name, pattern))
+                .Select(c => new { c.Id, c.Code })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            searchCodes = matched.Where(m => m.Code != null).Select(m => m.Code!).ToList();
+            searchIds = matched.Select(m => m.Id).ToList();
+        }
+
+        var term = paging.LikePattern;
+
+        // --- legacy keys: payments, scoped to a company through the invoice they settled -----------
+        // payments carries no company of its own. The join also drops payments whose invoice is gone,
+        // which is the same three orphaned rows the old code skipped and Data Exceptions reports.
+        var legacyKeys = await (
+            from p in _legacy.Payments
+            join h in _legacy.InvoiceHs on p.Invoiceno equals h.Invoiceno
+            where p.Invoiceno != null
+                  && p.DataOrigin != "new"
+                  && h.Company != null
+                  && accessibleText.Contains(h.Company)
+                  && (term == null
+                      || EF.Functions.Like(p.Payref!, term)
+                      || (h.Customer != null && searchCodes.Contains(h.Customer)))
+            select new { p.Id, Date = p.Paymentrecdate })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var customerIds = receipts.Select(r => r.CustomerId).Distinct().ToList();
-        var names = await _db.Customers
-            .Where(c => customerIds.Contains(c.Id))
-            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken)
+        // --- new keys: receipts this app recorded --------------------------------------------------
+        var newKeys = await _db.CustomerReceipts
+            .Where(r => r.CompanyId != null && accessible.Contains(r.CompanyId.Value)
+                        && (term == null
+                            || EF.Functions.Like(r.Reference!, term)
+                            || searchIds.Contains(r.CustomerId)))
+            .Select(r => new { r.Id, r.Date })
+            .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var rows = receipts
-            .Select(r => new CustomerReceiptSummary(
-                r.Id, r.Date, names.GetValueOrDefault(r.CustomerId), r.Amount, r.Method, r.Reference, r.Invoices, "new"))
+        var keys = legacyKeys
+            .Select(k => (Id: (long)-k.Id, Date: LegacyValue.Date(k.Date) ?? DateOnly.MinValue))
+            .Concat(newKeys.Select(k => (Id: (long)k.Id, Date: k.Date)))
+            // Id is the tiebreaker so the order is total: without it, receipts sharing a date can
+            // swap places between requests and paging shows some twice while missing others.
+            .OrderByDescending(k => k.Date)
+            .ThenByDescending(k => k.Id)
             .ToList();
 
-        // --- Legacy customer payments -------------------------------------------------------------
-        // Pre-cutover payments live in the payments table (data_origin NULL); the new path writes 'new', so
-        // this shows the legacy history without double-counting. Unlike supplier_inv_pay, payments carries an
-        // amount, so a legacy row shows its own figure.
-        rows.AddRange(await LegacyCustomerPayments(cancellationToken).ConfigureAwait(false));
+        var pageIds = keys.Skip(paging.Skip).Take(paging.SafePageSize).Select(k => k.Id).ToList();
+        var rows = await HydrateAsync(pageIds, cancellationToken).ConfigureAwait(false);
 
-        return Ok(rows
-            .OrderByDescending(r => r.Date)
-            .ThenByDescending(r => r.Id)
-            .ToList());
+        _ = searchCustomerId;
+        return Ok(new PagedResult<CustomerReceiptSummary>(rows, keys.Count, paging.SafePage, paging.SafePageSize));
+    }
+
+    /// <summary>
+    /// Reads one page of ids back into rows, preserving the order the union decided.
+    /// </summary>
+    /// <remarks>
+    /// Two queries, each scoped to the handful of ids on the page rather than the table: negative ids
+    /// are legacy payments, positive ones are receipts this app recorded. The order is reapplied at the
+    /// end because two separate reads cannot preserve an interleaved order on their own.
+    /// </remarks>
+    private async Task<List<CustomerReceiptSummary>> HydrateAsync(
+        List<long> pageIds,
+        CancellationToken cancellationToken)
+    {
+        if (pageIds.Count == 0)
+        {
+            return [];
+        }
+
+        var byId = new Dictionary<long, CustomerReceiptSummary>();
+
+        var newIds = pageIds.Where(id => id > 0).ToList();
+        if (newIds.Count > 0)
+        {
+            var receipts = await _db.CustomerReceipts
+                .Where(r => newIds.Contains(r.Id))
+                .Select(r => new { r.Id, r.Date, r.CustomerId, r.Amount, r.Method, r.Reference, Invoices = r.Allocations.Count })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var customerIds = receipts.Select(r => r.CustomerId).Distinct().ToList();
+            var names = await _db.Customers
+                .Where(c => customerIds.Contains(c.Id))
+                .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var r in receipts)
+            {
+                byId[r.Id] = new CustomerReceiptSummary(
+                    r.Id, r.Date, names.GetValueOrDefault(r.CustomerId), r.Amount, r.Method, r.Reference, r.Invoices, "new");
+            }
+        }
+
+        var legacyIds = pageIds.Where(id => id < 0).Select(id => -id).ToList();
+        if (legacyIds.Count > 0)
+        {
+            var pays = await _legacy.Payments
+                .Where(p => legacyIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.Invoiceno, p.Amount, p.Paymentrecdate, p.Paym, p.Payref })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var invoiceNos = pays.Select(p => p.Invoiceno!).Where(n => n != null).Distinct().ToList();
+            var invoices = (await _legacy.InvoiceHs
+                    .Where(h => h.Invoiceno != null && invoiceNos.Contains(h.Invoiceno))
+                    .Select(h => new { h.Invoiceno, h.Customer })
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false))
+                .GroupBy(h => h.Invoiceno!, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+            var codes = invoices.Values.Select(i => i.Customer).Where(c => c != null).Select(c => c!).Distinct().ToList();
+            var namesByCode = (await _db.Customers
+                    .Where(c => c.Code != null && codes.Contains(c.Code))
+                    .Select(c => new { c.Code, c.Name })
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false))
+                .ToDictionary(c => c.Code!, c => c.Name, StringComparer.Ordinal);
+
+            foreach (var p in pays)
+            {
+                var customer = p.Invoiceno is not null && invoices.TryGetValue(p.Invoiceno, out var inv) ? inv.Customer : null;
+
+                byId[-p.Id] = new CustomerReceiptSummary(
+                    -p.Id,
+                    LegacyValue.Date(p.Paymentrecdate) ?? DateOnly.MinValue,
+                    customer is not null ? namesByCode.GetValueOrDefault(customer) : null,
+                    LegacyValue.Money(p.Amount),
+                    p.Paym,
+                    p.Payref,
+                    1,
+                    "legacy");
+            }
+        }
+
+        // The union already decided the order; this restores it after two independent reads.
+        return pageIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
     }
 
     /// <summary>The pre-cutover legacy customer payments (payments, data_origin NULL), joined for customer + amount.</summary>

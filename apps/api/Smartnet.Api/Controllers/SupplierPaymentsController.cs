@@ -105,46 +105,186 @@ public sealed class SupplierPaymentsController : ControllerBase
     /// <summary>Every supplier payment the caller may see, newest first.</summary>
     [HttpGet]
     [RequirePermission(Permissions.SupplierInvoice)]
-    public async Task<ActionResult<IReadOnlyList<SupplierPaymentSummary>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<SupplierPaymentSummary>>> List(
+        [FromQuery] PageRequest paging,
+        CancellationToken cancellationToken)
     {
         var accessible = _company.Accessible.ToList();
+        var accessibleText = PageRequest.AsText(accessible);
 
-        var payments = await _db.SupplierPayments
-            .Where(p => p.CompanyId != null && accessible.Contains(p.CompanyId.Value))
-            .Select(p => new
-            {
-                p.Id,
-                p.Date,
-                p.SupplierId,
-                p.Amount,
-                p.Method,
-                p.Reference,
-                Invoices = p.Allocations.Count,
-            })
+        // Two different tables again — supplier_payments for what this app records, supplier_inv_pay
+        // for the pre-cutover history — so the order is decided across both before a page is taken.
+        // Paging one table and then merging would drop or repeat rows depending on how they interleave.
+        //
+        // A legacy row is listed with a negative id (display-only, and it must not collide with a real
+        // payment id), so the sign of an id says which table to read it back from.
+        List<string> searchCodes = [];
+        List<long> searchSupplierIds = [];
+
+        if (paging.LikePattern is { } pattern)
+        {
+            var matched = await _db.Suppliers
+                .Where(s => EF.Functions.Like(s.Name, pattern))
+                .Select(s => new { s.Id, s.Code })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            searchCodes = matched.Where(m => m.Code != null).Select(m => m.Code!).ToList();
+            searchSupplierIds = matched.Select(m => m.Id).ToList();
+        }
+
+        var term = paging.LikePattern;
+
+        // --- legacy keys ---------------------------------------------------------------------------
+        // supplier_inv_pay carries no company and no amount; both come from the invoice it settled, and
+        // supinvid is a varchar, so the link is resolved here rather than in the query.
+        var legacyRaw = await _legacy.SupplierInvPays
+            .Where(p => p.DataOrigin != "new" && (term == null || EF.Functions.Like(p.Referenceno!, term)))
+            .Select(p => new { p.Id, p.Supinvid, p.Paiddate })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var supplierIds = payments.Select(p => p.SupplierId).Distinct().ToList();
-        var names = await _db.Suppliers
-            .Where(s => supplierIds.Contains(s.Id))
-            .ToDictionaryAsync(s => s.Id, s => s.Name, cancellationToken)
-            .ConfigureAwait(false);
-
-        var rows = payments
-            .Select(p => new SupplierPaymentSummary(
-                p.Id, p.Date, names.GetValueOrDefault(p.SupplierId), p.Amount, p.Method, p.Reference, p.Invoices, "new"))
+        var parsed = legacyRaw
+            .Select(p => new
+            {
+                p.Id,
+                InvId = long.TryParse(p.Supinvid, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : (long?)null,
+                p.Paiddate,
+            })
+            .Where(p => p.InvId != null)
             .ToList();
 
-        // --- Legacy supplier payments -------------------------------------------------------------
-        // Pre-cutover payments live in supplier_inv_pay (data_origin NULL); the new path writes 'new', so
-        // this shows the legacy history without double-counting. No stored amount there — the invoice's is
-        // the best available (the legacy report shows the same), so a legacy row's amount is its invoice's.
-        rows.AddRange(await LegacySupplierPayments(cancellationToken).ConfigureAwait(false));
+        var invIds = parsed.Select(p => p.InvId!.Value).Distinct().ToList();
+        var invoiceScope = (await _legacy.SupplierInvoices
+                .Where(h => invIds.Contains(h.Id))
+                .Select(h => new { h.Id, h.Company, h.Supcode })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .Where(h => h.Company != null && accessibleText.Contains(h.Company))
+            .ToDictionary(h => h.Id);
 
-        return Ok(rows
-            .OrderByDescending(p => p.Date)
-            .ThenByDescending(p => p.Id)
-            .ToList());
+        var legacyKeys = parsed
+            .Where(p => invoiceScope.ContainsKey(p.InvId!.Value))
+            // A name search matches through the invoice, since the payment row has no supplier of its own.
+            .Where(p => term == null
+                        || searchCodes.Count == 0
+                        || (invoiceScope[p.InvId!.Value].Supcode is { } code && searchCodes.Contains(code)))
+            .Select(p => (Id: (long)-p.Id, Date: LegacyValue.Date(p.Paiddate) ?? DateOnly.MinValue))
+            .ToList();
+
+        // --- new keys ------------------------------------------------------------------------------
+        var newKeys = (await _db.SupplierPayments
+                .Where(p => p.CompanyId != null && accessible.Contains(p.CompanyId.Value)
+                            && (term == null
+                                || EF.Functions.Like(p.Reference!, term)
+                                || searchSupplierIds.Contains(p.SupplierId)))
+                .Select(p => new { p.Id, p.Date })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .Select(k => (Id: k.Id, Date: k.Date))
+            .ToList();
+
+        var keys = legacyKeys
+            .Concat(newKeys)
+            // Id is the tiebreaker so the order is total; without it, payments sharing a date swap
+            // places between requests and paging shows some twice while missing others.
+            .OrderByDescending(k => k.Date)
+            .ThenByDescending(k => k.Id)
+            .ToList();
+
+        var pageIds = keys.Skip(paging.Skip).Take(paging.SafePageSize).Select(k => k.Id).ToList();
+        var rows = await HydrateAsync(pageIds, cancellationToken).ConfigureAwait(false);
+
+        return Ok(new PagedResult<SupplierPaymentSummary>(rows, keys.Count, paging.SafePage, paging.SafePageSize));
+    }
+
+    /// <summary>Reads one page of ids back into rows, preserving the order the merge decided.</summary>
+    /// <remarks>
+    /// Negative ids are legacy settlements, positive ones are payments this app recorded. Each side is
+    /// queried for the handful of ids on the page rather than the whole table, and the order is
+    /// reapplied at the end because two independent reads cannot preserve an interleaved order.
+    /// </remarks>
+    private async Task<List<SupplierPaymentSummary>> HydrateAsync(
+        List<long> pageIds,
+        CancellationToken cancellationToken)
+    {
+        if (pageIds.Count == 0)
+        {
+            return [];
+        }
+
+        var byId = new Dictionary<long, SupplierPaymentSummary>();
+
+        var newIds = pageIds.Where(id => id > 0).ToList();
+        if (newIds.Count > 0)
+        {
+            var payments = await _db.SupplierPayments
+                .Where(p => newIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.Date, p.SupplierId, p.Amount, p.Method, p.Reference, Invoices = p.Allocations.Count })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var supplierIds = payments.Select(p => p.SupplierId).Distinct().ToList();
+            var names = await _db.Suppliers
+                .Where(s => supplierIds.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id, s => s.Name, cancellationToken)
+                .ConfigureAwait(false);
+
+            foreach (var p in payments)
+            {
+                byId[p.Id] = new SupplierPaymentSummary(
+                    p.Id, p.Date, names.GetValueOrDefault(p.SupplierId), p.Amount, p.Method, p.Reference, p.Invoices, "new");
+            }
+        }
+
+        var legacyIds = pageIds.Where(id => id < 0).Select(id => (int)-id).ToList();
+        if (legacyIds.Count > 0)
+        {
+            var pays = await _legacy.SupplierInvPays
+                .Where(p => legacyIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.Supinvid, p.Paiddate, p.Referenceno, p.PayMethod })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var invIds = pays
+                .Select(p => long.TryParse(p.Supinvid, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : (long?)null)
+                .Where(v => v != null).Select(v => v!.Value).Distinct().ToList();
+
+            var invoices = (await _legacy.SupplierInvoices
+                    .Where(h => invIds.Contains(h.Id))
+                    .Select(h => new { h.Id, h.Supcode, h.Amount })
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false))
+                .ToDictionary(i => i.Id);
+
+            var codes = invoices.Values.Select(i => i.Supcode).Where(c => c != null).Select(c => c!).Distinct().ToList();
+            var namesByCode = (await _db.Suppliers
+                    .Where(s => s.Code != null && codes.Contains(s.Code))
+                    .Select(s => new { s.Code, s.Name })
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false))
+                .ToDictionary(s => s.Code!, s => s.Name, StringComparer.Ordinal);
+
+            foreach (var p in pays)
+            {
+                var invId = long.TryParse(p.Supinvid, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : (long?)null;
+                if (invId is null || !invoices.TryGetValue(invId.Value, out var inv)) continue;
+
+                // A legacy settlement carries no amount of its own; the invoices is the best available,
+                // which is what the surviving legacy report shows too.
+                byId[-p.Id] = new SupplierPaymentSummary(
+                    -p.Id,
+                    LegacyValue.Date(p.Paiddate) ?? DateOnly.MinValue,
+                    inv.Supcode is not null ? namesByCode.GetValueOrDefault(inv.Supcode) : null,
+                    LegacyValue.Money(inv.Amount),
+                    p.PayMethod,
+                    p.Referenceno,
+                    1,
+                    "legacy");
+            }
+        }
+
+        return pageIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
     }
 
     /// <summary>One supplier payment in full — its per-invoice allocations.</summary>
