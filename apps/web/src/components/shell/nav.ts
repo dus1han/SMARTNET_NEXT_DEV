@@ -42,6 +42,15 @@ export interface NavItem {
    */
   permission?: string;
 
+  /**
+   * Also needs margin access — the management dashboard, in other words.
+   *
+   * For a link whose whole content is what the business earns. Profit and loss is the only one: the
+   * server refuses it outright without margin access, so leaving the link up would offer a page that
+   * answers 403.
+   */
+  needsMargin?: boolean;
+
   /** Not built yet. Shown greyed out, so the shape of the finished app is visible from day one. */
   phase?: string;
 }
@@ -96,7 +105,7 @@ export const NAVIGATION: NavSection[] = [
     title: "Reports",
     items: [
       { href: "/reports/trial-balance", label: "Trial balance", icon: Scale, permission: "general_ledger" },
-      { href: "/reports/profit-loss", label: "Profit & loss", icon: TrendingUp, permission: "general_ledger" },
+      { href: "/reports/profit-loss", label: "Profit & loss", icon: TrendingUp, permission: "general_ledger", needsMargin: true },
       { href: "/reports/sales", label: "Sales", icon: BarChart3, permission: "sales_rpt" },
       { href: "/reports/customer-sales", label: "Customer sales", icon: Users, permission: "customersales_rpt" },
       { href: "/reports/expenses", label: "Expenses", icon: Banknote, permission: "expenses_rpt" },
@@ -132,10 +141,16 @@ export const NAVIGATION: NavSection[] = [
 
 /** Hides a section entirely when the user may see nothing in it. An empty heading is clutter. */
 export function visibleSections(permissions: string[]): NavSection[] {
+  // Mirrors MarginAccess.CanSee on the server. Stated here rather than inferred from the payload,
+  // because a link is hidden by a rule and guessing the rule is how the two drift apart.
+  const canSeeMargin = permissions.includes("dashboard") || permissions.includes("system.dev_admin");
+
   return NAVIGATION.map((section) => ({
     ...section,
     items: section.items.filter(
-      (item) => !item.permission || permissions.includes(item.permission),
+      (item) =>
+        (!item.permission || permissions.includes(item.permission))
+        && (!item.needsMargin || canSeeMargin),
     ),
   })).filter((section) => section.items.length > 0);
 }

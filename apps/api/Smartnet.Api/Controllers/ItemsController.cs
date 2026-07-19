@@ -137,7 +137,7 @@ public sealed class ItemsController : ControllerBase
         var code = await _codes.NextAsync(cancellationToken).ConfigureAwait(false);
 
         var item = new Item { Code = code };
-        Apply(item, request);
+        Apply(item, request, MarginAccess.CanSee(User));
 
         _db.Items.Add(item);
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -161,7 +161,7 @@ public sealed class ItemsController : ControllerBase
             return NotFound();
         }
 
-        Apply(item, request);
+        Apply(item, request, MarginAccess.CanSee(User));
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return NoContent();
@@ -326,13 +326,31 @@ public sealed class ItemsController : ControllerBase
         balance,
         i.ReorderLevel.HasValue && balance <= i.ReorderLevel.Value);
 
-    private static void Apply(Item item, SaveItemRequest request)
+    /// <summary>
+    /// Copies a save request onto an item.
+    /// </summary>
+    /// <remarks>
+    /// <b>Cost is only taken from a caller who may see it.</b> Without this, redacting cost on the way
+    /// out silently destroys it on the way back: a user without margin access loads an item and reads a
+    /// null cost because that is what they are allowed to see, changes the name, saves, and the real
+    /// cost is overwritten with the null they were shown. Their own screen would look right, and the
+    /// figure would be gone.
+    ///
+    /// <para>So for those callers the stored cost is left exactly as it was. Redaction has to be
+    /// symmetric — anything hidden on read must be ignored on write, or hiding it is a way of deleting
+    /// it.</para>
+    /// </remarks>
+    private static void Apply(Item item, SaveItemRequest request, bool canSetCost)
     {
         item.Name = request.Name;
         item.SellingPrice = request.SellingPrice;
-        item.Cost = request.Cost;
         item.ReorderLevel = request.ReorderLevel;
         item.Unit = string.IsNullOrWhiteSpace(request.Unit) ? null : request.Unit.Trim();
+
+        if (canSetCost)
+        {
+            item.Cost = request.Cost;
+        }
     }
 
     /// <summary>The number inside an item code, so "I-2" orders before "I-10".</summary>
