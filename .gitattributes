@@ -1,0 +1,9 @@
+# The generated API client is compared byte-for-byte in CI against a file the Linux runner
+# generates fresh, so it has to be stored with LF whatever platform committed it. Without this it
+# was committed from Windows with CRLF, the runner regenerated with LF, and the contract check
+# failed on every line of the diff — permanently, and no amount of regenerating on Windows fixed it.
+packages/api-client/schema.d.ts text eol=lf
+packages/api-client/openapi.json text eol=lf
+
+# Shell scripts run on the Linux runner; a CRLF script fails there outright.
+*.sh text eol=lf

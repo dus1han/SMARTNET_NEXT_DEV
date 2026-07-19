@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
-import { BRAND_NAME, BRAND_TAGLINE, BrandMark } from "./brand";
+import { BRAND_NAME, BrandMark } from "./brand";
 import { visibleSections } from "./nav";
 
 /**
@@ -38,10 +38,9 @@ export function Sidebar({ permissions, onNavigate }: {
     >
       <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-5">
         <BrandMark className="size-8 rounded-lg" />
-        <div className="leading-tight">
-          <p className="text-sm font-semibold text-sidebar-text-active">{BRAND_NAME}</p>
-          <p className="text-[11px] text-sidebar-text">{BRAND_TAGLINE}</p>
-        </div>
+        {/* Name only. The tagline belongs on the sign-in screen, which is selling the product; by
+            the time somebody is looking at this header they are using it. */}
+        <p className="text-sm font-semibold text-sidebar-text-active">{BRAND_NAME}</p>
       </div>
 
       <div className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
