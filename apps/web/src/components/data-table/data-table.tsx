@@ -383,8 +383,8 @@ export function DataTable<T>({
             <Button
               variant="secondary"
               size="sm"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
+              disabled={!canPrevious}
+              onClick={goPrevious}
               aria-label="Previous page"
             >
               <ChevronLeft />
@@ -397,8 +397,8 @@ export function DataTable<T>({
             <Button
               variant="secondary"
               size="sm"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
+              disabled={!canNext}
+              onClick={goNext}
               aria-label="Next page"
             >
               <ChevronRight />
