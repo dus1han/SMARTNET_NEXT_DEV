@@ -137,7 +137,7 @@ public sealed class DashboardController : ControllerBase
 
         if (scopeIds.Count == 0)
         {
-            return Ok(DashboardAnalyticsBuilder.Build([], [], [], [], [], [], new Dictionary<string, string>(), new Dictionary<string, string>(), today));
+            return Ok(DashboardAnalyticsBuilder.Build([], [], [], [], [], [], new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, decimal>(), today));
         }
 
         var invoices = await _legacy.InvoiceHs
@@ -204,6 +204,16 @@ public sealed class DashboardController : ControllerBase
             .Select(s => (s.Date, Amount: amountByInvoice[s.Id!.Value]))
             .ToList();
 
+        // Credit limits live on the customer master and nothing enforces them; the dashboard is the
+        // first thing in either system to read the column.
+        var creditLimits = (await _legacy.CusMs
+                .Select(c => new { c.Cuscode, c.Climit })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .Where(c => !string.IsNullOrEmpty(c.Cuscode) && c.Climit is > 0)
+            .GroupBy(c => c.Cuscode!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Climit!.Value, StringComparer.Ordinal);
+
         var customerNames = (await _legacy.CusMs
                 .Select(c => new { c.Cuscode, c.Cusname })
                 .ToListAsync(cancellationToken)
@@ -214,7 +224,7 @@ public sealed class DashboardController : ControllerBase
 
         return Ok(DashboardAnalyticsBuilder.Build(
             invoices, lines, payments, expenses, supplierPayments, supplierSpend,
-            customerNames, supplierNames, today));
+            customerNames, supplierNames, creditLimits, today));
     }
 
     /// <summary>This user's display name — the legacy <c>preparedby</c> value — from their id claim.</summary>

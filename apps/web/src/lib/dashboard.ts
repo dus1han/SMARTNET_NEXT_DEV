@@ -2,7 +2,7 @@ import type { DashboardResponse, DashboardAnalytics } from "@smartnet/api-client
 import { api } from "./api";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
-export type { DashboardResponse, DailySalesPoint, DashboardCompanyOption, DashboardAnalytics, MonthPoint, CashFlowPoint, AgeingBucket, CustomerShare, SalesMix, CustomerDebt, SupplierShare, Trend } from "@smartnet/api-client";
+export type { DashboardResponse, DailySalesPoint, DashboardCompanyOption, DashboardAnalytics, MonthPoint, CashFlowPoint, AgeingBucket, CustomerShare, SalesMix, CustomerDebt, SupplierShare, CreditBreach, LapsedCustomer, Trend } from "@smartnet/api-client";
 
 /** The company the dashboard is scoped to: a specific company id, or "all" (every accessible one). */
 export type CompanyFilter = number | "all";

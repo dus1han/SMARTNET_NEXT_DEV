@@ -8808,6 +8808,33 @@
         },
         "additionalProperties": false
       },
+      "CreditBreach": {
+        "required": [
+          "excess",
+          "limit",
+          "name",
+          "owed"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "number",
+            "format": "double"
+          },
+          "owed": {
+            "type": "number",
+            "format": "double"
+          },
+          "excess": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
       "CreditNoteCreatedResponse": {
         "required": [
           "id",
@@ -9495,10 +9522,14 @@
           "collected",
           "grossProfit",
           "invoiceCount",
+          "lapsedCount",
+          "lapsedCustomers",
+          "lapsedValue",
           "marginPercent",
           "mix",
           "monthlyTrend",
           "newCustomers",
+          "overCreditLimit",
           "overdue",
           "overdueByCustomer",
           "revenue",
@@ -9603,6 +9634,26 @@
                 "$ref": "#/components/schemas/Trend"
               }
             ]
+          },
+          "overCreditLimit": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreditBreach"
+            }
+          },
+          "lapsedCustomers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LapsedCustomer"
+            }
+          },
+          "lapsedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lapsedValue": {
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false
@@ -11264,6 +11315,38 @@
           "blocked": {
             "type": "string",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LapsedCustomer": {
+        "required": [
+          "lastPurchase",
+          "lifetime",
+          "name",
+          "silentDays",
+          "stillOwed"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "lastPurchase": {
+            "type": "string",
+            "format": "date"
+          },
+          "silentDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lifetime": {
+            "type": "number",
+            "format": "double"
+          },
+          "stillOwed": {
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false

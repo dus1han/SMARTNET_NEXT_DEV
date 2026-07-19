@@ -70,6 +70,26 @@ public sealed record CustomerShare(string Name, decimal Revenue, decimal Share);
 /// </remarks>
 public sealed record CustomerDebt(string Name, decimal Owed, int Invoices, int OldestDays);
 
+/// <summary>
+/// A customer owing more than their agreed credit limit.
+/// </summary>
+/// <remarks>
+/// The limit lives in <c>cus_m.climit</c> and nothing in either system checks it, which is why this is
+/// worth a panel rather than a validation rule alone: the control already exists on paper and is simply
+/// not being applied.
+/// </remarks>
+public sealed record CreditBreach(string Name, decimal Limit, decimal Owed, decimal Excess);
+
+/// <summary>
+/// A customer who used to buy and has gone quiet.
+/// </summary>
+/// <remarks>
+/// <paramref name="StillOwed"/> is the part that matters most. A lapsed customer who owes nothing has
+/// simply stopped buying; one who still owes is a relationship that ended with money outstanding, which
+/// is a different problem and a more urgent one.
+/// </remarks>
+public sealed record LapsedCustomer(string Name, DateOnly LastPurchase, int SilentDays, decimal Lifetime, decimal StillOwed);
+
 /// <summary>One supplier and what has been bought from them — concentration, on the buying side.</summary>
 public sealed record SupplierShare(string Name, decimal Spend, decimal Share);
 
@@ -141,4 +161,15 @@ public sealed record DashboardAnalytics(
     IReadOnlyList<SupplierShare> TopSuppliers,
 
     /// <summary>Customers whose first-ever invoice fell in this month, against last month.</summary>
-    Trend NewCustomers);
+    Trend NewCustomers,
+
+    /// <summary>Customers past their agreed credit limit, worst overrun first.</summary>
+    IReadOnlyList<CreditBreach> OverCreditLimit,
+
+    /// <summary>Customers who have not bought in ninety days, by what they used to be worth.</summary>
+    IReadOnlyList<LapsedCustomer> LapsedCustomers,
+
+    /// <summary>How many customers have gone quiet in total, and what they were worth.</summary>
+    int LapsedCount,
+
+    decimal LapsedValue);

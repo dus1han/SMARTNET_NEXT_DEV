@@ -45,6 +45,7 @@ public static class DashboardAnalyticsBuilder
         IReadOnlyList<(string SupplierCode, decimal Amount)> supplierSpend,
         IReadOnlyDictionary<string, string> customerNames,
         IReadOnlyDictionary<string, string> supplierNames,
+        IReadOnlyDictionary<string, decimal> creditLimits,
         DateOnly today)
     {
         var monthStart = new DateOnly(today.Year, today.Month, 1);
@@ -100,7 +101,11 @@ public static class DashboardAnalyticsBuilder
             AverageInvoice: thisMonth.Count == 0 ? 0m : decimal.Round(thisMonth.Sum(s => s.Total) / thisMonth.Count, 2),
             OverdueByCustomer: OverdueByCustomer(dated, customerNames, today),
             TopSuppliers: TopSuppliers(supplierSpend, supplierNames),
-            NewCustomers: NewCustomers(dated, monthStart));
+            NewCustomers: NewCustomers(dated, monthStart),
+            OverCreditLimit: OverCreditLimit(dated, customerNames, creditLimits),
+            LapsedCustomers: Lapsed(dated, customerNames, today, out var lapsedCount, out var lapsedValue),
+            LapsedCount: lapsedCount,
+            LapsedValue: lapsedValue);
     }
 
     /// <summary>Revenue and profit by month, oldest first, with empty months kept so gaps show as gaps.</summary>
@@ -321,6 +326,89 @@ public static class DashboardAnalyticsBuilder
         return new Trend(
             firstSale.Count(f => InMonth(f.Value, monthStart)),
             firstSale.Count(f => InMonth(f.Value, monthStart.AddMonths(-1))));
+    }
+
+    /// <summary>
+    /// Customers owing more than their agreed limit.
+    /// </summary>
+    /// <remarks>
+    /// Only customers who have a limit recorded can breach one, so a customer with no limit is absent
+    /// rather than treated as having a limit of zero — 198 of the 223 have none set, and reading those
+    /// as "limit nil, therefore every rupee is a breach" would bury the twenty-five real ones.
+    /// </remarks>
+    private static List<CreditBreach> OverCreditLimit(
+        IReadOnlyList<Sale> sales,
+        IReadOnlyDictionary<string, string> customerNames,
+        IReadOnlyDictionary<string, decimal> creditLimits)
+    {
+        return sales
+            .Where(s => s.Balance > 0m && s.CustomerCode.Length > 0)
+            .GroupBy(s => s.CustomerCode, StringComparer.Ordinal)
+            .Select(g => new
+            {
+                Code = g.Key,
+                Owed = g.Sum(s => s.Balance),
+                Limit = creditLimits.GetValueOrDefault(g.Key),
+            })
+            .Where(c => c.Limit > 0m && c.Owed > c.Limit)
+            .Select(c => new CreditBreach(
+                customerNames.GetValueOrDefault(c.Code, c.Code),
+                c.Limit,
+                c.Owed,
+                c.Owed - c.Limit))
+            .OrderByDescending(c => c.Excess)
+            .Take(TopN)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Customers who used to buy and have not for ninety days.
+    /// </summary>
+    /// <remarks>
+    /// Bounded at two years on the far side. Beyond that a customer has not lapsed, they have simply
+    /// gone, and a list that carries every name from the system's whole history is an archive rather
+    /// than something to work through.
+    ///
+    /// <para>The count and value cover every lapsed customer; the list itself is the largest few, so the
+    /// panel can say "70 customers worth 19.8M" while showing the handful worth ringing first.</para>
+    /// </remarks>
+    private static List<LapsedCustomer> Lapsed(
+        IReadOnlyList<Sale> sales,
+        IReadOnlyDictionary<string, string> customerNames,
+        DateOnly today,
+        out int count,
+        out decimal value)
+    {
+        const int SilentFor = 90;
+        const int GoneFor = 730;
+
+        var lapsed = sales
+            .Where(s => s.CustomerCode.Length > 0)
+            .GroupBy(s => s.CustomerCode, StringComparer.Ordinal)
+            .Select(g => new
+            {
+                Code = g.Key,
+                Last = g.Max(s => s.Date!.Value),
+                Lifetime = g.Sum(s => s.Total),
+                Owed = g.Sum(s => s.Balance),
+            })
+            .Select(c => new { c.Code, c.Last, c.Lifetime, c.Owed, Silent = today.DayNumber - c.Last.DayNumber })
+            .Where(c => c.Silent is > SilentFor and <= GoneFor)
+            .ToList();
+
+        count = lapsed.Count;
+        value = lapsed.Sum(c => c.Lifetime);
+
+        return lapsed
+            .OrderByDescending(c => c.Lifetime)
+            .Take(TopN)
+            .Select(c => new LapsedCustomer(
+                customerNames.GetValueOrDefault(c.Code, c.Code),
+                c.Last,
+                c.Silent,
+                c.Lifetime,
+                c.Owed))
+            .ToList();
     }
 
     private static bool InMonth(DateOnly date, DateOnly monthStart) =>

@@ -189,6 +189,27 @@ export default function DashboardPage() {
                     </ul>
                   </div>
                 )}
+
+                {a.overCreditLimit.length > 0 && (
+                  <div className="mt-4 border-t border-subtle pt-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-warning-text">
+                      Over their credit limit
+                    </p>
+                    <ul className="space-y-2">
+                      {a.overCreditLimit.map((c) => (
+                        <li key={c.name} className="flex items-baseline justify-between gap-3 text-sm">
+                          <span className="truncate text-text" title={c.name}>{c.name}</span>
+                          <span className="shrink-0 text-right">
+                            <span className="tabular text-text">{formatMoney(c.owed)}</span>
+                            <span className="ml-2 text-xs text-muted">
+                              limit {formatMoney(c.limit)}
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </Card>
             </Reveal>
 
@@ -219,6 +240,46 @@ export default function DashboardPage() {
             </Reveal>
 
             <Reveal delayMs={380}>
+              <Card className="h-full">
+                <CardHeader
+                  title="Customers who have gone quiet"
+                  description={
+                    a.lapsedCount === 0
+                      ? "Nobody has stopped buying."
+                      : `${a.lapsedCount} have not bought in 90 days — ${formatMoney(a.lapsedValue)} of past business.`
+                  }
+                />
+                {a.lapsedCustomers.length === 0 ? (
+                  <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-subtle text-sm text-muted">
+                    Every customer has bought recently.
+                  </div>
+                ) : (
+                  <ul className="space-y-2.5">
+                    {a.lapsedCustomers.map((c) => (
+                      <li key={c.name} className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="min-w-0 truncate text-text" title={c.name}>
+                          {c.name}
+                          {/* Gone AND still owing is a different problem from merely gone. */}
+                          {c.stillOwed > 0 && (
+                            <span className="ml-2 text-xs text-warning-text">
+                              owes {formatMoney(c.stillOwed)}
+                            </span>
+                          )}
+                        </span>
+                        <span className="shrink-0 text-right">
+                          <span className="tabular text-text">{formatMoney(c.lifetime)}</span>
+                          <span className="ml-2 text-xs text-muted">silent {c.silentDays}d</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+            </Reveal>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Reveal delayMs={440}>
               <Card className="h-full">
                 <CardHeader
                   title="Biggest suppliers"

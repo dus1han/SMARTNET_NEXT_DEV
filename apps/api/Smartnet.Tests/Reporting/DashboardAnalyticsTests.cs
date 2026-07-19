@@ -30,7 +30,8 @@ public sealed class DashboardAnalyticsTests
         IEnumerable<Payment>? payments = null,
         IEnumerable<InvoiceL>? lines = null,
         IEnumerable<(DateOnly?, decimal)>? supplierPayments = null,
-        IEnumerable<(string, decimal)>? supplierSpend = null) =>
+        IEnumerable<(string, decimal)>? supplierSpend = null,
+        IReadOnlyDictionary<string, decimal>? creditLimits = null) =>
         DashboardAnalyticsBuilder.Build(
             (invoices ?? []).ToList(),
             (lines ?? []).ToList(),
@@ -40,6 +41,7 @@ public sealed class DashboardAnalyticsTests
             (supplierSpend ?? []).ToList(),
             Names,
             SupplierNames,
+            creditLimits ?? new Dictionary<string, decimal>(StringComparer.Ordinal),
             Today);
 
     [Fact]
@@ -173,7 +175,7 @@ public sealed class DashboardAnalyticsTests
                 new InvoiceH { Invoiceno = "A", Indate = "2026-07-02", Totamount = "300", Cost = "0", Balance = "0", Customer = "C-1", Invtype = "Cash" },
                 new InvoiceH { Invoiceno = "B", Indate = "2026-07-03", Totamount = "700", Cost = "0", Balance = "700", Customer = "C-1", Invtype = "Credit" },
             ],
-            [], [], [], [], [], Names, SupplierNames, Today);
+            [], [], [], [], [], Names, SupplierNames, new Dictionary<string, decimal>(StringComparer.Ordinal), Today);
 
         report.Mix.Cash.Should().Be(300m);
         report.Mix.Credit.Should().Be(700m);
@@ -241,6 +243,51 @@ public sealed class DashboardAnalyticsTests
         ]);
 
         report.NewCustomers.Value.Should().Be(1);
+    }
+
+    [Fact]
+    public void A_customer_over_their_limit_is_listed_with_the_overrun()
+    {
+        var report = Build(
+            [Invoice("2026-07-01", "800", balance: "800", customer: "C-1")],
+            creditLimits: new Dictionary<string, decimal>(StringComparer.Ordinal) { ["C-1"] = 500m });
+
+        report.OverCreditLimit.Should().ContainSingle();
+        report.OverCreditLimit[0].Name.Should().Be("Vogue Tex");
+        report.OverCreditLimit[0].Excess.Should().Be(300m);
+    }
+
+    [Fact]
+    public void A_customer_with_no_limit_recorded_cannot_breach_one()
+    {
+        // 198 of the 223 customers have no limit set. Reading those as a limit of nil would report every
+        // one of them as a breach and bury the twenty-five that are real.
+        var report = Build([Invoice("2026-07-01", "800", balance: "800", customer: "C-1")]);
+
+        report.OverCreditLimit.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Lapsed_customers_are_those_silent_ninety_days_but_not_gone_two_years()
+    {
+        var report = Build([
+            Invoice("2026-07-01", "100", customer: "C-1"),   // bought this month — not lapsed
+            Invoice("2026-01-05", "900", customer: "C-2", balance: "400"),  // ~6 months silent
+        ]);
+
+        report.LapsedCount.Should().Be(1);
+        report.LapsedCustomers.Should().ContainSingle();
+        report.LapsedCustomers[0].Name.Should().Be("Astron");
+        report.LapsedCustomers[0].Lifetime.Should().Be(900m);
+        report.LapsedCustomers[0].StillOwed.Should().Be(400m, "gone and still owing is the urgent case");
+    }
+
+    [Fact]
+    public void A_customer_gone_more_than_two_years_has_left_rather_than_lapsed()
+    {
+        var report = Build([Invoice("2023-01-05", "900", customer: "C-2")]);
+
+        report.LapsedCount.Should().Be(0);
     }
 
     [Fact]

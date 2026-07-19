@@ -247,3 +247,5 @@ export type SalesMix = Schemas["SalesMix"];
 export type Trend = Schemas["Trend"];
 export type CustomerDebt = Schemas["CustomerDebt"];
 export type SupplierShare = Schemas["SupplierShare"];
+export type CreditBreach = Schemas["CreditBreach"];
+export type LapsedCustomer = Schemas["LapsedCustomer"];

@@ -6491,6 +6491,15 @@ export interface components {
             id: number;
             temporaryPassword: string;
         };
+        CreditBreach: {
+            name: string;
+            /** Format: double */
+            limit: number;
+            /** Format: double */
+            owed: number;
+            /** Format: double */
+            excess: number;
+        };
         CreditNoteCreatedResponse: {
             /** Format: int64 */
             id: number;
@@ -6723,6 +6732,12 @@ export interface components {
             overdueByCustomer: components["schemas"]["CustomerDebt"][];
             topSuppliers: components["schemas"]["SupplierShare"][];
             newCustomers: components["schemas"]["Trend"];
+            overCreditLimit: components["schemas"]["CreditBreach"][];
+            lapsedCustomers: components["schemas"]["LapsedCustomer"][];
+            /** Format: int32 */
+            lapsedCount: number;
+            /** Format: double */
+            lapsedValue: number;
         };
         DashboardCompanyOption: {
             /** Format: int64 */
@@ -7232,6 +7247,17 @@ export interface components {
             body: string;
             attachmentName: string;
             blocked?: string | null;
+        };
+        LapsedCustomer: {
+            name: string;
+            /** Format: date */
+            lastPurchase: string;
+            /** Format: int32 */
+            silentDays: number;
+            /** Format: double */
+            lifetime: number;
+            /** Format: double */
+            stillOwed: number;
         };
         LoginRequest: {
             username: string;
