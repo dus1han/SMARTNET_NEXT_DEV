@@ -1,22 +1,23 @@
 "use client";
 
 /**
- * The dashboard — Phase 4, slice 2. One screen, two shapes.
+ * The dashboard — what the business looks like, not what it totalled.
  *
- * The server chooses the shape from the token: a user who holds `dashboard` sees the company view
- * (every invoice in the company they are working in); everyone else sees the "my" view, scoped to what
- * they prepared. That scoping is approximate until Phase 5 — it joins on the legacy `preparedby` name
- * string, which a rename breaks — and it says so. The three legacy dashboard controllers (Admin, User,
- * and the dropped Customer one) collapse to this.
+ * Six readings, each one answering a question somebody actually asks: which way are we going, where has
+ * the money stopped moving, is cash keeping up with profit, who are we dependent on, what sells. The
+ * earlier month-at-a-glance tiles and the daily-sales bars are gone — they showed a total with no
+ * direction and an "outstanding" figure that concealed the ageing behind it.
+ *
+ * One company filter above everything, in a row of its own: the same control the reports use, so
+ * switching company means the same thing on every screen.
  */
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Building2, Coins, TrendingUp, UserRound, Wallet } from "lucide-react";
+import { AlertTriangle, Coins, TrendingUp, Wallet } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
-import { getDashboard, getDashboardAnalytics, type CompanyFilter } from "@/lib/dashboard";
+import { getDashboardAnalytics, type CompanyFilter } from "@/lib/dashboard";
 import { PageHeader } from "@/components/shell/app-shell";
-import { DailySalesChart } from "@/components/dashboard/daily-sales-chart";
 import {
   ANALYTICS_VIZ_CSS,
   AgeingChart,
@@ -25,105 +26,142 @@ import {
   MonthlyTrendChart,
   RankedBars,
 } from "@/components/dashboard/analytics-charts";
-import { CompanyFilterCard } from "@/components/dashboard/company-filter-card";
-import { StatTile, formatMoney } from "@/components/reports";
-import { AnimatedNumber, Badge, Card, CardHeader, ErrorBanner, FadeIn, LoadingPanel } from "@/components/ui";
+import { ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
+import { AnimatedNumber, Card, CardHeader, ErrorBanner, FadeIn, LoadingPanel } from "@/components/ui";
 
 export default function DashboardPage() {
   const [company, setCompany] = useState<CompanyFilter>("all");
 
-  const dashboard = useQuery({
-    queryKey: ["dashboard", company],
-    queryFn: () => getDashboard(company),
-    // Keep the current figures on screen while a company switch loads, so the tiles animate to the new
-    // numbers rather than collapsing to a spinner and back.
+  const analytics = useQuery({
+    queryKey: ["dashboard-analytics", company],
+    queryFn: () => getDashboardAnalytics(company),
+    // Hold the current figures while a company switch loads, so the tiles count to the new numbers
+    // rather than collapsing to a spinner and back.
     placeholderData: keepPreviousData,
   });
 
-  const loadError = dashboard.error as ApiError | null;
-  const data = dashboard.data;
+  const loadError = analytics.error as ApiError | null;
+  const a = analytics.data;
+  const owed = a ? a.ageing.reduce((sum, b) => sum + b.amount, 0) : 0;
 
   return (
     <FadeIn className="space-y-6">
-      <PageHeader
-        title="Dashboard"
-        description={data ? periodLabel(data.periodStart, data.periodEnd) : "This month at a glance."}
-        actions={
-          data?.view === "my" ? (
-            <Badge
-              tone="warning"
-              title="Scoped to documents prepared under your name. Until Phase 5, that is a name match on the legacy data — approximate."
-            >
-              Your sales · approximate
-            </Badge>
-          ) : undefined
-        }
-      />
+      <style>{ANALYTICS_VIZ_CSS}</style>
+
+      <PageHeader title="Dashboard" description="How the business is doing, and where it needs attention." />
+
+      <ReportFilterBar company={company} onCompany={setCompany} showDates={false} />
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
-      {dashboard.isPending ? (
+      {analytics.isPending ? (
         <LoadingPanel />
-      ) : data ? (
+      ) : a ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatTile
-              label="Sales this month"
+              label="Revenue this month"
               icon={TrendingUp}
               color="indigo"
-              delayMs={0}
-              value={<AnimatedNumber value={data.totalSales} format={formatMoney} />}
-              sub={`Cash ${formatMoney(data.cashSales)} · Credit ${formatMoney(data.creditSales)}`}
+              value={<AnimatedNumber value={a.revenue.value} format={formatMoney} />}
+              sub={<Delta change={a.revenue.changePercent} />}
             />
             <StatTile
-              label="Profit this month"
+              label="Gross profit"
               icon={Coins}
               color="emerald"
               delayMs={70}
-              value={<AnimatedNumber value={data.profit} format={formatMoney} />}
+              value={<AnimatedNumber value={a.grossProfit.value} format={formatMoney} />}
+              sub={
+                <>
+                  <span className="tabular">{a.marginPercent.toFixed(1)}% margin</span>
+                  {" · "}
+                  <Delta change={a.grossProfit.changePercent} />
+                </>
+              }
             />
             <StatTile
-              label="Outstanding"
+              label="Collected this month"
               icon={Wallet}
-              color="amber"
+              color="violet"
               delayMs={140}
-              value={<AnimatedNumber value={data.outstanding} format={formatMoney} />}
+              value={<AnimatedNumber value={a.collected.value} format={formatMoney} />}
+              sub={<Delta change={a.collected.changePercent} />}
             />
-            {data.companies.length >= 2 ? (
-              <CompanyFilterCard
-                companies={data.companies}
-                selected={company}
-                onChange={setCompany}
-                delayMs={210}
-              />
-            ) : (
-              <StatTile
-                label={data.view === "my" ? "Your invoices" : "Company"}
-                icon={data.view === "my" ? UserRound : Building2}
-                color="violet"
-                delayMs={210}
-                value={data.view === "my" ? "Yours only" : "All"}
-              />
-            )}
+            <StatTile
+              label="Overdue"
+              icon={AlertTriangle}
+              color="amber"
+              delayMs={210}
+              value={<AnimatedNumber value={a.overdue} format={formatMoney} />}
+              sub={owed > 0 ? `${Math.round((a.overdue / owed) * 100)}% of everything owed` : "nothing owed"}
+            />
           </div>
 
-          {data.flaggedCount > 0 && (
-            <p className="flex items-center gap-2 text-sm text-warning-text">
-              <AlertTriangle className="size-4" aria-hidden />
-              {data.flaggedCount} invoice{data.flaggedCount === 1 ? "" : "s"} this month carry a value
-              we could not read from the legacy data. It is counted as zero.
-            </p>
-          )}
+          <Reveal delayMs={120}>
+            <Card>
+              <CardHeader
+                title="Revenue and profit"
+                description="Twelve months. The gap between the pair is what the sales cost you."
+              />
+              <MonthlyTrendChart points={a.monthlyTrend} />
+            </Card>
+          </Reveal>
 
-          <Card>
-            <CardHeader
-              title="Daily sales"
-              description="Cash and credit for each day of the month, for the company you are working in."
-            />
-            <DailySalesChart points={data.chart} />
-          </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Reveal delayMs={200}>
+              <Card className="h-full">
+                <CardHeader
+                  title="Where the money is owed"
+                  description="Open balances by age. Anything past the first bar has stopped moving."
+                />
+                <AgeingChart buckets={a.ageing} />
+              </Card>
+            </Reveal>
 
-          <Analytics company={company} />
+            <Reveal delayMs={260}>
+              <Card className="h-full">
+                <CardHeader
+                  title="Cash in and out"
+                  description="Receipts against supplier payments and expenses. Profit is not cash."
+                />
+                <CashFlowChart points={a.cashFlow} />
+              </Card>
+            </Reveal>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Reveal delayMs={320}>
+              <Card className="h-full">
+                <CardHeader
+                  title="Biggest customers"
+                  description={`The top five are ${a.topCustomerShare.toFixed(1)}% of all revenue.`}
+                />
+                <RankedBars
+                  rows={a.topCustomers.map((c) => ({ label: c.name, value: c.revenue, share: c.share }))}
+                  emptyLabel="No customer revenue yet."
+                />
+              </Card>
+            </Reveal>
+
+            <Reveal delayMs={380}>
+              <Card className="h-full">
+                <CardHeader
+                  title="Best-selling lines"
+                  description="By revenue, with units alongside — the legacy data holds no per-line cost, so there is no item margin to show."
+                />
+                <RankedBars
+                  rows={a.topItems.map((i) => ({
+                    label: i.description,
+                    value: i.revenue,
+                    share: i.share,
+                    note: `${i.quantity.toLocaleString()} units`,
+                  }))}
+                  emptyLabel="No item sales yet."
+                />
+              </Card>
+            </Reveal>
+          </div>
         </>
       ) : null}
     </FadeIn>
@@ -131,128 +169,23 @@ export default function DashboardPage() {
 }
 
 /**
- * The analytical half — loaded separately so the month tiles above never wait on it.
+ * A panel that rises into place, staggered behind the ones above it.
  *
- * Its own component, and its own query, for that reason: this scans a year of invoices and their lines
- * while the tiles above scan one month, so sharing a request would hold the whole screen behind the
- * slower half.
+ * The stagger is the point: the eye is led down the screen in the order the questions are meant to be
+ * read — headline, then trend, then the two panels that need acting on — instead of six cards appearing
+ * at once and competing. `fill-mode-backwards` keeps the panel invisible during its delay rather than
+ * flashing in and then animating.
+ *
+ * Motion preference is honoured by the utility itself (`motion-safe:`), so a reduced-motion setting
+ * gets the finished layout immediately with nothing moving.
  */
-function Analytics({ company }: { company: CompanyFilter }) {
-  const analytics = useQuery({
-    queryKey: ["dashboard-analytics", company],
-    queryFn: () => getDashboardAnalytics(company),
-    placeholderData: keepPreviousData,
-  });
-
-  const a = analytics.data;
-
-  if (analytics.isPending) return <LoadingPanel />;
-  if (!a) return null;
-
-  const overdueShare = a.ageing.reduce((sum, b) => sum + b.amount, 0);
-
+function Reveal({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
   return (
-    <>
-      <style>{ANALYTICS_VIZ_CSS}</style>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile
-          label="Revenue this month"
-          icon={TrendingUp}
-          color="indigo"
-          value={<AnimatedNumber value={a.revenue.value} format={formatMoney} />}
-          sub={<Delta change={a.revenue.changePercent} />}
-        />
-        <StatTile
-          label="Gross profit"
-          icon={Coins}
-          color="emerald"
-          delayMs={70}
-          value={<AnimatedNumber value={a.grossProfit.value} format={formatMoney} />}
-          sub={<><span className="tabular">{a.marginPercent.toFixed(1)}% margin</span> · <Delta change={a.grossProfit.changePercent} /></>}
-        />
-        <StatTile
-          label="Collected this month"
-          icon={Wallet}
-          color="violet"
-          delayMs={140}
-          value={<AnimatedNumber value={a.collected.value} format={formatMoney} />}
-          sub={<Delta change={a.collected.changePercent} />}
-        />
-        <StatTile
-          label="Overdue"
-          icon={AlertTriangle}
-          color="amber"
-          delayMs={210}
-          value={<AnimatedNumber value={a.overdue} format={formatMoney} />}
-          sub={
-            overdueShare > 0
-              ? `${Math.round((a.overdue / overdueShare) * 100)}% of everything owed`
-              : "nothing owed"
-          }
-        />
-      </div>
-
-      <Card>
-        <CardHeader
-          title="Revenue and profit"
-          description="Twelve months. The gap between the pair is what the sales cost you."
-        />
-        <MonthlyTrendChart points={a.monthlyTrend} />
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader
-            title="Where the money is owed"
-            description="Open balances by age. Anything past the first bar is money that has stopped moving."
-          />
-          <AgeingChart buckets={a.ageing} />
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Cash in and out"
-            description="Receipts against supplier payments and expenses. Profit is not cash."
-          />
-          <CashFlowChart points={a.cashFlow} />
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader
-            title="Biggest customers"
-            description={`The top five are ${a.topCustomerShare.toFixed(1)}% of all revenue.`}
-          />
-          <RankedBars
-            rows={a.topCustomers.map((c) => ({ label: c.name, value: c.revenue, share: c.share }))}
-            emptyLabel="No customer revenue yet."
-          />
-        </Card>
-
-        <Card>
-          <CardHeader
-            title="Best-selling lines"
-            description="By revenue, with units alongside — the legacy data has no per-line cost, so there is no item margin to show."
-          />
-          <RankedBars
-            rows={a.topItems.map((i) => ({
-              label: i.description,
-              value: i.revenue,
-              share: i.share,
-              note: `${i.quantity.toLocaleString()} units`,
-            }))}
-            emptyLabel="No item sales yet."
-          />
-        </Card>
-      </div>
-    </>
+    <div
+      className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-4 motion-safe:fill-mode-backwards motion-safe:duration-500 motion-safe:ease-out"
+      style={{ animationDelay: `${delayMs}ms` }}
+    >
+      {children}
+    </div>
   );
-}
-
-function periodLabel(start: string, end: string): string {
-  const from = new Date(`${start}T00:00:00`);
-  if (Number.isNaN(from.getTime())) return `${start} – ${end}`;
-  return from.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }

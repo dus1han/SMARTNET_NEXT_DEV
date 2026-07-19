@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * The dashboard's analytical charts — hand-rolled SVG, matching `daily-sales-chart.tsx`.
+ * The dashboard's analytical charts — hand-rolled SVG, no charting dependency.
  *
- * No charting dependency, for the reason that file gives: the dashboard needs a handful of shapes, not
- * a BI suite. These share its conventions — a scoped `viz-*` class carrying the hues as CSS variables so
+ * The dashboard needs a handful of shapes, not a BI suite, so a charting framework would be all cost and
+ * no benefit. The conventions here — a scoped `viz-*` class carrying the hues as CSS variables so
  * dark mode is a *chosen* set of steps rather than an automatic flip, a legend whenever there is more
  * than one series, and a hover read-out so identity and value are never colour alone.
  *
@@ -19,11 +19,42 @@
  * does not.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AgeingBucket, CashFlowPoint, MonthPoint } from "@/lib/dashboard";
 import { formatMoney } from "@/components/reports";
 
 const AXIS_W = 52;
+
+/**
+ * The width the chart actually has, measured from its container.
+ *
+ * An SVG has to be told its width in numbers — it cannot lay itself out to a flex parent — so a chart
+ * that hard-codes one either overflows a narrow card or, as these did, sits in a puddle inside a wide
+ * one. Scaling a fixed viewBox to 100% would stretch the type along with the bars; measuring keeps the
+ * labels at their real size and spends the extra room on the plot, which is the part that carries data.
+ *
+ * Falls back to a sensible width until the first measurement lands, so nothing jumps on load.
+ */
+function useMeasuredWidth(fallback: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(fallback);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      // Round down: a fractional width leaves a sub-pixel gap that shows as a hairline on the right.
+      const next = Math.floor(entry.contentRect.width);
+      if (next > 0) setWidth(next);
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return [ref, width] as const;
+}
 
 /** Compact money for axes and dense labels — "1.2M", "450k" — so ticks do not collide. */
 function compact(value: number): string {
@@ -81,23 +112,29 @@ function Key({ colour, children }: { colour: string; children: string }) {
  */
 export function MonthlyTrendChart({ points }: { points: MonthPoint[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
+  const [box, measured] = useMeasuredWidth(720);
 
   const max = Math.max(0, ...points.map((p) => Math.max(p.revenue, p.profit)));
-  if (points.length === 0 || max === 0) return <Empty>No sales in the last twelve months.</Empty>;
 
   const H = 260;
   const PAD = { top: 12, right: 12, bottom: 30, left: AXIS_W };
-  const width = Math.max(420, points.length * 58);
+  // Fills the card, but never squeezes below the point where the month labels would collide — past that
+  // the container scrolls instead.
+  const width = Math.max(points.length * 44, measured);
   const plotW = width - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
 
   const top = niceCeil(max);
-  const band = plotW / points.length;
-  const barW = Math.min(band * 0.32, 16);
+  const band = plotW / Math.max(1, points.length);
+  const barW = Math.min(band * 0.32, 26);
   const y = (v: number) => PAD.top + plotH - (v / top) * plotH;
 
   return (
-    <div className="viz-trend">
+    <div className="viz-trend" ref={box}>
+      {points.length === 0 || max === 0 ? (
+        <Empty>No sales in the last twelve months.</Empty>
+      ) : (
+        <>
       <div className="mb-3 flex flex-wrap items-center gap-4">
         <Key colour="var(--revenue)">Revenue</Key>
         <Key colour="var(--profit)">Gross profit</Key>
@@ -128,10 +165,12 @@ export function MonthlyTrendChart({ points }: { points: MonthPoint[] }) {
                 {isHot && <rect className="viz-hot" x={PAD.left + band * i} y={PAD.top} width={band} height={plotH} />}
 
                 <rect
+                  className="viz-bar" style={{ animationDelay: `${i * 40}ms` }}
                   x={cx - barW - 1} y={y(p.revenue)} width={barW} height={Math.max(0, plotH - (y(p.revenue) - PAD.top))}
                   rx={3} fill="var(--revenue)"
                 />
                 <rect
+                  className="viz-bar" style={{ animationDelay: `${i * 40 + 20}ms` }}
                   x={cx + 1} y={y(p.profit)} width={barW} height={Math.max(0, plotH - (y(p.profit) - PAD.top))}
                   rx={3} fill="var(--profit)"
                 />
@@ -151,6 +190,8 @@ export function MonthlyTrendChart({ points }: { points: MonthPoint[] }) {
           <span className="text-muted"> · profit </span>
           <span className="tabular text-text">{formatMoney(points[hovered].profit)}</span>
         </p>
+      )}
+        </>
       )}
     </div>
   );
@@ -182,8 +223,12 @@ export function AgeingChart({ buckets }: { buckets: AgeingBucket[] }) {
 
           <div className="h-6 overflow-hidden rounded-sm bg-surface-sunken">
             <div
-              className="h-full rounded-sm transition-[width] duration-500 ease-out"
-              style={{ width: `${Math.max(1, (b.amount / max) * 100)}%`, background: `var(--age-${i})` }}
+              className="viz-fill h-full rounded-sm"
+              style={{
+                width: `${Math.max(1, (b.amount / max) * 100)}%`,
+                background: `var(--age-${i})`,
+                animationDelay: `${i * 70}ms`,
+              }}
               title={`${b.invoices} invoice${b.invoices === 1 ? "" : "s"}`}
             />
           </div>
@@ -213,23 +258,27 @@ export function AgeingChart({ buckets }: { buckets: AgeingBucket[] }) {
  */
 export function CashFlowChart({ points }: { points: CashFlowPoint[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
+  const [box, measured] = useMeasuredWidth(420);
 
   const max = Math.max(0, ...points.map((p) => Math.max(p.in, p.out)));
-  if (points.length === 0 || max === 0) return <Empty>No cash movement recorded.</Empty>;
 
   const H = 220;
   const PAD = { top: 12, right: 12, bottom: 30, left: AXIS_W };
-  const width = Math.max(360, points.length * 74);
+  const width = Math.max(points.length * 56, measured);
   const plotW = width - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
 
   const top = niceCeil(max);
-  const band = plotW / points.length;
-  const barW = Math.min(band * 0.3, 18);
+  const band = plotW / Math.max(1, points.length);
+  const barW = Math.min(band * 0.3, 26);
   const y = (v: number) => PAD.top + plotH - (v / top) * plotH;
 
+  if (points.length === 0 || max === 0) {
+    return <div ref={box}><Empty>No cash movement recorded.</Empty></div>;
+  }
+
   return (
-    <div className="viz-cash">
+    <div className="viz-cash" ref={box}>
       <div className="mb-3 flex flex-wrap items-center gap-4">
         <Key colour="var(--in)">Received</Key>
         <Key colour="var(--out)">Paid out</Key>
@@ -257,8 +306,10 @@ export function CashFlowChart({ points }: { points: CashFlowPoint[] }) {
                 />
                 {hovered === i && <rect className="viz-hot" x={PAD.left + band * i} y={PAD.top} width={band} height={plotH} />}
 
-                <rect x={cx - barW - 1} y={y(p.in)} width={barW} height={Math.max(0, plotH - (y(p.in) - PAD.top))} rx={3} fill="var(--in)" />
-                <rect x={cx + 1} y={y(p.out)} width={barW} height={Math.max(0, plotH - (y(p.out) - PAD.top))} rx={3} fill="var(--out)" />
+                <rect className="viz-bar" style={{ animationDelay: `${i * 50}ms` }}
+                  x={cx - barW - 1} y={y(p.in)} width={barW} height={Math.max(0, plotH - (y(p.in) - PAD.top))} rx={3} fill="var(--in)" />
+                <rect className="viz-bar" style={{ animationDelay: `${i * 50 + 25}ms` }}
+                  x={cx + 1} y={y(p.out)} width={barW} height={Math.max(0, plotH - (y(p.out) - PAD.top))} rx={3} fill="var(--out)" />
 
                 <text className="viz-axis" x={cx} y={H - 10} textAnchor="middle">{monthLabel(p.month)}</text>
               </g>
@@ -304,7 +355,7 @@ export function RankedBars({
 
   return (
     <div className="viz-ranked space-y-2.5">
-      {rows.map((r) => (
+      {rows.map((r, i) => (
         <div key={r.label} className="space-y-1">
           <div className="flex items-baseline justify-between gap-3">
             <span className="truncate text-sm text-text" title={r.label}>{r.label}</span>
@@ -316,8 +367,12 @@ export function RankedBars({
 
           <div className="h-2 overflow-hidden rounded-sm bg-surface-sunken">
             <div
-              className="h-full rounded-sm transition-[width] duration-500 ease-out"
-              style={{ width: `${Math.max(1, (r.value / max) * 100)}%`, background: "var(--rank)" }}
+              className="viz-fill h-full rounded-sm"
+              style={{
+                width: `${Math.max(1, (r.value / max) * 100)}%`,
+                background: "var(--rank)",
+                animationDelay: `${i * 70}ms`,
+              }}
             />
           </div>
 
@@ -354,8 +409,8 @@ export function Delta({ change, invert = false }: { change: number | null | unde
  * dark surface, where the in-band lightness ceiling is lower than the light one — `#10b981` passes on
  * white and fails on the dark ground, which is why the emerald differs between the two.
  *
- * Both dark signals are covered, as `daily-sales-chart` does: the OS preference *and* the explicit theme
- * toggle, so a user who forces light on a dark system still gets the light steps.
+ * Both dark signals are covered: the OS preference *and* the explicit theme toggle, so a user who forces
+ * light on a dark system still gets the light steps.
  */
 export const ANALYTICS_VIZ_CSS = `
 .viz-trend { --revenue: #4f46e5; --profit: #059669; }
@@ -383,4 +438,34 @@ export const ANALYTICS_VIZ_CSS = `
 :root[data-theme="dark"] .viz-cash .viz-grid { stroke: #2c2c2a; }
 :root[data-theme="dark"] .viz-trend .viz-hot,
 :root[data-theme="dark"] .viz-cash .viz-hot { fill: #ffffff; opacity: 0.05; }
+
+/* Bars grow out of the baseline, staggered left to right, so the eye reads the series in time order
+   rather than being handed a finished block. transform-box and transform-origin are both needed on
+   SVG: without them the scale happens about the viewport origin, not the bar own foot. */
+.viz-bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: viz-grow 520ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes viz-grow {
+  from { transform: scaleY(0); opacity: 0.4; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+/* Horizontal bars (ageing, ranked lists) sweep out from the left on the same curve. */
+.viz-fill {
+  transform-origin: left center;
+  animation: viz-sweep 560ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes viz-sweep {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Anybody who has asked for less motion gets the finished chart, immediately and still. */
+@media (prefers-reduced-motion: reduce) {
+  .viz-bar, .viz-fill { animation: none; }
+}
 `;
