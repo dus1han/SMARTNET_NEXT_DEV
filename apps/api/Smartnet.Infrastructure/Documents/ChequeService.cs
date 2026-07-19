@@ -39,8 +39,11 @@ public sealed class ChequeService : IChequeCreator, IChequeVoider, IChequePrintR
     /// </remarks>
     public async Task<DateTime> RecordPrintAsync(long chequeId, CancellationToken cancellationToken = default)
     {
+        // Either origin: a legacy cheque is printed as readily as one this app raised, and the entity's
+        // data_origin = "new" filter would otherwise hide every cheque that currently exists.
         var cheque = await _db.Cheques
-            .FirstOrDefaultAsync(c => c.Id == chequeId, cancellationToken)
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(c => c.Id == chequeId && c.DeletedAt == null, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Cheque {chequeId} does not exist.");
 

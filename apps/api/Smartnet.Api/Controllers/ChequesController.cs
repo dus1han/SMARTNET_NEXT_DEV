@@ -143,14 +143,26 @@ public sealed class ChequesController : ControllerBase
                 .ToDictionaryAsync(x => x.EntityId, x => x.Count, cancellationToken)
                 .ConfigureAwait(false);
 
-    /// <summary>The cheque the caller may see, tracked so a print can stamp it.</summary>
+    /// <summary>
+    /// The cheque the caller may see, of either origin.
+    /// </summary>
+    /// <remarks>
+    /// IgnoreQueryFilters for the reason the renderer gives: <see cref="Cheque"/> is filtered to
+    /// <c>data_origin == "new"</c> and every cheque in the system is legacy, so the unfiltered set is
+    /// empty and this returned null for all of them — a 404 on the print button before a document was
+    /// ever composed. Soft deletes are excluded explicitly, since ignoring the filter drops that too.
+    /// </remarks>
     private async Task<Cheque?> VisibleChequeAsync(long id, CancellationToken cancellationToken)
     {
         var accessible = _company.Accessible.ToList();
 
         return await _db.Cheques
+            .IgnoreQueryFilters()
             .FirstOrDefaultAsync(
-                c => c.Id == id && c.CompanyId != null && accessible.Contains(c.CompanyId.Value),
+                c => c.Id == id
+                     && c.DeletedAt == null
+                     && c.CompanyId != null
+                     && accessible.Contains(c.CompanyId.Value),
                 cancellationToken)
             .ConfigureAwait(false);
     }
