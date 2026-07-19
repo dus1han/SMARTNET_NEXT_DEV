@@ -14,9 +14,17 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Building2, Coins, TrendingUp, UserRound, Wallet } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
-import { getDashboard, type CompanyFilter } from "@/lib/dashboard";
+import { getDashboard, getDashboardAnalytics, type CompanyFilter } from "@/lib/dashboard";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DailySalesChart } from "@/components/dashboard/daily-sales-chart";
+import {
+  ANALYTICS_VIZ_CSS,
+  AgeingChart,
+  CashFlowChart,
+  Delta,
+  MonthlyTrendChart,
+  RankedBars,
+} from "@/components/dashboard/analytics-charts";
 import { CompanyFilterCard } from "@/components/dashboard/company-filter-card";
 import { StatTile, formatMoney } from "@/components/reports";
 import { AnimatedNumber, Badge, Card, CardHeader, ErrorBanner, FadeIn, LoadingPanel } from "@/components/ui";
@@ -114,9 +122,132 @@ export default function DashboardPage() {
             />
             <DailySalesChart points={data.chart} />
           </Card>
+
+          <Analytics company={company} />
         </>
       ) : null}
     </FadeIn>
+  );
+}
+
+/**
+ * The analytical half — loaded separately so the month tiles above never wait on it.
+ *
+ * Its own component, and its own query, for that reason: this scans a year of invoices and their lines
+ * while the tiles above scan one month, so sharing a request would hold the whole screen behind the
+ * slower half.
+ */
+function Analytics({ company }: { company: CompanyFilter }) {
+  const analytics = useQuery({
+    queryKey: ["dashboard-analytics", company],
+    queryFn: () => getDashboardAnalytics(company),
+    placeholderData: keepPreviousData,
+  });
+
+  const a = analytics.data;
+
+  if (analytics.isPending) return <LoadingPanel />;
+  if (!a) return null;
+
+  const overdueShare = a.ageing.reduce((sum, b) => sum + b.amount, 0);
+
+  return (
+    <>
+      <style>{ANALYTICS_VIZ_CSS}</style>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile
+          label="Revenue this month"
+          icon={TrendingUp}
+          color="indigo"
+          value={<AnimatedNumber value={a.revenue.value} format={formatMoney} />}
+          sub={<Delta change={a.revenue.changePercent} />}
+        />
+        <StatTile
+          label="Gross profit"
+          icon={Coins}
+          color="emerald"
+          delayMs={70}
+          value={<AnimatedNumber value={a.grossProfit.value} format={formatMoney} />}
+          sub={<><span className="tabular">{a.marginPercent.toFixed(1)}% margin</span> · <Delta change={a.grossProfit.changePercent} /></>}
+        />
+        <StatTile
+          label="Collected this month"
+          icon={Wallet}
+          color="violet"
+          delayMs={140}
+          value={<AnimatedNumber value={a.collected.value} format={formatMoney} />}
+          sub={<Delta change={a.collected.changePercent} />}
+        />
+        <StatTile
+          label="Overdue"
+          icon={AlertTriangle}
+          color="amber"
+          delayMs={210}
+          value={<AnimatedNumber value={a.overdue} format={formatMoney} />}
+          sub={
+            overdueShare > 0
+              ? `${Math.round((a.overdue / overdueShare) * 100)}% of everything owed`
+              : "nothing owed"
+          }
+        />
+      </div>
+
+      <Card>
+        <CardHeader
+          title="Revenue and profit"
+          description="Twelve months. The gap between the pair is what the sales cost you."
+        />
+        <MonthlyTrendChart points={a.monthlyTrend} />
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Where the money is owed"
+            description="Open balances by age. Anything past the first bar is money that has stopped moving."
+          />
+          <AgeingChart buckets={a.ageing} />
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Cash in and out"
+            description="Receipts against supplier payments and expenses. Profit is not cash."
+          />
+          <CashFlowChart points={a.cashFlow} />
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Biggest customers"
+            description={`The top five are ${a.topCustomerShare.toFixed(1)}% of all revenue.`}
+          />
+          <RankedBars
+            rows={a.topCustomers.map((c) => ({ label: c.name, value: c.revenue, share: c.share }))}
+            emptyLabel="No customer revenue yet."
+          />
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Best-selling lines"
+            description="By revenue, with units alongside — the legacy data has no per-line cost, so there is no item margin to show."
+          />
+          <RankedBars
+            rows={a.topItems.map((i) => ({
+              label: i.description,
+              value: i.revenue,
+              share: i.share,
+              note: `${i.quantity.toLocaleString()} units`,
+            }))}
+            emptyLabel="No item sales yet."
+          />
+        </Card>
+      </div>
+    </>
   );
 }
 

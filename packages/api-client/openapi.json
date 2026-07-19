@@ -1232,6 +1232,44 @@
         }
       }
     },
+    "/api/dashboard/analytics": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "parameters": [
+          {
+            "name": "company",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardAnalytics"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardAnalytics"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardAnalytics"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/dunning/outstanding/{customerCode}/recipients": {
       "get": {
         "tags": [
@@ -6389,32 +6427,6 @@
         }
       }
     },
-    "/api/dev/seed-payment": {
-      "post": {
-        "tags": [
-          "Smartnet.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/DevSeedPaymentRequest"
-                  }
-                ]
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/health": {
       "get": {
         "tags": [
@@ -7469,6 +7481,28 @@
   },
   "components": {
     "schemas": {
+      "AgeingBucket": {
+        "required": [
+          "amount",
+          "invoices",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "invoices": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "AuditActorDto": {
         "required": [
           "id",
@@ -7595,6 +7629,29 @@
           },
           "value": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CashFlowPoint": {
+        "required": [
+          "in",
+          "month",
+          "out"
+        ],
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "in": {
+            "type": "number",
+            "format": "double"
+          },
+          "out": {
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false
@@ -9213,6 +9270,28 @@
         },
         "additionalProperties": false
       },
+      "CustomerShare": {
+        "required": [
+          "name",
+          "revenue",
+          "share"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "revenue": {
+            "type": "number",
+            "format": "double"
+          },
+          "share": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
       "CustomerSummary": {
         "required": [
           "code",
@@ -9377,6 +9456,88 @@
           "credit": {
             "type": "number",
             "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DashboardAnalytics": {
+        "required": [
+          "ageing",
+          "cashFlow",
+          "collected",
+          "grossProfit",
+          "marginPercent",
+          "monthlyTrend",
+          "overdue",
+          "revenue",
+          "topCustomers",
+          "topCustomerShare",
+          "topItems"
+        ],
+        "type": "object",
+        "properties": {
+          "revenue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Trend"
+              }
+            ]
+          },
+          "grossProfit": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Trend"
+              }
+            ]
+          },
+          "collected": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Trend"
+              }
+            ]
+          },
+          "marginPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "overdue": {
+            "type": "number",
+            "format": "double"
+          },
+          "monthlyTrend": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MonthPoint"
+            }
+          },
+          "ageing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgeingBucket"
+            }
+          },
+          "cashFlow": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashFlowPoint"
+            }
+          },
+          "topCustomers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerShare"
+            }
+          },
+          "topCustomerShare": {
+            "type": "number",
+            "format": "double"
+          },
+          "topItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemSales"
+            }
           }
         },
         "additionalProperties": false
@@ -9706,23 +9867,6 @@
           "reason": {
             "type": "string",
             "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "DevSeedPaymentRequest": {
-        "required": [
-          "amount",
-          "invoiceNumber"
-        ],
-        "type": "object",
-        "properties": {
-          "invoiceNumber": {
-            "type": "string"
-          },
-          "amount": {
-            "type": "number",
-            "format": "double"
           }
         },
         "additionalProperties": false
@@ -10688,6 +10832,33 @@
         },
         "additionalProperties": false
       },
+      "ItemSales": {
+        "required": [
+          "description",
+          "quantity",
+          "revenue",
+          "share"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "revenue": {
+            "type": "number",
+            "format": "double"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "share": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
       "ItemStockResponse": {
         "required": [
           "balance",
@@ -11190,6 +11361,29 @@
             "items": {
               "type": "string"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MonthPoint": {
+        "required": [
+          "month",
+          "profit",
+          "revenue"
+        ],
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "revenue": {
+            "type": "number",
+            "format": "double"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false
@@ -13454,6 +13648,30 @@
           },
           "isDefault": {
             "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Trend": {
+        "required": [
+          "previous",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "number",
+            "format": "double"
+          },
+          "previous": {
+            "type": "number",
+            "format": "double"
+          },
+          "changePercent": {
+            "type": "number",
+            "format": "double",
+            "nullable": true,
+            "readOnly": true
           }
         },
         "additionalProperties": false

@@ -238,3 +238,10 @@ export type ProblemDetails = Schemas["ProblemDetails"] & {
 
 /** Every path the API exposes, for anything that wants to be exhaustive about them. */
 export type ApiPaths = paths;
+export type DashboardAnalytics = Schemas["DashboardAnalytics"];
+export type MonthPoint = Schemas["MonthPoint"];
+export type CashFlowPoint = Schemas["CashFlowPoint"];
+export type AgeingBucket = Schemas["AgeingBucket"];
+export type CustomerShare = Schemas["CustomerShare"];
+export type ItemSales = Schemas["ItemSales"];
+export type Trend = Schemas["Trend"];

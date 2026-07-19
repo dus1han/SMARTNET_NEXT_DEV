@@ -1040,6 +1040,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dashboard/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    company?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DashboardAnalytics"];
+                        "application/json": components["schemas"]["DashboardAnalytics"];
+                        "text/json": components["schemas"]["DashboardAnalytics"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dunning/outstanding/{customerCode}/recipients": {
         parameters: {
             query?: never;
@@ -5201,43 +5240,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/dev/seed-payment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["DevSeedPaymentRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health": {
         parameters: {
             query?: never;
@@ -6088,6 +6090,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AgeingBucket: {
+            label: string;
+            /** Format: double */
+            amount: number;
+            /** Format: int32 */
+            invoices: number;
+        };
         AuditActorDto: {
             /** Format: int64 */
             id: number;
@@ -6121,6 +6130,14 @@ export interface components {
         BusinessRule: {
             key: string;
             value: string;
+        };
+        CashFlowPoint: {
+            /** Format: date */
+            month: string;
+            /** Format: double */
+            in: number;
+            /** Format: double */
+            out: number;
         };
         ChangePasswordRequest: {
             currentPassword: string;
@@ -6615,6 +6632,13 @@ export interface components {
             balance: number;
             hasDataIssue: boolean;
         };
+        CustomerShare: {
+            name: string;
+            /** Format: double */
+            revenue: number;
+            /** Format: double */
+            share: number;
+        };
         CustomerSummary: {
             /** Format: int64 */
             id: number;
@@ -6665,6 +6689,22 @@ export interface components {
             cash: number;
             /** Format: double */
             credit: number;
+        };
+        DashboardAnalytics: {
+            revenue: components["schemas"]["Trend"];
+            grossProfit: components["schemas"]["Trend"];
+            collected: components["schemas"]["Trend"];
+            /** Format: double */
+            marginPercent: number;
+            /** Format: double */
+            overdue: number;
+            monthlyTrend: components["schemas"]["MonthPoint"][];
+            ageing: components["schemas"]["AgeingBucket"][];
+            cashFlow: components["schemas"]["CashFlowPoint"][];
+            topCustomers: components["schemas"]["CustomerShare"][];
+            /** Format: double */
+            topCustomerShare: number;
+            topItems: components["schemas"]["ItemSales"][];
         };
         DashboardCompanyOption: {
             /** Format: int64 */
@@ -6769,11 +6809,6 @@ export interface components {
             deletedAt: string;
             deletedByName?: string | null;
             reason?: string | null;
-        };
-        DevSeedPaymentRequest: {
-            invoiceNumber: string;
-            /** Format: double */
-            amount: number;
         };
         DocumentContact: {
             /** Format: int64 */
@@ -7071,6 +7106,15 @@ export interface components {
             /** Format: double */
             percentage: number;
         };
+        ItemSales: {
+            description: string;
+            /** Format: double */
+            revenue: number;
+            /** Format: double */
+            quantity: number;
+            /** Format: double */
+            share: number;
+        };
         ItemStockResponse: {
             /** Format: int64 */
             itemId: number;
@@ -7215,6 +7259,14 @@ export interface components {
             username: string;
             mustChangePassword: boolean;
             permissions: string[];
+        };
+        MonthPoint: {
+            /** Format: date */
+            month: string;
+            /** Format: double */
+            revenue: number;
+            /** Format: double */
+            profit: number;
         };
         NumberPreview: {
             now: string;
@@ -7906,6 +7958,14 @@ export interface components {
             /** Format: date */
             effectiveTo?: string | null;
             isDefault: boolean;
+        };
+        Trend: {
+            /** Format: double */
+            value: number;
+            /** Format: double */
+            previous: number;
+            /** Format: double */
+            readonly changePercent?: number | null;
         };
         TrialBalanceResponse: {
             /** Format: double */

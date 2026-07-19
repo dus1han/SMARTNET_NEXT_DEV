@@ -1,8 +1,8 @@
-import type { DashboardResponse } from "@smartnet/api-client";
+import type { DashboardResponse, DashboardAnalytics } from "@smartnet/api-client";
 import { api } from "./api";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
-export type { DashboardResponse, DailySalesPoint, DashboardCompanyOption } from "@smartnet/api-client";
+export type { DashboardResponse, DailySalesPoint, DashboardCompanyOption, DashboardAnalytics, MonthPoint, CashFlowPoint, AgeingBucket, CustomerShare, ItemSales, Trend } from "@smartnet/api-client";
 
 /** The company the dashboard is scoped to: a specific company id, or "all" (every accessible one). */
 export type CompanyFilter = number | "all";
@@ -15,3 +15,12 @@ export type CompanyFilter = number | "all";
  */
 export const getDashboard = (company: CompanyFilter = "all") =>
   api<DashboardResponse>(`/api/dashboard${company === "all" ? "" : `?company=${company}`}`);
+
+/**
+ * The analytical half of the dashboard — trend, ageing, cash movement, concentration.
+ *
+ * A second request rather than part of `getDashboard`: it scans a year of invoices and their lines, so
+ * the month tiles paint immediately and this fills in behind them.
+ */
+export const getDashboardAnalytics = (company: CompanyFilter) =>
+  api<DashboardAnalytics>(`/api/dashboard/analytics${company === "all" ? "" : `?company=${company}`}`);

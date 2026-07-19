@@ -10,6 +10,7 @@ using Smartnet.Api.Reporting;
 using Smartnet.Domain.Identity;
 using Smartnet.Infrastructure.Entities;
 using Smartnet.Infrastructure.Persistence;
+using Smartnet.Infrastructure.Reporting;
 
 namespace Smartnet.Api.Controllers;
 
@@ -102,6 +103,105 @@ public sealed class DashboardController : ControllerBase
             .ConfigureAwait(false);
 
         return Ok(Dashboard.Build(invoices, monthStart, monthEnd, preparedBy, selectedId, companies));
+    }
+
+    /// <summary>
+    /// The analytical half of the dashboard — trend, ageing, cash movement, concentration and margin.
+    /// </summary>
+    /// <remarks>
+    /// <b>A separate request from the at-a-glance tiles, deliberately.</b> This scans a year of invoices
+    /// and their lines; the month tiles do not. Loading them together would hold the whole screen behind
+    /// the slowest query, so the glance paints first and the analysis fills in behind it.
+    ///
+    /// <para>Company-scoped like everything else, and never wider than the token allows. There is no
+    /// "my" variant: these are business readings, so a caller without the dashboard permission gets the
+    /// same shape scoped to the companies they can already see — nothing here is per-user.</para>
+    /// </remarks>
+    [HttpGet("analytics")]
+    [Authorize]
+    public async Task<ActionResult<DashboardAnalytics>> Analytics(
+        [FromQuery] string? company,
+        CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+        var accessible = _company.Accessible.ToList();
+
+        long? selectedId = long.TryParse(company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            && accessible.Contains(id)
+            ? id
+            : null;
+
+        var scopeIds = (selectedId is { } only ? [only] : accessible)
+            .Select(i => i.ToString(CultureInfo.InvariantCulture))
+            .ToList();
+
+        if (scopeIds.Count == 0)
+        {
+            return Ok(DashboardAnalyticsBuilder.Build([], [], [], [], [], new Dictionary<string, string>(), today));
+        }
+
+        var invoices = await _legacy.InvoiceHs
+            .Where(h => scopeIds.Contains(h.Company!))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var invoiceNos = invoices
+            .Where(h => !string.IsNullOrEmpty(h.Invoiceno))
+            .Select(h => h.Invoiceno!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        // Lines and payments carry no company, so they are scoped by membership of the scoped invoices —
+        // the same approach the reports take, and the reason a payment against a deleted invoice drops
+        // out rather than being counted against a company it cannot be attributed to.
+        var lines = (await _legacy.InvoiceLs.ToListAsync(cancellationToken).ConfigureAwait(false))
+            .Where(l => l.Inno != null && invoiceNos.Contains(l.Inno))
+            .ToList();
+
+        var payments = (await _legacy.Payments.ToListAsync(cancellationToken).ConfigureAwait(false))
+            .Where(p => p.Invoiceno != null && invoiceNos.Contains(p.Invoiceno))
+            .ToList();
+
+        var expenses = await _legacy.ExpenseTrs
+            .Where(e => scopeIds.Contains(e.Company) && e.DeletedAt == null)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // A legacy supplier settlement carries no amount of its own — the row records which invoice was
+        // paid and when, and the amount is the invoice's. So the cash that left is the invoice's value,
+        // dated by the settlement.
+        var supplierInvoices = await _legacy.SupplierInvoices
+            .Where(i => scopeIds.Contains(i.Company!))
+            .Select(i => new { i.Id, i.Amount })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var amountByInvoice = supplierInvoices
+            .GroupBy(i => i.Id)
+            .ToDictionary(g => g.Key, g => LegacyValue.Money(g.First().Amount));
+
+        var settlements = await _legacy.SupplierInvPays
+            .Select(s => new { s.Supinvid, s.Paiddate })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var supplierPayments = settlements
+            .Select(s => (
+                Id: long.TryParse(s.Supinvid, NumberStyles.Integer, CultureInfo.InvariantCulture, out var sid) ? sid : (long?)null,
+                Date: LegacyValue.Date(s.Paiddate)))
+            .Where(s => s.Id is not null && amountByInvoice.ContainsKey(s.Id!.Value))
+            .Select(s => (s.Date, Amount: amountByInvoice[s.Id!.Value]))
+            .ToList();
+
+        var customerNames = (await _legacy.CusMs
+                .Select(c => new { c.Cuscode, c.Cusname })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .Where(c => !string.IsNullOrEmpty(c.Cuscode))
+            .GroupBy(c => c.Cuscode!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().Cusname ?? string.Empty, StringComparer.Ordinal);
+
+        return Ok(DashboardAnalyticsBuilder.Build(
+            invoices, lines, payments, expenses, supplierPayments, customerNames, today));
     }
 
     /// <summary>This user's display name — the legacy <c>preparedby</c> value — from their id claim.</summary>
