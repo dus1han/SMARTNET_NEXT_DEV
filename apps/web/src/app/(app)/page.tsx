@@ -32,7 +32,7 @@ import {
   RankedBars,
 } from "@/components/dashboard/analytics-charts";
 import { CompanySwitch } from "@/components/dashboard/company-switch";
-import { StatTile, formatMoney } from "@/components/reports";
+import { StatTile, formatMoney, formatReportDate } from "@/components/reports";
 import { AnimatedNumber, Card, CardHeader, ErrorBanner, FadeIn, LoadingPanel } from "@/components/ui";
 
 export default function DashboardPage() {
@@ -242,46 +242,6 @@ export default function DashboardPage() {
             <Reveal delayMs={380}>
               <Card className="h-full">
                 <CardHeader
-                  title="Customers who have gone quiet"
-                  description={
-                    a.lapsedCount === 0
-                      ? "Nobody has stopped buying."
-                      : `${a.lapsedCount} have not bought in 90 days — ${formatMoney(a.lapsedValue)} of past business.`
-                  }
-                />
-                {a.lapsedCustomers.length === 0 ? (
-                  <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-subtle text-sm text-muted">
-                    Every customer has bought recently.
-                  </div>
-                ) : (
-                  <ul className="space-y-2.5">
-                    {a.lapsedCustomers.map((c) => (
-                      <li key={c.name} className="flex items-baseline justify-between gap-3 text-sm">
-                        <span className="min-w-0 truncate text-text" title={c.name}>
-                          {c.name}
-                          {/* Gone AND still owing is a different problem from merely gone. */}
-                          {c.stillOwed > 0 && (
-                            <span className="ml-2 text-xs text-warning-text">
-                              owes {formatMoney(c.stillOwed)}
-                            </span>
-                          )}
-                        </span>
-                        <span className="shrink-0 text-right">
-                          <span className="tabular text-text">{formatMoney(c.lifetime)}</span>
-                          <span className="ml-2 text-xs text-muted">silent {c.silentDays}d</span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
-            </Reveal>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Reveal delayMs={440}>
-              <Card className="h-full">
-                <CardHeader
                   title="Biggest suppliers"
                   description="All time — a buying relationship is built over years, not in a month."
                 />
@@ -292,6 +252,59 @@ export default function DashboardPage() {
               </Card>
             </Reveal>
           </div>
+
+          {/*
+            Full width, and a column per fact rather than a name squeezed against a figure. These are the
+            longest names in the system — "Brows Engineering & Constructions (Pvt) Ltd." — and at half
+            width they truncated to the point where two customers could look like the same one.
+          */}
+          <Reveal delayMs={440}>
+            <Card>
+              <CardHeader
+                title="Customers who have gone quiet"
+                description={
+                  a.lapsedCount === 0
+                    ? "Nobody has stopped buying."
+                    : `${a.lapsedCount} have not bought in 90 days — ${formatMoney(a.lapsedValue)} of past business.`
+                }
+              />
+
+              {a.lapsedCustomers.length === 0 ? (
+                <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-subtle text-sm text-muted">
+                  Every customer has bought recently.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-subtle text-left">
+                        <th className="pb-2 pr-4 font-medium text-muted">Customer</th>
+                        <th className="pb-2 pr-4 font-medium text-muted">Last bought</th>
+                        <th className="pb-2 pr-4 text-right font-medium text-muted">Silent</th>
+                        <th className="pb-2 pr-4 text-right font-medium text-muted">Lifetime value</th>
+                        <th className="pb-2 text-right font-medium text-muted">Still owed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {a.lapsedCustomers.map((c) => (
+                        <tr key={c.name} className="border-b border-subtle/60 last:border-0">
+                          <td className="py-2.5 pr-4 text-text">{c.name}</td>
+                          <td className="whitespace-nowrap py-2.5 pr-4 text-muted">{formatReportDate(c.lastPurchase)}</td>
+                          <td className="tabular whitespace-nowrap py-2.5 pr-4 text-right text-muted">{c.silentDays} days</td>
+                          <td className="tabular py-2.5 pr-4 text-right text-text">{formatMoney(c.lifetime)}</td>
+                          {/* Gone and still owing is a different problem from merely gone, so it is its
+                              own column rather than a note tucked beside the name. */}
+                          <td className={c.stillOwed > 0 ? "tabular py-2.5 text-right font-medium text-warning-text" : "tabular py-2.5 text-right text-muted"}>
+                            {c.stillOwed > 0 ? formatMoney(c.stillOwed) : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          </Reveal>
         </>
       ) : null}
     </FadeIn>
