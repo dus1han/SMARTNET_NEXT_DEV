@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, KeyRound, ScrollText, ShieldCheck, type LucideIcon } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { ApiError } from "@/lib/api";
@@ -158,7 +158,7 @@ export default function LoginPage() {
  */
 function BrandPanel() {
   return (
-    <aside className="relative hidden overflow-hidden bg-sidebar p-12 lg:flex lg:flex-col lg:justify-between">
+    <aside className="relative hidden overflow-hidden bg-sidebar p-12 lg:flex lg:items-center lg:justify-center">
       {/* The aurora. Two slow orbs, out of phase, so the light never repeats a shape you can catch
           it repeating — and both paused the instant a field takes focus. */}
       <div
@@ -184,87 +184,38 @@ function BrandPanel() {
         }}
       />
 
-      <div className="relative flex items-center gap-3 animate-in fade-in-0 slide-in-from-left-2 duration-500 ease-out">
-        <BrandMark className="size-10 rounded-xl shadow-lg" />
-        <div className="leading-tight">
-          <p className="font-semibold text-sidebar-text-active">{BRAND_NAME}</p>
-          <p className="text-xs text-sidebar-text">{BRAND_TAGLINE}</p>
+      {/*
+        The panel is the mark and the name, centred, and nothing else. It used to carry a headline, a
+        paragraph and three feature bullets — copy nobody reads twice, on a screen its audience sees
+        every morning. What survives is the thing that identifies the product.
+      */}
+      <div className="relative flex flex-col items-center text-center">
+        <div className="relative flex size-32 items-center justify-center">
+          {/* Halo and ripple sit behind the mark and are decorative, so they are hidden from a
+              screen reader and stop the moment a field takes focus — motion beside a form you are
+              filling in is a distraction, not a flourish. */}
+          <div
+            aria-hidden
+            className="absolute size-28 rounded-[2rem] bg-primary/40 blur-2xl animate-halo group-focus-within:[animation-play-state:paused]"
+          />
+          <div
+            aria-hidden
+            className="absolute size-24 rounded-[1.75rem] border border-primary/30 animate-ripple group-focus-within:[animation-play-state:paused]"
+          />
+
+          <BrandMark
+            className="relative size-20 rounded-[1.5rem] shadow-2xl shadow-primary/30 animate-float group-focus-within:[animation-play-state:paused]"
+          />
         </div>
-      </div>
 
-      <div className="relative max-w-md">
-        <h2 className="text-4xl font-semibold leading-[1.15] tracking-tight text-sidebar-text-active animate-in fade-in-0 slide-in-from-bottom-3 fill-mode-backwards duration-700 ease-out [animation-delay:100ms]">
-          Rebuilt on a foundation
-          <br />
-          you can audit.
-        </h2>
+        <h1 className="mt-8 text-4xl font-semibold tracking-tight text-sidebar-text-active animate-in fade-in-0 slide-in-from-bottom-3 fill-mode-backwards duration-700 ease-out [animation-delay:120ms]">
+          {BRAND_NAME}
+        </h1>
 
-        <p className="mt-4 max-w-sm text-sm leading-relaxed text-sidebar-text animate-in fade-in-0 fill-mode-backwards duration-700 [animation-delay:250ms]">
-          The same business, the same numbers — and a system that can finally tell you who changed
-          them.
+        <p className="mt-3 text-sm tracking-wide text-sidebar-text animate-in fade-in-0 fill-mode-backwards duration-700 [animation-delay:280ms]">
+          {BRAND_TAGLINE}
         </p>
-
-        <ul className="mt-10 space-y-6">
-          {HIGHLIGHTS.map((highlight, index) => (
-            <Highlight key={highlight.title} {...highlight} index={index} />
-          ))}
-        </ul>
       </div>
-
-      <p className="relative flex items-center gap-2 text-xs text-sidebar-text/60">
-        <span className="relative flex size-1.5">
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-60 group-focus-within:[animation-play-state:paused]" />
-          <span className="relative inline-flex size-1.5 rounded-full bg-success" />
-        </span>
-        Running against the development database.
-      </p>
     </aside>
-  );
-}
-
-const HIGHLIGHTS = [
-  {
-    icon: ShieldCheck,
-    title: "Deny by default",
-    detail: "Every endpoint states who may call it, and the server checks — not the menu.",
-  },
-  {
-    icon: KeyRound,
-    title: "Argon2id passwords",
-    detail: "Hashed and salted, upgraded silently the first time you sign in.",
-  },
-  {
-    icon: ScrollText,
-    title: "Everything audited",
-    detail: "Who changed what, when, and why — recorded in the same transaction.",
-  },
-] satisfies { icon: LucideIcon; title: string; detail: string }[];
-
-function Highlight({ icon: Icon, title, detail, index }: {
-  icon: LucideIcon;
-  title: string;
-  detail: string;
-  index: number;
-}) {
-  return (
-    <li
-      className="flex gap-4 animate-in fade-in-0 slide-in-from-bottom-2 fill-mode-backwards duration-500 ease-out"
-      // Staggered by 90ms. Enough to read as choreography; past about six items it would read as lag.
-      style={{ animationDelay: `${350 + index * 90}ms` }}
-    >
-      <span
-        className={cn(
-          "grid size-10 shrink-0 place-items-center rounded-xl bg-sidebar-active text-primary",
-          "ring-1 ring-white/5",
-        )}
-      >
-        <Icon className="size-4" aria-hidden />
-      </span>
-
-      <div>
-        <p className="text-sm font-medium text-sidebar-text-active">{title}</p>
-        <p className="mt-1 text-sm leading-relaxed text-sidebar-text">{detail}</p>
-      </div>
-    </li>
   );
 }

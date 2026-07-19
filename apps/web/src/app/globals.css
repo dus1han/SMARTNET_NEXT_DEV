@@ -228,8 +228,51 @@
   }
 }
 
+/* The sign-in mark, breathing. Six seconds and four pixels of travel — at the speed of a slow
+   breath it reads as alive rather than as something demanding attention, which is the whole trick:
+   a login screen is looked at for four seconds and returned to every morning. */
+@keyframes float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -8px, 0);
+  }
+}
+
+/* The halo behind it, out of phase with the float so the two never peak together. */
+@keyframes halo {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.12);
+  }
+}
+
+/* One ring leaving the mark, every few seconds. Fades as it grows, so it reads as a pulse rather
+   than a loading spinner — nothing here is waiting on anything. */
+@keyframes ripple {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
 @theme {
   --animate-indeterminate: indeterminate 1.1s ease-in-out infinite;
+
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-halo: halo 6s ease-in-out infinite;
+  --animate-ripple: ripple 4.5s ease-out infinite;
 
   --animate-drift: drift 24s ease-in-out infinite alternate;
   --animate-drift-alt: drift-alt 33s ease-in-out infinite alternate;
