@@ -73,61 +73,62 @@ public sealed class QuotationsController : ControllerBase
     /// </summary>
     [HttpGet]
     [RequirePermission(Permissions.SearchQuotation)]
-    public async Task<ActionResult<IReadOnlyList<QuotationSummary>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<QuotationSummary>>> List(
+        [FromQuery] PageRequest paging,
+        CancellationToken cancellationToken)
     {
         var accessible = _company.Accessible.ToList();
+        var accessibleText = PageRequest.AsText(accessible).ToList();
 
-        // --- New quotations (this app's own) --------------------------------------------------------
-        var quotations = await _db.Quotations
-            .Where(q => q.CompanyId != null && accessible.Contains(q.CompanyId.Value))
-            .Select(q => new { q.Id, q.Number, q.Date, q.CustomerId, q.Total, q.ConvertedToInvoiceId })
+        // quotation_h holds both this app's quotations and the adopted legacy ones, split by
+        // data_origin, so a page is one ordered query over the table rather than two whole reads
+        // merged in memory. Same shape as the invoices list, for the same reason.
+        var query = _legacy.QuotationHs.Where(h => h.Company != null && accessibleText.Contains(h.Company));
+
+        if (paging.LikePattern is { } pattern)
+        {
+            var matchedCodes = await _db.Customers
+                .Where(c => c.Code != null && EF.Functions.Like(c.Name, pattern))
+                .Select(c => c.Code!)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            query = query.Where(h =>
+                EF.Functions.Like(h.QNo!, pattern)
+                || (h.Customer != null && matchedCodes.Contains(h.Customer)));
+        }
+
+        var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        // Id is the tiebreaker so the order is total: without it, quotations sharing a date can swap
+        // places between requests and paging shows some twice while missing others.
+        var page = await query
+            .OrderByDescending(h => h.Qdate)
+            .ThenByDescending(h => h.Id)
+            .Skip(paging.Skip)
+            .Take(paging.SafePageSize)
+            .Select(h => new { h.Id, h.QNo, h.Qdate, h.Customer, h.Totamount, h.ConvertedToInvoiceId, h.DataOrigin })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var customerIds = quotations.Select(q => q.CustomerId).Distinct().ToList();
-        var names = await _db.Customers
-            .Where(c => customerIds.Contains(c.Id))
-            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken)
-            .ConfigureAwait(false);
-
-        var rows = quotations.Select(q => new QuotationSummary(
-            q.Id,
-            q.Number,
-            q.Date,
-            names.GetValueOrDefault(q.CustomerId),
-            q.Total,
-            q.ConvertedToInvoiceId,
-            "new")).ToList();
-
-        // --- Legacy quotations (adopted from the old system) ----------------------------------------
-        var accessibleText = accessible.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToHashSet();
-
-        var legacy = await _legacy.QuotationHs
-            .Where(h => h.DataOrigin != "new") // legacy rows only
-            .Select(h => new { h.Id, h.QNo, h.Qdate, h.Customer, h.Totamount, h.Company, h.ConvertedToInvoiceId })
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        legacy = legacy.Where(h => h.Company != null && accessibleText.Contains(h.Company)).ToList();
-
-        var legacyCodes = legacy.Select(h => h.Customer).Where(c => c != null).Distinct().ToList();
+        var codes = page.Select(h => h.Customer).Where(c => c != null).Select(c => c!).Distinct().ToList();
         var namesByCode = (await _db.Customers
-            .Where(c => c.Code != null && legacyCodes.Contains(c.Code))
-            .Select(c => new { c.Code, c.Name })
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false))
-            .ToDictionary(c => c.Code!, c => c.Name);
+                .Where(c => c.Code != null && codes.Contains(c.Code))
+                .Select(c => new { c.Code, c.Name })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .ToDictionary(c => c.Code!, c => c.Name, StringComparer.Ordinal);
 
-        rows.AddRange(legacy.Select(h => new QuotationSummary(
+        var rows = page.Select(h => new QuotationSummary(
             h.Id,
             h.QNo ?? "—",
             LegacyValue.Date(h.Qdate) ?? DateOnly.MinValue,
             h.Customer is not null ? namesByCode.GetValueOrDefault(h.Customer) : null,
             LegacyValue.Money(h.Totamount),
-            h.ConvertedToInvoiceId, // set once converted through the new app
-            "legacy")));
+            h.ConvertedToInvoiceId,
+            h.DataOrigin == "new" ? "new" : "legacy")).ToList();
 
-        return Ok(rows.OrderByDescending(r => r.Date).ThenByDescending(r => r.Id).ToList());
+        return Ok(new PagedResult<QuotationSummary>(rows, total, paging.SafePage, paging.SafePageSize));
     }
 
     /// <summary>

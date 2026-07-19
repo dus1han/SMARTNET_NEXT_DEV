@@ -14,6 +14,7 @@ import type {
   QuotationSummary,
 } from "@smartnet/api-client";
 import { api } from "./api";
+import type { Paged } from "./paging";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
 export type {
@@ -29,7 +30,22 @@ export type {
 } from "@smartnet/api-client";
 
 /** The quotations this app has raised, newest first. */
-export const getQuotations = () => api<QuotationSummary[]>("/api/quotations");
+/**
+ * One page of quotations, searched and ordered by the server (2,119 rows and growing).
+ *
+ * The whole list used to come back so the browser could page it; the server pages it now, which also
+ * means the search box searches every row rather than the page that happens to be loaded.
+ */
+export const getQuotations = (params: { page: number; pageSize?: number; search?: string }) => {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    pageSize: String(params.pageSize ?? 25),
+  });
+
+  if (params.search?.trim()) query.set("search", params.search.trim());
+
+  return api<Paged<QuotationSummary>>(`/api/quotations?${query}`);
+};
 
 /** One quotation in full, with its lines and conversion state. */
 export const getQuotation = (id: number) => api<QuotationDetail>(`/api/quotations/${id}`);

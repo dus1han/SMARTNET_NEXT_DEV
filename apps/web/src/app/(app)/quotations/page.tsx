@@ -7,10 +7,12 @@
  * what it shows instead is whether it has been converted into an invoice yet.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { FIRST_PAGE } from "@/lib/paging";
 import { getQuotations, type QuotationSummary } from "@/lib/quotations";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -19,7 +21,15 @@ import { Badge, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function QuotationsPage() {
   const router = useRouter();
-  const quotations = useQuery({ queryKey: ["quotations"], queryFn: getQuotations });
+  const [page, setPage] = useState(FIRST_PAGE);
+  const [search, setSearch] = useState("");
+
+  const quotations = useQuery({
+    queryKey: ["quotations", page, search],
+    queryFn: () => getQuotations({ page, search }),
+    // Holds the current page on screen while the next loads, so paging does not blink.
+    placeholderData: keepPreviousData,
+  });
   const error = quotations.error as ApiError | null;
 
   return (
@@ -33,9 +43,16 @@ export default function QuotationsPage() {
 
       <DataTable
         columns={columns}
-        rows={quotations.data}
+        rows={quotations.data?.rows}
         loading={quotations.isPending}
         searchable={(row) => `${row.number} ${row.customerName ?? ""}`}
+        server={{
+          total: quotations.data?.total ?? 0,
+          page,
+          onPageChange: setPage,
+          search,
+          onSearchChange: setSearch,
+        }}
         searchPlaceholder="Search by number or customer…"
         defaultSort={{ id: "date", desc: true }}
         actions={

@@ -51,71 +51,81 @@ public sealed class SupplierInvoicesController : ControllerBase
     /// <summary>Every supplier invoice the caller may see, newest first — this app's own and the legacy ones.</summary>
     [HttpGet]
     [RequirePermission(Permissions.SupplierInvoice)]
-    public async Task<ActionResult<IReadOnlyList<SupplierInvoiceSummary>>> List(CancellationToken cancellationToken)
+    public async Task<ActionResult<PagedResult<SupplierInvoiceSummary>>> List(
+        [FromQuery] PageRequest paging,
+        CancellationToken cancellationToken)
     {
         var accessible = _company.Accessible.ToList();
+        var accessibleText = PageRequest.AsText(accessible).ToList();
 
-        // --- New supplier invoices ------------------------------------------------------------------
-        var invoices = await _db.SupplierInvoices
-            .Where(s => s.CompanyId != null && accessible.Contains(s.CompanyId.Value))
-            .Select(s => new { s.Id, s.SupplierReference, s.Date, s.SupplierId, s.Amount })
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
+        // supplier_invoice carries both origins, so the page comes from one ordered query over it.
+        var query = _legacy.SupplierInvoices.Where(h => h.Company != null && accessibleText.Contains(h.Company));
 
-        var ids = invoices.Select(s => s.Id).ToList();
-        // Derived outstanding per invoice, in one grouped query over the ledger.
-        var outstandingById = (await _db.PayablesLedger
-            .Where(e => e.SupplierInvoiceId != null && ids.Contains(e.SupplierInvoiceId.Value))
-            .GroupBy(e => e.SupplierInvoiceId!.Value)
-            .Select(g => new { Id = g.Key, Outstanding = g.Sum(e => e.Amount) })
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false))
-            .ToDictionary(x => x.Id, x => x.Outstanding);
-
-        var supplierIds = invoices.Select(s => s.SupplierId).Distinct().ToList();
-        var names = await _db.Suppliers
-            .Where(s => supplierIds.Contains(s.Id))
-            .ToDictionaryAsync(s => s.Id, s => s.Name, cancellationToken)
-            .ConfigureAwait(false);
-
-        var rows = invoices.Select(s =>
+        if (paging.LikePattern is { } pattern)
         {
-            var outstanding = outstandingById.GetValueOrDefault(s.Id, s.Amount);
-            return new SupplierInvoiceSummary(
-                s.Id, s.SupplierReference, s.Date, names.GetValueOrDefault(s.SupplierId),
-                s.Amount, outstanding, outstanding == 0m ? "Paid" : "Pending", "new");
-        }).ToList();
+            var matchedCodes = await _db.Suppliers
+                .Where(s => s.Code != null && EF.Functions.Like(s.Name, pattern))
+                .Select(s => s.Code!)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-        // --- Legacy supplier invoices ---------------------------------------------------------------
-        var accessibleText = accessible.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToHashSet();
+            query = query.Where(h =>
+                EF.Functions.Like(h.Invno!, pattern)
+                || (h.Supcode != null && matchedCodes.Contains(h.Supcode)));
+        }
 
-        var legacy = await _legacy.SupplierInvoices
-            .Where(h => h.DataOrigin != "new")
-            .Select(h => new { h.Id, h.Invno, h.Invdate, h.Supcode, h.Amount, h.Paymentstat, h.Company })
+        var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var page = await query
+            .OrderByDescending(h => h.Invdate)
+            .ThenByDescending(h => h.Id)
+            .Skip(paging.Skip)
+            .Take(paging.SafePageSize)
+            .Select(h => new { h.Id, h.Invno, h.Invdate, h.Supcode, h.Amount, h.Paymentstat, h.DataOrigin })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        legacy = legacy.Where(h => h.Company != null && accessibleText.Contains(h.Company)).ToList();
-
-        var legacyCodes = legacy.Select(h => h.Supcode).Where(c => c != null).Distinct().ToList();
+        var codes = page.Select(h => h.Supcode).Where(c => c != null).Select(c => c!).Distinct().ToList();
         var namesByCode = (await _db.Suppliers
-            .Where(s => s.Code != null && legacyCodes.Contains(s.Code))
-            .Select(s => new { s.Code, s.Name })
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false))
-            .ToDictionary(s => s.Code!, s => s.Name);
+                .Where(s => s.Code != null && codes.Contains(s.Code))
+                .Select(s => new { s.Code, s.Name })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .ToDictionary(s => s.Code!, s => s.Name, StringComparer.Ordinal);
 
-        rows.AddRange(legacy.Select(h =>
+        // A new supplier invoice takes its outstanding from the payables ledger; a legacy one has only
+        // paymentstat, which is why the legacy rules check for a settlement row and never a figure.
+        var newIds = page.Where(h => h.DataOrigin == "new").Select(h => h.Id).ToList();
+        var outstanding = newIds.Count == 0
+            ? new Dictionary<long, decimal>()
+            : await _db.PayablesLedger
+                .Where(e => e.SupplierInvoiceId != null && newIds.Contains(e.SupplierInvoiceId.Value))
+                .GroupBy(e => e.SupplierInvoiceId!.Value)
+                .Select(g => new { Id = g.Key, Balance = g.Sum(e => e.Amount) })
+                .ToDictionaryAsync(x => x.Id, x => x.Balance, cancellationToken)
+                .ConfigureAwait(false);
+
+        var rows = page.Select(h =>
         {
             var amount = LegacyValue.Money(h.Amount);
+
+            if (h.DataOrigin == "new")
+            {
+                var due = outstanding.GetValueOrDefault(h.Id, amount);
+                return new SupplierInvoiceSummary(
+                    h.Id, h.Invno, LegacyValue.Date(h.Invdate) ?? DateOnly.MinValue,
+                    h.Supcode is not null ? namesByCode.GetValueOrDefault(h.Supcode) : null,
+                    amount, due, due == 0m ? "Paid" : "Pending", "new");
+            }
+
             var paid = string.Equals(h.Paymentstat, "Paid", StringComparison.OrdinalIgnoreCase);
             return new SupplierInvoiceSummary(
                 h.Id, h.Invno, LegacyValue.Date(h.Invdate) ?? DateOnly.MinValue,
                 h.Supcode is not null ? namesByCode.GetValueOrDefault(h.Supcode) : null,
                 amount, paid ? 0m : amount, paid ? "Paid" : "Pending", "legacy");
-        }));
+        }).ToList();
 
-        return Ok(rows.OrderByDescending(r => r.Date).ThenByDescending(r => r.Id).ToList());
+        return Ok(new PagedResult<SupplierInvoiceSummary>(rows, total, paging.SafePage, paging.SafePageSize));
     }
 
     /// <summary>One supplier invoice in full — its derived outstanding and payment history.</summary>

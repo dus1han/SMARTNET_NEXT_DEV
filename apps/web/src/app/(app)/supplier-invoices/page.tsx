@@ -8,10 +8,12 @@
  * a computed fact, not the legacy binary flag.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { FIRST_PAGE } from "@/lib/paging";
 import { getSupplierInvoices, type SupplierInvoiceSummary } from "@/lib/supplier-invoices";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -20,7 +22,15 @@ import { Badge, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function SupplierInvoicesPage() {
   const router = useRouter();
-  const invoices = useQuery({ queryKey: ["supplier-invoices"], queryFn: getSupplierInvoices });
+  const [page, setPage] = useState(FIRST_PAGE);
+  const [search, setSearch] = useState("");
+
+  const invoices = useQuery({
+    queryKey: ["supplier-invoices", page, search],
+    queryFn: () => getSupplierInvoices({ page, search }),
+    // Holds the current page on screen while the next loads, so paging does not blink.
+    placeholderData: keepPreviousData,
+  });
   const error = invoices.error as ApiError | null;
 
   return (
@@ -34,9 +44,16 @@ export default function SupplierInvoicesPage() {
 
       <DataTable
         columns={columns}
-        rows={invoices.data}
+        rows={invoices.data?.rows}
         loading={invoices.isPending}
         searchable={(row) => `${row.supplierReference ?? ""} ${row.supplierName ?? ""}`}
+        server={{
+          total: invoices.data?.total ?? 0,
+          page,
+          onPageChange: setPage,
+          search,
+          onSearchChange: setSearch,
+        }}
         searchPlaceholder="Search by reference or supplier…"
         defaultSort={{ id: "date", desc: true }}
         actions={
