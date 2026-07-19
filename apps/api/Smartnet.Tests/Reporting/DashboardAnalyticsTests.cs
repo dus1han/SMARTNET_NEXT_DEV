@@ -28,13 +28,11 @@ public sealed class DashboardAnalyticsTests
     private static DashboardAnalytics Build(
         IEnumerable<InvoiceH>? invoices = null,
         IEnumerable<Payment>? payments = null,
-        IEnumerable<InvoiceL>? lines = null,
         IEnumerable<(DateOnly?, decimal)>? supplierPayments = null,
         IEnumerable<(string, decimal)>? supplierSpend = null,
         IReadOnlyDictionary<string, decimal>? creditLimits = null) =>
         DashboardAnalyticsBuilder.Build(
             (invoices ?? []).ToList(),
-            (lines ?? []).ToList(),
             (payments ?? []).ToList(),
             [],
             (supplierPayments ?? []).ToList(),
@@ -175,7 +173,7 @@ public sealed class DashboardAnalyticsTests
                 new InvoiceH { Invoiceno = "A", Indate = "2026-07-02", Totamount = "300", Cost = "0", Balance = "0", Customer = "C-1", Invtype = "Cash" },
                 new InvoiceH { Invoiceno = "B", Indate = "2026-07-03", Totamount = "700", Cost = "0", Balance = "700", Customer = "C-1", Invtype = "Credit" },
             ],
-            [], [], [], [], [], Names, SupplierNames, new Dictionary<string, decimal>(StringComparer.Ordinal), Today);
+            [], [], [], [], Names, SupplierNames, new Dictionary<string, decimal>(StringComparer.Ordinal), Today);
 
         report.Mix.Cash.Should().Be(300m);
         report.Mix.Credit.Should().Be(700m);

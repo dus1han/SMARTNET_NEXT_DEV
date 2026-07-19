@@ -38,7 +38,6 @@ public static class DashboardAnalyticsBuilder
 
     public static DashboardAnalytics Build(
         IReadOnlyList<InvoiceH> invoices,
-        IReadOnlyList<InvoiceL> lines,
         IReadOnlyList<Payment> payments,
         IReadOnlyList<ExpenseTr> expenses,
         IReadOnlyList<(DateOnly? Date, decimal Amount)> supplierPayments,

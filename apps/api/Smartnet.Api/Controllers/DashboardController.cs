@@ -137,7 +137,7 @@ public sealed class DashboardController : ControllerBase
 
         if (scopeIds.Count == 0)
         {
-            return Ok(DashboardAnalyticsBuilder.Build([], [], [], [], [], [], new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, decimal>(), today));
+            return Ok(DashboardAnalyticsBuilder.Build([], [], [], [], [], new Dictionary<string, string>(), new Dictionary<string, string>(), new Dictionary<string, decimal>(), today));
         }
 
         var invoices = await _legacy.InvoiceHs
@@ -150,14 +150,13 @@ public sealed class DashboardController : ControllerBase
             .Select(h => h.Invoiceno!)
             .ToHashSet(StringComparer.Ordinal);
 
-        // Lines and payments carry no company, so they are scoped by membership of the scoped invoices —
-        // the same approach the reports take, and the reason a payment against a deleted invoice drops
-        // out rather than being counted against a company it cannot be attributed to.
-        var lines = (await _legacy.InvoiceLs.ToListAsync(cancellationToken).ConfigureAwait(false))
-            .Where(l => l.Inno != null && invoiceNos.Contains(l.Inno))
-            .ToList();
-
-        var payments = (await _legacy.Payments.ToListAsync(cancellationToken).ConfigureAwait(false))
+        // Payments carry no company, so they are scoped by membership of the scoped invoices — the same
+        // approach the reports take, and the reason a payment against a deleted invoice drops out rather
+        // than being counted against a company it cannot be attributed to.
+        //
+        // Invoice lines used to be loaded here too, all 12,598 of them, and passed to a parameter the
+        // builder stopped reading when the best-selling-lines panel was removed. Nothing consumed them.
+        var payments = (await _legacy.Payments.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false))
             .Where(p => p.Invoiceno != null && invoiceNos.Contains(p.Invoiceno))
             .ToList();
 
@@ -204,26 +203,29 @@ public sealed class DashboardController : ControllerBase
             .Select(s => (s.Date, Amount: amountByInvoice[s.Id!.Value]))
             .ToList();
 
+        // Names and credit limits come off the same customer rows, so they are read together. Two
+        // queries here meant two passes over the master for two columns of the same records.
+        //
         // Credit limits live on the customer master and nothing enforces them; the dashboard is the
         // first thing in either system to read the column.
-        var creditLimits = (await _legacy.CusMs
-                .Select(c => new { c.Cuscode, c.Climit })
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false))
-            .Where(c => !string.IsNullOrEmpty(c.Cuscode) && c.Climit is > 0)
-            .GroupBy(c => c.Cuscode!, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.First().Climit!.Value, StringComparer.Ordinal);
-
-        var customerNames = (await _legacy.CusMs
-                .Select(c => new { c.Cuscode, c.Cusname })
+        var customers = (await _legacy.CusMs
+                .AsNoTracking()
+                .Select(c => new { c.Cuscode, c.Cusname, c.Climit })
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false))
             .Where(c => !string.IsNullOrEmpty(c.Cuscode))
             .GroupBy(c => c.Cuscode!, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.First().Cusname ?? string.Empty, StringComparer.Ordinal);
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+        var customerNames = customers.ToDictionary(
+            kv => kv.Key, kv => kv.Value.Cusname ?? string.Empty, StringComparer.Ordinal);
+
+        var creditLimits = customers
+            .Where(kv => kv.Value.Climit is > 0)
+            .ToDictionary(kv => kv.Key, kv => kv.Value.Climit!.Value, StringComparer.Ordinal);
 
         return Ok(DashboardAnalyticsBuilder.Build(
-            invoices, lines, payments, expenses, supplierPayments, supplierSpend,
+            invoices, payments, expenses, supplierPayments, supplierSpend,
             customerNames, supplierNames, creditLimits, today));
     }
 
