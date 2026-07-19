@@ -16,8 +16,15 @@ interface PermissionMeta {
 }
 
 const LABELS: Record<string, PermissionMeta> = {
-  // Overview
-  dashboard: { label: "Dashboard" },
+  // Overview — exactly one of these two, see GROUPS below.
+  dashboard: {
+    label: "Management Dashboard",
+    hint: "Revenue, profit, margin, supplier spend and customer concentration.",
+  },
+  "dashboard.operations": {
+    label: "Operations Dashboard",
+    hint: "Today's work and what is owed. No profit, margin or cost figures.",
+  },
 
   // Sales
   item_qu: { label: "Item quotations" },
@@ -78,9 +85,16 @@ const LABELS: Record<string, PermissionMeta> = {
   },
 };
 
-/** The sections, in the order they appear. Each lists the keys that belong in it. */
-const GROUPS: { title: string; keys: string[] }[] = [
-  { title: "Overview", keys: ["dashboard"] },
+/**
+ * The sections, in the order they appear. Each lists the keys that belong in it.
+ *
+ * `exclusive` marks a section where the keys are alternatives rather than independent grants: the
+ * editor renders radios instead of checkboxes and drops the select-all control, because both-on and
+ * both-off are states the server refuses. Without it the screen would offer three combinations of the
+ * two dashboards where only two are legal, and the administrator would find that out from a 400.
+ */
+const GROUPS: { title: string; keys: string[]; exclusive?: boolean }[] = [
+  { title: "Overview", keys: ["dashboard", "dashboard.operations"], exclusive: true },
   {
     title: "Sales",
     keys: [
@@ -117,6 +131,8 @@ export interface PermissionItem {
 export interface PermissionGroup {
   title: string;
   items: PermissionItem[];
+  /** The items are alternatives — exactly one is held. Rendered as radios, not checkboxes. */
+  exclusive?: boolean;
 }
 
 /**
@@ -142,7 +158,7 @@ export function groupPermissions(catalogue: PermissionCatalogueEntry[]): Permiss
       items.push({ key, label: LABELS[key]?.label ?? key, hint: LABELS[key]?.hint, isLegacy: entry.isLegacy });
     }
 
-    if (items.length > 0) groups.push({ title: group.title, items });
+    if (items.length > 0) groups.push({ title: group.title, items, exclusive: group.exclusive });
   }
 
   // Anything the server offers that no group claimed — so a new permission is visible immediately,

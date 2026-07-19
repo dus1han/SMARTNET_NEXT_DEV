@@ -456,6 +456,16 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
       return next;
     });
 
+  // An exclusive group holds one of its keys and never two. Picking one clears its siblings here
+  // rather than leaving the server to reject the combination after the administrator has saved.
+  const choose = (keys: string[], key: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const sibling of keys) next.delete(sibling);
+      next.add(key);
+      return next;
+    });
+
   const save = useMutation({
     mutationFn: (v: { reason: string }) =>
       setUserPermissions(user!.id, [...selected], v.reason),
@@ -468,6 +478,13 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
   });
 
   const total = groups.reduce((sum, g) => sum + g.items.length, 0);
+
+  // A new user starts with no dashboard, so the radios open with nothing chosen and there is a real
+  // "not yet valid" state to hold the save against. Named rather than counted so the message can say
+  // which section still needs an answer.
+  const unresolved = groups.filter(
+    (g) => g.exclusive && g.items.filter((i) => selected.has(i.key)).length !== 1,
+  );
 
   return (
     <Dialog
@@ -484,6 +501,8 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
 
           <Button
             pending={save.isPending}
+            disabled={unresolved.length > 0}
+            title={unresolved.length > 0 ? `Choose one option under ${unresolved[0].title}.` : undefined}
             onClick={() =>
               // Changing what someone may do is one of the actions AUDIT.md §5 makes mandatory. The
               // server rejects this call without an X-Change-Reason header.
@@ -505,6 +524,12 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
           {selected.size} of {total} granted.
         </p>
 
+        {unresolved.map((g) => (
+          <p key={g.title} className="text-xs text-warning-text">
+            Choose one option under {g.title} before saving.
+          </p>
+        ))}
+
         {groups.map((group) => {
           const keys = group.items.map((i) => i.key);
           const allOn = keys.every((k) => selected.has(k));
@@ -515,13 +540,18 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
                 <legend className="text-xs font-semibold uppercase tracking-wide text-muted">
                   {group.title}
                 </legend>
-                <button
-                  type="button"
-                  onClick={() => setGroup(keys, !allOn)}
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  {allOn ? "Clear all" : "Select all"}
-                </button>
+                {/* Select-all would produce exactly the two states an exclusive group forbids. */}
+                {group.exclusive ? (
+                  <span className="text-xs text-muted">Choose one</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setGroup(keys, !allOn)}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    {allOn ? "Clear all" : "Select all"}
+                  </button>
+                )}
               </div>
 
               <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
@@ -535,10 +565,18 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
                       title={item.hint}
                     >
                       <input
-                        type="checkbox"
-                        className="mt-0.5 size-4 rounded border-subtle text-primary focus-visible:ring-2 focus-visible:ring-ring/25"
+                        type={group.exclusive ? "radio" : "checkbox"}
+                        // A shared name is what makes arrow keys move between the options rather
+                        // than in and out of a lone radio.
+                        name={group.exclusive ? `perm-${group.title}` : undefined}
+                        className={cn(
+                          "mt-0.5 size-4 border-subtle text-primary focus-visible:ring-2 focus-visible:ring-ring/25",
+                          group.exclusive ? "rounded-full" : "rounded",
+                        )}
                         checked={on}
-                        onChange={(e) => toggle(item.key, e.target.checked)}
+                        onChange={(e) =>
+                          group.exclusive ? choose(keys, item.key) : toggle(item.key, e.target.checked)
+                        }
                       />
                       <span className="min-w-0">
                         <span className="block text-sm text-text">{item.label}</span>
