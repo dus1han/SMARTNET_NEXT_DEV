@@ -56,15 +56,15 @@ jobs:
 
       # The repository root, not apps/web: the app compiles against packages/api-client, which lives
       # outside apps/web. See apps/web/Dockerfile.
-      - name: Build and push the frontend
+      - name: Build and push the web app
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./apps/web/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ steps.names.outputs.repo }}-frontend:latest
-            ghcr.io/${{ steps.names.outputs.repo }}-frontend:${{ github.sha }}
+            ghcr.io/${{ steps.names.outputs.repo }}-web:latest
+            ghcr.io/${{ steps.names.outputs.repo }}-web:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

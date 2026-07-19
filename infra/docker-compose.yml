@@ -31,7 +31,7 @@ services:
     restart: unless-stopped
 
   web:
-    image: ${WEB_IMAGE:-ghcr.io/dus1han/smartnet_next_dev-frontend:latest}
+    image: ${WEB_IMAGE:-ghcr.io/dus1han/smartnet_next_dev-web:latest}
     build:
       # The repo root, not apps/web: the app compiles against packages/api-client, which sits outside
       # apps/web and would not exist in a narrower context. See apps/web/Dockerfile.
@@ -53,14 +53,47 @@ services:
     image: nginx:stable-alpine
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # The certificates, read-only: nginx reads them, certbot owns them. The host path is fixed —
+      # /etc/letsencrypt inside the container is where certbot's own layout lives, so the paths in
+      # default.conf (live/sys.smart-net.lk/...) resolve unchanged.
+      - /var/www/sys-certs:/etc/letsencrypt:ro
+      # The ACME challenge files certbot writes and nginx serves. Read-only here for the same reason.
+      - /var/www/certbot-webroot:/var/www/certbot:ro
     ports:
-      - "8080:80"
+      # Defaults are the privileged ports, because that is what this file is for on the server. A
+      # developer running compose locally can set HTTP_PORT/HTTPS_PORT to something unprivileged
+      # rather than needing root to bind 80.
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     # host.docker.internal is automatic on Docker Desktop but not on Linux,
     # where the legacy app will actually be deployed. Map it explicitly so the
     # same compose file works in both places.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # The compose SERVICE names — api and web. Not new_api/new_web: those are upstream labels inside
+    # nginx.conf, which point AT these services. Naming them here would fail with "no such service".
     depends_on:
       - api
       - web
+    restart: unless-stopped
+
+  # Certificate renewal. Writable mounts, because this is the process that owns both directories.
+  #
+  # Renewal only — it does not obtain the first certificate. nginx will not start with a 443 block
+  # whose certificate is missing, and certbot cannot complete the challenge without nginx serving
+  # :80, so the first issue is a one-off bootstrap on the server. See infra/nginx/default.conf.
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - /var/www/sys-certs:/etc/letsencrypt
+      - /var/www/certbot-webroot:/var/www/certbot
+    # Twice a day, as Let's Encrypt advises: renewal is a no-op until the certificate is inside its
+    # last 30 days, and checking often means a failed attempt has many more chances before expiry.
+    # The $$ is compose escaping, not a typo: compose collapses it to one $, so the shell receives
+    # ${!} — the PID of the last background job. Written with a single $, compose would expand a
+    # variable named ! to nothing and wait would return at once, spinning the loop without sleeping.
+    entrypoint: >
+      sh -c 'trap exit TERM;
+             while :; do certbot renew --webroot -w /var/www/certbot --quiet;
+             sleep 12h & wait $${!}; done'
     restart: unless-stopped
