@@ -142,6 +142,25 @@ public sealed class DashboardController : ControllerBase
 
         var invoices = await _legacy.InvoiceHs
             .Where(h => scopeIds.Contains(h.Company!))
+            // invoice_h has 42 columns; the analytics read eight of them. Loading whole rows moved
+            // 532 KB per dashboard against 103 KB for these — the rest is quotation references, terms,
+            // remarks and VAT working that nothing here looks at.
+            //
+            // Projecting into the entity type keeps the builder signature (and its tests) unchanged.
+            // It is only safe while this list matches what the builder reads: add a column there and
+            // it arrives null here rather than failing, so the figure would quietly be wrong.
+            .Select(h => new InvoiceH
+            {
+                Invoiceno = h.Invoiceno,
+                Indate = h.Indate,
+                Customer = h.Customer,
+                Invtype = h.Invtype,
+                Totamount = h.Totamount,
+                Balance = h.Balance,
+                Cost = h.Cost,
+                Preparedby = h.Preparedby,
+                Company = h.Company,
+            })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -261,6 +280,25 @@ public sealed class DashboardController : ControllerBase
 
         var invoices = await _legacy.InvoiceHs
             .Where(h => scopeIds.Contains(h.Company!))
+            // invoice_h has 42 columns; the analytics read eight of them. Loading whole rows moved
+            // 532 KB per dashboard against 103 KB for these — the rest is quotation references, terms,
+            // remarks and VAT working that nothing here looks at.
+            //
+            // Projecting into the entity type keeps the builder signature (and its tests) unchanged.
+            // It is only safe while this list matches what the builder reads: add a column there and
+            // it arrives null here rather than failing, so the figure would quietly be wrong.
+            .Select(h => new InvoiceH
+            {
+                Invoiceno = h.Invoiceno,
+                Indate = h.Indate,
+                Customer = h.Customer,
+                Invtype = h.Invtype,
+                Totamount = h.Totamount,
+                Balance = h.Balance,
+                Cost = h.Cost,
+                Preparedby = h.Preparedby,
+                Company = h.Company,
+            })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
