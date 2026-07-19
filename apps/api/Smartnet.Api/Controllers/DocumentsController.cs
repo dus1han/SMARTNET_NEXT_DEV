@@ -93,6 +93,13 @@ public sealed class DocumentsController : ControllerBase
             return BadRequest($"The file must be {DocumentPolicy.MaxBytes / (1024 * 1024)} MB or smaller.");
         }
 
+        // Required, not defaulted to the filename. The title is what the document is listed and searched
+        // under, and "scan0001.pdf" is a document nobody finds again.
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return BadRequest("A title is required.");
+        }
+
         // The extension decides, not the browser's content type — which is client-supplied and, for the
         // office formats especially, frequently wrong or absent.
         if (DocumentPolicy.ExtensionOf(file.FileName) is not { } extension)
@@ -115,7 +122,7 @@ public sealed class DocumentsController : ControllerBase
         var document = new StoredDocument
         {
             CompanyId = companyId,
-            Title = string.IsNullOrWhiteSpace(title) ? displayName : title.Trim(),
+            Title = title.Trim(),
             OriginalFileName = displayName,
             StoredName = stored.StoredName,
             ContentType = DocumentPolicy.ContentTypeFor(extension),

@@ -31,7 +31,9 @@ import { useReason } from "@/components/form";
 import { Button, Dialog, ErrorBanner, FadeIn, Input, toast } from "@/components/ui";
 
 export default function DocumentsPage() {
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [title, setTitle] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [previewing, setPreviewing] = useState<DocumentSummary | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -40,12 +42,18 @@ export default function DocumentsPage() {
 
   const documents = useQuery({ queryKey: ["documents"], queryFn: () => getDocuments() });
 
+  const closeUpload = () => {
+    setUploadOpen(false);
+    setTitle("");
+    setFile(null);
+    if (fileInput.current) fileInput.current.value = "";
+  };
+
   const upload = useMutation({
-    mutationFn: (file: File) => uploadDocument({ file, title }),
+    mutationFn: () => uploadDocument({ file: file!, title }),
     onSuccess: (created) => {
       toast.success(`${created.title} uploaded.`);
-      setTitle("");
-      if (fileInput.current) fileInput.current.value = "";
+      closeUpload();
       void queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
     onError: (error: unknown) =>
@@ -63,18 +71,22 @@ export default function DocumentsPage() {
       toast.error(error instanceof ApiError ? error.message : "The document could not be removed."),
   });
 
-  const onFileChosen = (file: File | undefined) => {
-    if (!file) return;
+  const onFileChosen = (chosen: File | undefined) => {
+    if (!chosen) return;
 
     // Checked here so the answer is immediate, and again on the server, which is the authority. A 25 MB
     // upload that fails on arrival has already cost the person their connection.
-    if (file.size > MAX_UPLOAD_BYTES) {
-      toast.error(`${file.name} is ${formatFileSize(file.size)}. The limit is 25 MB.`);
+    if (chosen.size > MAX_UPLOAD_BYTES) {
+      toast.error(`${chosen.name} is ${formatFileSize(chosen.size)}. The limit is 25 MB.`);
       if (fileInput.current) fileInput.current.value = "";
       return;
     }
 
-    upload.mutate(file);
+    setFile(chosen);
+
+    // The filename is the obvious first draft of the title, and usually the right one. Only offered
+    // when the box is untouched, so it never overwrites something typed.
+    setTitle((current) => (current.trim() ? current : chosen.name.replace(/\.[^.]+$/, "")));
   };
 
   const loadError = documents.error as ApiError | null;
@@ -180,46 +192,24 @@ export default function DocumentsPage() {
 
   return (
     <FadeIn className="space-y-6">
+      {/*
+        The upload lives in the header, where every other list screen puts its primary action. It had
+        its own panel above the table, and that panel was the single structural difference between this
+        page and the ones that fit — 126px plus a gap, on a page that otherwise reads header, search,
+        table. A document's title defaults to its filename, which is what people name files anyway.
+      */}
       <PageHeader
         title="Documents"
         description="The company's files — stored off the web root and reachable only through this screen."
-      />
-
-      {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
-
-      {/*
-        The accepted types belong in the upload panel, not in a paragraph of their own below it — as a
-        sibling it took a full space-y-6 gap to say one line, which is most of what made this page
-        scroll past its own content.
-      */}
-      <div className="rounded-lg border border-subtle bg-surface p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <Input
-            label="Title (optional)"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Defaults to the file's name"
-            className="min-w-[16rem] flex-1"
-          />
-
-          <input
-            ref={fileInput}
-            type="file"
-            accept={ACCEPTED_FILE_TYPES}
-            className="hidden"
-            onChange={(e) => onFileChosen(e.target.files?.[0])}
-          />
-
-          <Button pending={upload.isPending} onClick={() => fileInput.current?.click()}>
+        actions={
+          <Button onClick={() => setUploadOpen(true)}>
             <Upload className="size-4" aria-hidden />
             Upload a file
           </Button>
-        </div>
+        }
+      />
 
-        <p className="mt-3 text-xs text-muted">
-          PDF, Word, Excel, CSV, text and images, up to 25 MB. Anything else is refused.
-        </p>
-      </div>
+      {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
       <DataTable
         columns={columns}
@@ -237,6 +227,63 @@ export default function DocumentsPage() {
           description: "Upload a file and it appears here.",
         }}
       />
+
+      <Dialog
+        open={uploadOpen}
+        onOpenChange={(next) => !next && closeUpload()}
+        title="Upload a document"
+        description="PDF, Word, Excel, CSV, text and images, up to 25 MB. Anything else is refused."
+        footer={
+          <>
+            <Button variant="ghost" onClick={closeUpload}>
+              Cancel
+            </Button>
+            <Button
+              pending={upload.isPending}
+              // Both, not either: a document with no title is one nobody finds again, and the server
+              // refuses it anyway.
+              disabled={!file || title.trim().length === 0}
+              onClick={() => upload.mutate()}
+            >
+              Upload
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <input
+            ref={fileInput}
+            type="file"
+            accept={ACCEPTED_FILE_TYPES}
+            className="hidden"
+            onChange={(e) => onFileChosen(e.target.files?.[0])}
+          />
+
+          <div>
+            <p className="mb-1.5 text-sm font-medium text-text">File</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button variant="secondary" onClick={() => fileInput.current?.click()}>
+                {file ? "Choose a different file" : "Choose a file"}
+              </Button>
+
+              {file && (
+                <span className="min-w-0 text-sm text-muted">
+                  <span className="text-text">{file.name}</span> · {formatFileSize(file.size)}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <Input
+            label="Title"
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="What this document is"
+            hint="The name this document is listed and searched under."
+          />
+        </div>
+      </Dialog>
 
       <Dialog
         open={previewing !== null}
