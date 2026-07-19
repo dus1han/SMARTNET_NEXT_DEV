@@ -746,32 +746,48 @@
         "tags": [
           "CustomerReceipts"
         ],
+        "parameters": [
+          {
+            "name": "Page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "Search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "text/plain": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CustomerReceiptSummary"
-                  }
+                  "$ref": "#/components/schemas/CustomerReceiptSummaryPagedResult"
                 }
               },
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CustomerReceiptSummary"
-                  }
+                  "$ref": "#/components/schemas/CustomerReceiptSummaryPagedResult"
                 }
               },
               "text/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CustomerReceiptSummary"
-                  }
+                  "$ref": "#/components/schemas/CustomerReceiptSummaryPagedResult"
                 }
               }
             }
@@ -4029,32 +4045,48 @@
         "tags": [
           "Quotations"
         ],
+        "parameters": [
+          {
+            "name": "Page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "Search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "text/plain": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/QuotationSummary"
-                  }
+                  "$ref": "#/components/schemas/QuotationSummaryPagedResult"
                 }
               },
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/QuotationSummary"
-                  }
+                  "$ref": "#/components/schemas/QuotationSummaryPagedResult"
                 }
               },
               "text/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/QuotationSummary"
-                  }
+                  "$ref": "#/components/schemas/QuotationSummaryPagedResult"
                 }
               }
             }
@@ -6702,6 +6734,32 @@
         }
       }
     },
+    "/api/dev/seed-payment": {
+      "post": {
+        "tags": [
+          "Smartnet.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/DevSeedPaymentRequest"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -6719,32 +6777,48 @@
         "tags": [
           "SupplierInvoices"
         ],
+        "parameters": [
+          {
+            "name": "Page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "Search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "text/plain": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SupplierInvoiceSummary"
-                  }
+                  "$ref": "#/components/schemas/SupplierInvoiceSummaryPagedResult"
                 }
               },
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SupplierInvoiceSummary"
-                  }
+                  "$ref": "#/components/schemas/SupplierInvoiceSummaryPagedResult"
                 }
               },
               "text/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SupplierInvoiceSummary"
-                  }
+                  "$ref": "#/components/schemas/SupplierInvoiceSummaryPagedResult"
                 }
               }
             }
@@ -7003,32 +7077,48 @@
         "tags": [
           "SupplierPayments"
         ],
+        "parameters": [
+          {
+            "name": "Page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "Search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "text/plain": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SupplierPaymentSummary"
-                  }
+                  "$ref": "#/components/schemas/SupplierPaymentSummaryPagedResult"
                 }
               },
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SupplierPaymentSummary"
-                  }
+                  "$ref": "#/components/schemas/SupplierPaymentSummaryPagedResult"
                 }
               },
               "text/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SupplierPaymentSummary"
-                  }
+                  "$ref": "#/components/schemas/SupplierPaymentSummaryPagedResult"
                 }
               }
             }
@@ -9683,6 +9773,36 @@
         },
         "additionalProperties": false
       },
+      "CustomerReceiptSummaryPagedResult": {
+        "required": [
+          "page",
+          "pageSize",
+          "rows",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerReceiptSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "CustomerSalesResponse": {
         "required": [
           "customerCount",
@@ -10426,6 +10546,23 @@
           "reason": {
             "type": "string",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DevSeedPaymentRequest": {
+        "required": [
+          "amount",
+          "invoiceNumber"
+        ],
+        "type": "object",
+        "properties": {
+          "invoiceNumber": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false
@@ -12950,6 +13087,36 @@
         },
         "additionalProperties": false
       },
+      "QuotationSummaryPagedResult": {
+        "required": [
+          "page",
+          "pageSize",
+          "rows",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuotationSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "ReceiptAllocationLine": {
         "required": [
           "amount",
@@ -13933,6 +14100,36 @@
         },
         "additionalProperties": false
       },
+      "SupplierInvoiceSummaryPagedResult": {
+        "required": [
+          "page",
+          "pageSize",
+          "rows",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupplierInvoiceSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "SupplierOption": {
         "required": [
           "code",
@@ -14198,6 +14395,36 @@
           },
           "origin": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SupplierPaymentSummaryPagedResult": {
+        "required": [
+          "page",
+          "pageSize",
+          "rows",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupplierPaymentSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

@@ -28,7 +28,12 @@ if ! diff -q "$root/packages/api-client/schema.d.ts" "$tmp/schema.d.ts" > /dev/n
   echo "The generated API client is stale." >&2
   echo "The API's contract has changed and packages/api-client was not regenerated." >&2
   echo >&2
-  diff -u "$root/packages/api-client/schema.d.ts" "$tmp/schema.d.ts" | head -40 >&2
+  # head closes the pipe after 40 lines, which sends diff a SIGPIPE. Under pipefail that makes the
+  # pipeline exit 141 and set -e kills the script here — so this branch used to report 141 and never
+  # printed the fix below. Buffer first, then trim.
+  diff_output="$(diff -u "$root/packages/api-client/schema.d.ts" "$tmp/schema.d.ts" || true)"
+  printf "%s
+" "$diff_output" | head -40 >&2 || true
   echo >&2
   echo "Fix: cd apps/web && npm run generate:api, then commit the result." >&2
   exit 1

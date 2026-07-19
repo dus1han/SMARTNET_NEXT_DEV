@@ -14,7 +14,7 @@ import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import { getInvoices, type InvoiceSummary } from "@/lib/invoices";
 import { daysDueLabel } from "@/lib/period";
-import { DEFAULT_PAGE_SIZE, FIRST_PAGE } from "@/lib/paging";
+import { FIRST_PAGE } from "@/lib/paging";
 import { PageHeader } from "@/components/shell/app-shell";
 import { Plus } from "lucide-react";
 import { DataTable, type ColumnDef } from "@/components/data-table";

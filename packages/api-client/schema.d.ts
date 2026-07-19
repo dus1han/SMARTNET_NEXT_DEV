@@ -632,7 +632,11 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    Page?: number;
+                    PageSize?: number;
+                    Search?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -645,9 +649,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["CustomerReceiptSummary"][];
-                        "application/json": components["schemas"]["CustomerReceiptSummary"][];
-                        "text/json": components["schemas"]["CustomerReceiptSummary"][];
+                        "text/plain": components["schemas"]["CustomerReceiptSummaryPagedResult"];
+                        "application/json": components["schemas"]["CustomerReceiptSummaryPagedResult"];
+                        "text/json": components["schemas"]["CustomerReceiptSummaryPagedResult"];
                     };
                 };
             };
@@ -3239,7 +3243,11 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    Page?: number;
+                    PageSize?: number;
+                    Search?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -3252,9 +3260,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["QuotationSummary"][];
-                        "application/json": components["schemas"]["QuotationSummary"][];
-                        "text/json": components["schemas"]["QuotationSummary"][];
+                        "text/plain": components["schemas"]["QuotationSummaryPagedResult"];
+                        "application/json": components["schemas"]["QuotationSummaryPagedResult"];
+                        "text/json": components["schemas"]["QuotationSummaryPagedResult"];
                     };
                 };
             };
@@ -5468,6 +5476,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dev/seed-payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DevSeedPaymentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -5510,7 +5555,11 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    Page?: number;
+                    PageSize?: number;
+                    Search?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -5523,9 +5572,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["SupplierInvoiceSummary"][];
-                        "application/json": components["schemas"]["SupplierInvoiceSummary"][];
-                        "text/json": components["schemas"]["SupplierInvoiceSummary"][];
+                        "text/plain": components["schemas"]["SupplierInvoiceSummaryPagedResult"];
+                        "application/json": components["schemas"]["SupplierInvoiceSummaryPagedResult"];
+                        "text/json": components["schemas"]["SupplierInvoiceSummaryPagedResult"];
                     };
                 };
             };
@@ -5718,7 +5767,11 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    Page?: number;
+                    PageSize?: number;
+                    Search?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -5731,9 +5784,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["SupplierPaymentSummary"][];
-                        "application/json": components["schemas"]["SupplierPaymentSummary"][];
-                        "text/json": components["schemas"]["SupplierPaymentSummary"][];
+                        "text/plain": components["schemas"]["SupplierPaymentSummaryPagedResult"];
+                        "application/json": components["schemas"]["SupplierPaymentSummaryPagedResult"];
+                        "text/json": components["schemas"]["SupplierPaymentSummaryPagedResult"];
                     };
                 };
             };
@@ -6902,6 +6955,15 @@ export interface components {
             invoices: number;
             origin: string;
         };
+        CustomerReceiptSummaryPagedResult: {
+            rows: components["schemas"]["CustomerReceiptSummary"][];
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
         CustomerSalesResponse: {
             /** Format: double */
             totalSales: number;
@@ -7121,6 +7183,11 @@ export interface components {
             deletedAt: string;
             deletedByName?: string | null;
             reason?: string | null;
+        };
+        DevSeedPaymentRequest: {
+            invoiceNumber: string;
+            /** Format: double */
+            amount: number;
         };
         DocumentContact: {
             /** Format: int64 */
@@ -7893,6 +7960,15 @@ export interface components {
             convertedInvoiceId?: number | null;
             origin: string;
         };
+        QuotationSummaryPagedResult: {
+            rows: components["schemas"]["QuotationSummary"][];
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
         ReceiptAllocationLine: {
             /** Format: int64 */
             invoiceId: number;
@@ -8185,6 +8261,15 @@ export interface components {
             status: string;
             origin: string;
         };
+        SupplierInvoiceSummaryPagedResult: {
+            rows: components["schemas"]["SupplierInvoiceSummary"][];
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
         SupplierOption: {
             code: string;
             name: string;
@@ -8267,6 +8352,15 @@ export interface components {
             /** Format: int32 */
             invoices: number;
             origin: string;
+        };
+        SupplierPaymentSummaryPagedResult: {
+            rows: components["schemas"]["SupplierPaymentSummary"][];
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
         };
         SupplierPurchaseResponse: {
             /** Format: double */
