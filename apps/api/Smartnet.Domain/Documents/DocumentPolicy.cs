@@ -76,7 +76,15 @@ public static class DocumentPolicy
     {
         if (string.IsNullOrWhiteSpace(fileName)) return "document";
 
-        var leaf = Path.GetFileName(fileName.Trim());
+        // Both separators, explicitly, rather than Path.GetFileName. GetFileName is
+        // platform-dependent: on Linux a backslash is an ordinary filename character, so a browser
+        // on Windows sending "C:\Users\me\scan.pdf" would have kept the whole string on the server —
+        // which is where this runs. Development is Windows and production is Linux, so anything that
+        // asks the platform what a separator is will behave differently in the two places.
+        var trimmed = fileName.Trim();
+        var lastSeparator = trimmed.LastIndexOfAny(['/', '\\']);
+        var leaf = lastSeparator >= 0 ? trimmed[(lastSeparator + 1)..] : trimmed;
+
         if (string.IsNullOrWhiteSpace(leaf)) return "document";
 
         // Control characters and quotes would break the Content-Disposition header they end up in.

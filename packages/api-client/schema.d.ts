@@ -5476,43 +5476,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/dev/seed-payment": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["DevSeedPaymentRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health": {
         parameters: {
             query?: never;
@@ -7183,11 +7146,6 @@ export interface components {
             deletedAt: string;
             deletedByName?: string | null;
             reason?: string | null;
-        };
-        DevSeedPaymentRequest: {
-            invoiceNumber: string;
-            /** Format: double */
-            amount: number;
         };
         DocumentContact: {
             /** Format: int64 */

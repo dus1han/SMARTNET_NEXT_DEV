@@ -6734,32 +6734,6 @@
         }
       }
     },
-    "/api/dev/seed-payment": {
-      "post": {
-        "tags": [
-          "Smartnet.Api, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/DevSeedPaymentRequest"
-                  }
-                ]
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/health": {
       "get": {
         "tags": [
@@ -10546,23 +10520,6 @@
           "reason": {
             "type": "string",
             "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "DevSeedPaymentRequest": {
-        "required": [
-          "amount",
-          "invoiceNumber"
-        ],
-        "type": "object",
-        "properties": {
-          "invoiceNumber": {
-            "type": "string"
-          },
-          "amount": {
-            "type": "number",
-            "format": "double"
           }
         },
         "additionalProperties": false
