@@ -25,3 +25,8 @@ bin/
 obj/
 .next/
 node_modules/
+
+# Uploaded documents (Phase 7, slice 4). The local development store — the real one is a mounted
+# volume on the server. These are the business's own files (BRC, TIN and VAT certificates, signed
+# agreements); they are not source, and a stray `git add -A` must never put them in the history.
+App_Data/

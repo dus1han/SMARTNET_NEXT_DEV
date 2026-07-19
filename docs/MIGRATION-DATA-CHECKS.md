@@ -95,6 +95,39 @@ The counts above are from a copy taken 2026-07-18. Live has moved since. On cuto
 3. **Check the two blockers specifically**, since they are the only ones that can make a migration
    step fail rather than just report a number.
 
+### Documents — materialise on live, then drop the column
+
+The legacy `docstore` keeps each file as a `LONGBLOB` in the row (Finding C4). Phase 7 slice 4 moved
+those bytes onto the filesystem; **on `smartnet_invsys_dev` all 18 are already migrated and verified.**
+Live still has to be done, and it is a cutover step because the last part is irreversible.
+
+The order matters, and none of it is automatic:
+
+1. **`mkdir -p /var/www/sys-documents` on the server** before deploying, and confirm the API container
+   mounts it. Without the mount the store is inside the container and a redeploy discards every upload —
+   silently, because uploading keeps working right up until the redeploy.
+2. **Dry run against live**: `dotnet run -- --company <id>`. It writes nothing and lists what it would do.
+3. **Decide the company.** `docstore` has no company column and the titles span both entities — there is
+   a "VAT CERTIFICATE SMART NET" and a "SMART BRC" in the same table. The tool *requires* `--company`
+   rather than inferring one. If the 18 genuinely split across both, run it per company against a
+   filtered set, or move the misfiled ones afterwards on the documents screen.
+4. **Apply**: `--company <id> --apply`. Re-runnable — `documents.legacy_docstore_id` is uniquely indexed,
+   so an already-materialised row is skipped and a concurrent second run is refused by the database.
+5. **Verify**: `--verify`. Re-reads every file and re-hashes it against the recorded SHA-256. It exits
+   non-zero and says *"NOT SAFE to drop docstore.pdfdoc"* if anything is missing or altered.
+6. **Only then drop the column** — `ALTER TABLE docstore DROP COLUMN pdfdoc` — and take a database
+   backup first. The `docstore` metadata rows stay (read-only, Legacy Archive); only the in-DB copy of
+   the bytes goes.
+
+**Until step 6 the whole thing is reversible**: the BLOBs are still in the database, so deleting the
+`documents` rows and their files loses nothing. After step 6 the filesystem is the only copy, which is
+why `/var/www/sys-documents` needs to be in the backup set *before* the column goes, not after.
+
+One caveat on the stated benefit: the plan describes this as reclaiming C4 bloat. Measured on the dev
+copy, `docstore.pdfdoc` is **9.8 MB across 18 rows** (largest 1.98 MB). The security fix is real — files
+leave the web root and sit behind a permission check — but the space is not the reason to do it, and it
+is not a reason to hurry step 6.
+
 ### Not on the exceptions screen, but check anyway
 
 Three things that are structural rather than per-record, so they have no row to show:
