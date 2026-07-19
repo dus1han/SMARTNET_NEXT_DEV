@@ -56,9 +56,10 @@ public sealed class ItemsController : ControllerBase
     {
         var items = await _db.Items.ToListAsync(cancellationToken).ConfigureAwait(false);
         var balances = await BalancesByItem(cancellationToken).ConfigureAwait(false);
+        var showCost = MarginAccess.CanSee(User);
 
         return Ok(items
-            .Select(i => Summarise(i, balances.GetValueOrDefault(i.Id)))
+            .Select(i => Summarise(i, balances.GetValueOrDefault(i.Id), showCost))
             .OrderBy(s => CodeOrder(s.Code))
             .ThenBy(s => s.Code, StringComparer.Ordinal)
             .ToList());
@@ -70,9 +71,11 @@ public sealed class ItemsController : ControllerBase
     {
         var items = await _db.Items.ToListAsync(cancellationToken).ConfigureAwait(false);
         var balances = await BalancesByItem(cancellationToken).ConfigureAwait(false);
+        var showCost = MarginAccess.CanSee(User);
+
 
         var rows = items
-            .Select(i => Summarise(i, balances.GetValueOrDefault(i.Id)))
+            .Select(i => Summarise(i, balances.GetValueOrDefault(i.Id), showCost))
             .OrderBy(s => CodeOrder(s.Code))
             .ThenBy(s => s.Code, StringComparer.Ordinal)
             .ToList();
@@ -115,7 +118,7 @@ public sealed class ItemsController : ControllerBase
         }
 
         var balance = await BalanceFor(id, cancellationToken).ConfigureAwait(false);
-        return Ok(Summarise(item, balance));
+        return Ok(Summarise(item, balance, MarginAccess.CanSee(User)));
     }
 
     [HttpPost]
@@ -303,12 +306,21 @@ public sealed class ItemsController : ControllerBase
             .SumAsync(m => m.Quantity, cancellationToken)
             .ConfigureAwait(false);
 
-    private static ItemSummary Summarise(Item i, decimal balance) => new(
+    /// <summary>
+    /// One item for the list.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="showCost"/> is threaded in rather than read from the request here, because this
+    /// is static and reaching for the caller from a helper is how the check gets forgotten on the third
+    /// call site. What an item cost us is margin: the selling price is what the customer is told, the
+    /// cost is what they are not.
+    /// </remarks>
+    private static ItemSummary Summarise(Item i, decimal balance, bool showCost) => new(
         i.Id,
         i.Code ?? string.Empty,
         i.Name ?? string.Empty,
         i.SellingPrice,
-        i.Cost,
+        showCost ? i.Cost : null,
         i.ReorderLevel,
         i.Unit,
         balance,

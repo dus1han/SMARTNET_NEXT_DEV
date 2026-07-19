@@ -219,12 +219,12 @@ public sealed class InvoicesController : ControllerBase
             invoice.TaxRatePercentage,
             invoice.TaxAmount,
             invoice.Total,
-            invoice.Cost,
+            User.Redact(invoice.Cost),
             outstanding,
             invoice.RowVersion,
             "new",
             [.. invoice.Lines.Select(l => new InvoiceLineDetail(
-                l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
+                l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, User.Redact(l.Cost)))]));
     }
 
     /// <summary>
@@ -307,7 +307,7 @@ public sealed class InvoicesController : ControllerBase
             LegacyValue.Money(h.Vper),
             total - net, // tax = grand total less the pre-VAT net
             total,
-            LegacyValue.Money(h.Cost), // the stored document cost (item = summed, service = entered)
+            User.Redact(LegacyValue.Money(h.Cost)), // the stored document cost (item = summed, service = entered)
             LegacyValue.Money(h.Balance),
             h.RowVersion, // the legacy row's version, so an edit adopts it under a real concurrency guard
             "legacy",
@@ -448,7 +448,7 @@ public sealed class InvoicesController : ControllerBase
                     request.PurchaseOrderNo,
                     request.ContactPerson,
                     [.. request.Lines.Select(l => new NewInvoiceLine(
-                        l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
+                        l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, User.Redact(l.Cost)))],
                     request.DocumentDiscountPercent,
                     request.AcknowledgeCreditLimit,
                     request.DocumentCost),
@@ -506,7 +506,7 @@ public sealed class InvoicesController : ControllerBase
                     request.ContactPerson,
                     request.DocumentDiscountPercent,
                     [.. request.Lines.Select(l => new EditInvoiceLine(
-                        l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
+                        l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, User.Redact(l.Cost)))],
                     request.DocumentCost,
                     request.Date),
                 cancellationToken).ConfigureAwait(false);
@@ -854,7 +854,7 @@ public sealed class InvoicesController : ControllerBase
             deletedByName,
             newReason,
             [.. voidLines.Select(l => new InvoiceLineDetail(
-                l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
+                l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, User.Redact(l.Cost)))]));
     }
 
     /// <summary>
