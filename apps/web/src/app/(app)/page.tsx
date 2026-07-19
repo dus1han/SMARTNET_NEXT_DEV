@@ -199,6 +199,7 @@ export default function DashboardPage() {
                   description="Receipts against supplier payments and expenses. Profit is not cash."
                 />
                 <CashFlowChart points={a.cashFlow} />
+                <CashSummary points={a.cashFlow} />
               </Card>
             </Reveal>
           </div>
@@ -233,6 +234,60 @@ export default function DashboardPage() {
         </>
       ) : null}
     </FadeIn>
+  );
+}
+
+/**
+ * What the cash chart adds up to over its window.
+ *
+ * The chart shows each month against the last; this answers the question the chart is there to raise —
+ * over six months, did more come in than went out. The net is the figure that matters and the one the
+ * bars cannot show, because it is the accumulation of the gaps between them rather than any single bar.
+ *
+ * The count of cash-negative months sits underneath it because the net alone can hide them: five good
+ * months and one catastrophic one nets out positive and still means a month the wages were hard to pay.
+ *
+ * Derived here rather than on the server — it is a sum of figures already on the page, and a round trip
+ * to add up six numbers the client is holding would be a request for nothing.
+ */
+function CashSummary({ points }: { points: { in: number; out: number }[] }) {
+  if (points.length === 0) return null;
+
+  const received = points.reduce((sum, p) => sum + p.in, 0);
+  const paidOut = points.reduce((sum, p) => sum + p.out, 0);
+  const net = received - paidOut;
+  const negativeMonths = points.filter((p) => p.out > p.in).length;
+
+  return (
+    <div className="mt-5 border-t border-subtle pt-4">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
+        Across these {points.length} months
+      </p>
+
+      <dl className="space-y-1.5 text-sm">
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-muted">Received</dt>
+          <dd className="tabular text-text">{formatMoney(received)}</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-muted">Paid out</dt>
+          <dd className="tabular text-text">{formatMoney(paidOut)}</dd>
+        </div>
+        <div className="flex items-baseline justify-between gap-3 border-t border-subtle pt-1.5">
+          <dt className="font-medium text-text">Net</dt>
+          {/* Wording carries the meaning; colour only agrees with it. */}
+          <dd className={net >= 0 ? "tabular font-medium text-success-text" : "tabular font-medium text-warning-text"}>
+            {net >= 0 ? "+" : "−"}{formatMoney(Math.abs(net))}
+          </dd>
+        </div>
+      </dl>
+
+      <p className="mt-3 text-xs text-muted">
+        {negativeMonths === 0
+          ? "Every month took in more than it paid out."
+          : `${negativeMonths} of these ${points.length} months paid out more than came in.`}
+      </p>
+    </div>
   );
 }
 
