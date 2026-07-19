@@ -238,6 +238,9 @@ export type ProblemDetails = Schemas["ProblemDetails"] & {
 
 /** Every path the API exposes, for anything that wants to be exhaustive about them. */
 export type ApiPaths = paths;
+
+/** An uploaded file (Phase 7, slice 4) — metadata; the bytes come from the download endpoint. */
+export type DocumentSummary = Schemas["DocumentSummary"];
 export type DashboardAnalytics = Schemas["DashboardAnalytics"];
 export type MonthPoint = Schemas["MonthPoint"];
 export type CashFlowPoint = Schemas["CashFlowPoint"];

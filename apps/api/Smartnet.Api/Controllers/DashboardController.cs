@@ -156,7 +156,7 @@ public sealed class DashboardController : ControllerBase
         //
         // Invoice lines used to be loaded here too, all 12,598 of them, and passed to a parameter the
         // builder stopped reading when the best-selling-lines panel was removed. Nothing consumed them.
-        var payments = (await _legacy.Payments.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false))
+        var payments = (await _legacy.Payments.ToListAsync(cancellationToken).ConfigureAwait(false))
             .Where(p => p.Invoiceno != null && invoiceNos.Contains(p.Invoiceno))
             .ToList();
 
@@ -209,7 +209,6 @@ public sealed class DashboardController : ControllerBase
         // Credit limits live on the customer master and nothing enforces them; the dashboard is the
         // first thing in either system to read the column.
         var customers = (await _legacy.CusMs
-                .AsNoTracking()
                 .Select(c => new { c.Cuscode, c.Cusname, c.Climit })
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false))

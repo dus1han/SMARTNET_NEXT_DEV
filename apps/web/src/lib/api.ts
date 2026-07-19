@@ -104,7 +104,11 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 
   const headers: Record<string, string> = {};
 
-  if (body !== undefined) {
+  // FormData carries its own encoding. Setting Content-Type by hand would omit the multipart boundary
+  // the browser generates, and the server would reject a body it cannot split into parts.
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+
+  if (body !== undefined && !isFormData) {
     headers["Content-Type"] = "application/json";
   }
 
@@ -123,7 +127,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   const response = await fetch(`${BASE_URL}${path}`, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isFormData ? (body as FormData) : JSON.stringify(body),
 
     // The auth token is an httpOnly cookie: JavaScript cannot read it, and it will not be sent
     // cross-origin unless we ask for it explicitly.

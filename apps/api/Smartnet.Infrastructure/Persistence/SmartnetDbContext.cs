@@ -118,6 +118,12 @@ public class SmartnetDbContext : DbContext
     /// <summary>The debit/credit lines of the journal entries.</summary>
     public DbSet<GlLine> GlLines => Set<GlLine>();
 
+    /// <summary>
+    /// Uploaded files (Phase 7, slice 4) — metadata only; the bytes are on disk behind
+    /// <see cref="Smartnet.Domain.Documents.IDocumentStorage"/>.
+    /// </summary>
+    public DbSet<StoredDocument> StoredDocuments => Set<StoredDocument>();
+
     // --- Purchasing (Phase 6) ----------------------------------------------------------------
 
     /// <summary>Purchase orders, on the adopted legacy <c>po_h</c>. An order — no ledger, no stock.</summary>

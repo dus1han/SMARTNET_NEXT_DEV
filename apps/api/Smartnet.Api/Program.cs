@@ -20,6 +20,7 @@ using Smartnet.Domain.Ledger;
 using Smartnet.Domain.Identity;
 using Smartnet.Domain.MasterData;
 using Smartnet.Infrastructure;
+using Smartnet.Infrastructure.Storage;
 using Smartnet.Domain.Settings;
 using Smartnet.Infrastructure.Identity;
 using Smartnet.Domain.Exporting;
@@ -61,6 +62,12 @@ if (Regex.IsMatch(conn, @"Database\s*=\s*smartnet_invsys\s*(;|$)", RegexOptions.
 }
 
 builder.Services.AddSmartnetPersistence(conn);
+
+// Where uploaded documents are written (Phase 7, slice 4). In Docker this must point at a mounted
+// volume: the container filesystem is replaced on every deploy, so an unmounted path would silently
+// discard every document the business uploaded since the last release.
+builder.Services.Configure<DocumentStorageOptions>(
+    builder.Configuration.GetSection(DocumentStorageOptions.Section));
 
 // ---------------------------------------------------------------------------
 // Audit: the "who, why, from where" of every request, read off the HTTP context

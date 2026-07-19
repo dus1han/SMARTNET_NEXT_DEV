@@ -139,6 +139,11 @@ public static class DependencyInjection
         services.AddScoped<IExpenseCreator>(sp => sp.GetRequiredService<ExpenseService>());
         services.AddScoped<IExpenseVoider>(sp => sp.GetRequiredService<ExpenseService>());
 
+        // Document storage (Phase 7, slice 4): uploaded bytes on the filesystem, outside the web root,
+        // under server-generated names. A singleton — it holds a path and no per-request state — and an
+        // interface so the S3/MinIO swap stays a config change rather than a rewrite.
+        services.AddSingleton<IDocumentStorage, Storage.LocalFileDocumentStorage>();
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));

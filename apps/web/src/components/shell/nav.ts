@@ -9,6 +9,7 @@ import {
   HandCoins,
   LayoutDashboard,
   Package,
+  Paperclip,
   Percent,
   Receipt,
   Scale,
@@ -82,6 +83,12 @@ export const NAVIGATION: NavSection[] = [
     title: "Service",
     items: [
       { href: "/job-cards", label: "Job cards", icon: Wrench, permission: "jobcards" },
+    ],
+  },
+  {
+    title: "Documents",
+    items: [
+      { href: "/documents", label: "Documents", icon: Paperclip, permission: "docstorage" },
     ],
   },
   {
