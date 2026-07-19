@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
  * logos is how a rebrand gets left half-done.
  */
 export const BRAND_NAME = "INVOSYS";
-export const BRAND_TAGLINE = "Inventory & invoicing";
+export const BRAND_TAGLINE = "The whole business, in one place";
 
 /**
  * The INVOSYS glyph — a stacked inventory cube, drawn in `currentColor` so it takes the colour of

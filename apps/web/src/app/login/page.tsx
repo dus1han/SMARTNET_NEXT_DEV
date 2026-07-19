@@ -152,22 +152,29 @@ export default function LoginPage() {
 /**
  * The half of the screen that has to earn the other half's trust.
  *
- * What it says is chosen on purpose. The people signing in are the same people who lived with the
- * old system, and the three claims below are the three things it could not do: it left its admin
- * endpoints open, it stored passwords in clear text, and it recorded nothing about who changed what.
+ * It says almost nothing, deliberately. It used to carry a headline, a paragraph and three claims
+ * about the rebuild — true, and read exactly once. This screen is opened every morning by people who
+ * already know what the system is, so what is left is the mark, the name and the light behind them.
  */
 function BrandPanel() {
   return (
     <aside className="relative hidden overflow-hidden bg-sidebar p-12 lg:flex lg:items-center lg:justify-center">
       {/* The aurora. Two slow orbs, out of phase, so the light never repeats a shape you can catch
-          it repeating — and both paused the instant a field takes focus. */}
+          it repeating.
+
+          Nothing in this panel pauses on focus, and that is a correction rather than an exception:
+          the form autofocuses its first field, so group-focus-within was true from the first paint
+          and every animation here was frozen before anyone saw it move. The rule it came from —
+          nothing animates while you type — is about motion beside the field you are typing in. This
+          is the other half of the screen. The wash behind the form still pauses, because that one
+          genuinely is beside the input. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -left-32 -top-32 size-[30rem] rounded-full bg-primary/30 blur-3xl animate-drift group-focus-within:[animation-play-state:paused]"
+        className="pointer-events-none absolute -left-32 -top-32 size-[30rem] rounded-full bg-primary/30 blur-3xl animate-drift"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute -bottom-40 -right-24 size-[34rem] rounded-full bg-primary/20 blur-3xl animate-drift-alt group-focus-within:[animation-play-state:paused]"
+        className="pointer-events-none absolute -bottom-40 -right-24 size-[34rem] rounded-full bg-primary/20 blur-3xl animate-drift-alt"
       />
 
       {/* A faint grid, faded out towards the edges — structure under the light, which is roughly the
@@ -189,30 +196,35 @@ function BrandPanel() {
         paragraph and three feature bullets — copy nobody reads twice, on a screen its audience sees
         every morning. What survives is the thing that identifies the product.
       */}
-      <div className="relative flex flex-col items-center text-center">
-        <div className="relative flex size-32 items-center justify-center">
+      {/*
+        The whole lockup drifts, not just the mark, so the name and tagline are moving too — the
+        motion is the screen's resting state rather than something that happens once on arrival and
+        stops. Mark and text share one animation so their spacing never breathes apart.
+      */}
+      <div className="relative flex flex-col items-center text-center animate-float">
+        <div className="relative flex size-28 items-center justify-center">
           {/* Halo and ripple sit behind the mark and are decorative, so they are hidden from a
               screen reader and stop the moment a field takes focus — motion beside a form you are
               filling in is a distraction, not a flourish. */}
           <div
             aria-hidden
-            className="absolute size-28 rounded-[2rem] bg-primary/40 blur-2xl animate-halo group-focus-within:[animation-play-state:paused]"
+            className="absolute size-28 rounded-[2rem] bg-primary/40 blur-2xl animate-halo"
           />
           <div
             aria-hidden
-            className="absolute size-24 rounded-[1.75rem] border border-primary/30 animate-ripple group-focus-within:[animation-play-state:paused]"
+            className="absolute size-24 rounded-[1.75rem] border border-primary/30 animate-ripple"
           />
 
           <BrandMark
-            className="relative size-20 rounded-[1.5rem] shadow-2xl shadow-primary/30 animate-float group-focus-within:[animation-play-state:paused]"
+            className="relative size-20 rounded-[1.5rem] shadow-2xl shadow-primary/30"
           />
         </div>
 
-        <h1 className="mt-8 text-4xl font-semibold tracking-tight text-sidebar-text-active animate-in fade-in-0 slide-in-from-bottom-3 fill-mode-backwards duration-700 ease-out [animation-delay:120ms]">
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-sidebar-text-active animate-in fade-in-0 slide-in-from-bottom-3 fill-mode-backwards duration-700 ease-out [animation-delay:120ms]">
           {BRAND_NAME}
         </h1>
 
-        <p className="mt-3 text-sm tracking-wide text-sidebar-text animate-in fade-in-0 fill-mode-backwards duration-700 [animation-delay:280ms]">
+        <p className="mt-1.5 text-sm tracking-wide text-sidebar-text animate-in fade-in-0 fill-mode-backwards duration-700 [animation-delay:280ms]">
           {BRAND_TAGLINE}
         </p>
       </div>
