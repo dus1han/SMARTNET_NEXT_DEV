@@ -9463,16 +9463,18 @@
       "DashboardAnalytics": {
         "required": [
           "ageing",
+          "averageInvoice",
           "cashFlow",
           "collected",
           "grossProfit",
+          "invoiceCount",
           "marginPercent",
+          "mix",
           "monthlyTrend",
           "overdue",
           "revenue",
           "topCustomers",
-          "topCustomerShare",
-          "topItems"
+          "topCustomerShare"
         ],
         "type": "object",
         "properties": {
@@ -9533,11 +9535,25 @@
             "type": "number",
             "format": "double"
           },
-          "topItems": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ItemSales"
-            }
+          "mix": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SalesMix"
+              }
+            ]
+          },
+          "daysToCollect": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "invoiceCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "averageInvoice": {
+            "type": "number",
+            "format": "double"
           }
         },
         "additionalProperties": false
@@ -10826,33 +10842,6 @@
             "type": "string"
           },
           "percentage": {
-            "type": "number",
-            "format": "double"
-          }
-        },
-        "additionalProperties": false
-      },
-      "ItemSales": {
-        "required": [
-          "description",
-          "quantity",
-          "revenue",
-          "share"
-        ],
-        "type": "object",
-        "properties": {
-          "description": {
-            "type": "string"
-          },
-          "revenue": {
-            "type": "number",
-            "format": "double"
-          },
-          "quantity": {
-            "type": "number",
-            "format": "double"
-          },
-          "share": {
             "type": "number",
             "format": "double"
           }
@@ -12385,6 +12374,34 @@
             "items": {
               "type": "string"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "SalesMix": {
+        "required": [
+          "cash",
+          "cashCount",
+          "credit",
+          "creditCount"
+        ],
+        "type": "object",
+        "properties": {
+          "cash": {
+            "type": "number",
+            "format": "double"
+          },
+          "credit": {
+            "type": "number",
+            "format": "double"
+          },
+          "cashCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "creditCount": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

@@ -126,6 +126,57 @@ public sealed class DashboardAnalyticsTests
     }
 
     [Fact]
+    public void Top_customers_covers_this_month_only()
+    {
+        // Scoped to the month deliberately: an all-time ranking is dominated by whoever was big years
+        // ago and never changes, which makes it decoration rather than a reading.
+        var report = Build([
+            Invoice("2026-07-02", "100", customer: "C-2"),
+            Invoice("2026-01-02", "9000", customer: "C-1"),
+        ]);
+
+        report.TopCustomers.Should().ContainSingle();
+        report.TopCustomers[0].Name.Should().Be("Astron");
+        report.TopCustomers[0].Share.Should().Be(100m, "the January sale is not this month's revenue");
+    }
+
+    [Fact]
+    public void Days_to_collect_measures_invoice_to_last_payment()
+    {
+        var report = Build(
+            invoices: [Invoice("2026-07-01", "1000")],
+            payments: [new Payment { Invoiceno = "I-2026-07-01-1000", Amount = "1000", Paymentrecdate = "2026-07-11" }]);
+
+        report.DaysToCollect.Should().Be(10);
+    }
+
+    [Fact]
+    public void Days_to_collect_is_unknown_rather_than_zero_when_nothing_is_settled()
+    {
+        // Zero would read as "customers pay immediately" — the opposite of what no data means.
+        var report = Build([Invoice("2026-07-01", "1000", balance: "1000")]);
+
+        report.DaysToCollect.Should().BeNull();
+    }
+
+    [Fact]
+    public void The_mix_splits_the_month_between_cash_and_credit()
+    {
+        var report = DashboardAnalyticsBuilder.Build(
+            [
+                new InvoiceH { Invoiceno = "A", Indate = "2026-07-02", Totamount = "300", Cost = "0", Balance = "0", Customer = "C-1", Invtype = "Cash" },
+                new InvoiceH { Invoiceno = "B", Indate = "2026-07-03", Totamount = "700", Cost = "0", Balance = "700", Customer = "C-1", Invtype = "Credit" },
+            ],
+            [], [], [], [], Names, Today);
+
+        report.Mix.Cash.Should().Be(300m);
+        report.Mix.Credit.Should().Be(700m);
+        report.Mix.CashCount.Should().Be(1);
+        report.InvoiceCount.Should().Be(2);
+        report.AverageInvoice.Should().Be(500m);
+    }
+
+    [Fact]
     public void A_value_that_will_not_parse_counts_as_zero_rather_than_throwing()
     {
         // The same posture as every other report over this data — 28 invoices carry an unreadable cost.

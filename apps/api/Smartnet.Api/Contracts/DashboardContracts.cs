@@ -60,18 +60,8 @@ public sealed record AgeingBucket(string Label, decimal Amount, int Invoices);
 /// <summary>One customer's contribution to revenue over the window.</summary>
 public sealed record CustomerShare(string Name, decimal Revenue, decimal Share);
 
-/// <summary>
-/// One item line: what it sold for, and how much of it moved.
-/// </summary>
-/// <remarks>
-/// <b>Revenue and units, not margin.</b> <c>invoice_l</c> carries no cost column — the legacy system
-/// costed a document, never a line — so per-item profit cannot be computed from this data. It could be
-/// approximated by apportioning the invoice cost across its lines, but that would put a figure captioned
-/// "margin" on the screen that is an assumption about how cost distributes, which is precisely the kind
-/// of number people go on to make stocking decisions with. Document margin is real and is shown; item
-/// margin is not available and is not implied.
-/// </remarks>
-public sealed record ItemSales(string Description, decimal Revenue, decimal Quantity, decimal Share);
+/// <summary>How the month split between cash and credit, and what that is worth.</summary>
+public sealed record SalesMix(decimal Cash, decimal Credit, int CashCount, int CreditCount);
 
 /// <summary>
 /// A figure with the previous period beside it, so a number arrives with its direction.
@@ -113,4 +103,20 @@ public sealed record DashboardAnalytics(
     /// <summary>What share of revenue the top five customers account for — concentration risk.</summary>
     decimal TopCustomerShare,
 
-    IReadOnlyList<ItemSales> TopItems);
+    /// <summary>Cash against credit for the month — how much of the trade is settled at the counter.</summary>
+    SalesMix Mix,
+
+    /// <summary>
+    /// Average days between an invoice being raised and being paid, over the last twelve months.
+    /// </summary>
+    /// <remarks>
+    /// The number that turns the ageing chart into a habit rather than a snapshot: ageing says what is
+    /// late today, this says how long customers take in general. Null when nothing in the window has
+    /// been paid, because an average over no settlements is not zero days — it is unknown.
+    /// </remarks>
+    int? DaysToCollect,
+
+    /// <summary>Invoices raised this month, and their average value.</summary>
+    int InvoiceCount,
+
+    decimal AverageInvoice);

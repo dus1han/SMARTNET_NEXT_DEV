@@ -3,17 +3,22 @@
 /**
  * The dashboard — what the business looks like, not what it totalled.
  *
- * Six readings, each one answering a question somebody actually asks: which way are we going, where has
- * the money stopped moving, is cash keeping up with profit, who are we dependent on, what sells. The
- * earlier month-at-a-glance tiles and the daily-sales bars are gone — they showed a total with no
+ * Each reading answers a question somebody actually asks: which way are we going, where has the money
+ * stopped moving, is cash keeping up with profit, how long do customers take, who are we dependent on.
+ * The earlier month-at-a-glance tiles and the daily-sales bars are gone — they showed a total with no
  * direction and an "outstanding" figure that concealed the ageing behind it.
  *
- * One company filter above everything, in a row of its own: the same control the reports use, so
- * switching company means the same thing on every screen.
+ * There is no best-selling-lines panel, deliberately. Not one of the 12,598 invoice lines carries an
+ * item code, and 7,029 distinct descriptions across them means the text is close to unique per line —
+ * so any ranking would be counting spellings, not products.
+ *
+ * The company switch lives in the page header rather than a filter card of its own: with three options
+ * a dropdown hid two of them for no gain, and the card cost the row that pushed the first chart below
+ * the fold.
  */
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Coins, TrendingUp, Wallet } from "lucide-react";
+import { AlertTriangle, Banknote, CalendarClock, Clock, Coins, FileText, TrendingUp, Wallet } from "lucide-react";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import { getDashboardAnalytics, type CompanyFilter } from "@/lib/dashboard";
@@ -26,7 +31,8 @@ import {
   MonthlyTrendChart,
   RankedBars,
 } from "@/components/dashboard/analytics-charts";
-import { ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
+import { CompanySwitch } from "@/components/dashboard/company-switch";
+import { StatTile, formatMoney } from "@/components/reports";
 import { AnimatedNumber, Card, CardHeader, ErrorBanner, FadeIn, LoadingPanel } from "@/components/ui";
 
 export default function DashboardPage() {
@@ -48,9 +54,11 @@ export default function DashboardPage() {
     <FadeIn className="space-y-6">
       <style>{ANALYTICS_VIZ_CSS}</style>
 
-      <PageHeader title="Dashboard" description="How the business is doing, and where it needs attention." />
-
-      <ReportFilterBar company={company} onCompany={setCompany} showDates={false} />
+      <PageHeader
+        title="Dashboard"
+        description="How the business is doing, and where it needs attention."
+        actions={<CompanySwitch value={company} onChange={setCompany} />}
+      />
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
 
@@ -98,7 +106,43 @@ export default function DashboardPage() {
             />
           </div>
 
-          <Reveal delayMs={120}>
+          <Reveal delayMs={90}>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatTile
+                label="Days to collect"
+                icon={Clock}
+                color="sky"
+                value={a.daysToCollect === null ? "—" : `${a.daysToCollect} days`}
+                sub={a.daysToCollect === null ? "nothing settled yet" : "average over twelve months"}
+              />
+              <StatTile
+                label="Invoices this month"
+                icon={FileText}
+                color="slate"
+                delayMs={70}
+                value={<AnimatedNumber value={a.invoiceCount} format={(n) => String(Math.round(n))} />}
+                sub={`averaging ${formatMoney(a.averageInvoice)}`}
+              />
+              <StatTile
+                label="Cash sales"
+                icon={Banknote}
+                color="emerald"
+                delayMs={140}
+                value={<AnimatedNumber value={a.mix.cash} format={formatMoney} />}
+                sub={`${a.mix.cashCount} invoice${a.mix.cashCount === 1 ? "" : "s"}, settled at the counter`}
+              />
+              <StatTile
+                label="Credit sales"
+                icon={CalendarClock}
+                color="amber"
+                delayMs={210}
+                value={<AnimatedNumber value={a.mix.credit} format={formatMoney} />}
+                sub={`${a.mix.creditCount} invoice${a.mix.creditCount === 1 ? "" : "s"}, still to collect`}
+              />
+            </div>
+          </Reveal>
+
+          <Reveal delayMs={150}>
             <Card>
               <CardHeader
                 title="Revenue and profit"
@@ -130,38 +174,18 @@ export default function DashboardPage() {
             </Reveal>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Reveal delayMs={320}>
-              <Card className="h-full">
-                <CardHeader
-                  title="Biggest customers"
-                  description={`The top five are ${a.topCustomerShare.toFixed(1)}% of all revenue.`}
-                />
-                <RankedBars
-                  rows={a.topCustomers.map((c) => ({ label: c.name, value: c.revenue, share: c.share }))}
-                  emptyLabel="No customer revenue yet."
-                />
-              </Card>
-            </Reveal>
-
-            <Reveal delayMs={380}>
-              <Card className="h-full">
-                <CardHeader
-                  title="Best-selling lines"
-                  description="By revenue, with units alongside — the legacy data holds no per-line cost, so there is no item margin to show."
-                />
-                <RankedBars
-                  rows={a.topItems.map((i) => ({
-                    label: i.description,
-                    value: i.revenue,
-                    share: i.share,
-                    note: `${i.quantity.toLocaleString()} units`,
-                  }))}
-                  emptyLabel="No item sales yet."
-                />
-              </Card>
-            </Reveal>
-          </div>
+          <Reveal delayMs={320}>
+            <Card>
+              <CardHeader
+                title="Biggest customers this month"
+                description={`The top five are ${a.topCustomerShare.toFixed(1)}% of the month’s revenue.`}
+              />
+              <RankedBars
+                rows={a.topCustomers.map((c) => ({ label: c.name, value: c.revenue, share: c.share }))}
+                emptyLabel="No customer revenue this month."
+              />
+            </Card>
+          </Reveal>
         </>
       ) : null}
     </FadeIn>

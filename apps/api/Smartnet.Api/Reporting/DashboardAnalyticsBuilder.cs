@@ -55,7 +55,8 @@ public static class DashboardAnalyticsBuilder
                 LegacyValue.Money(h.Cost),
                 LegacyValue.Money(h.Balance),
                 h.Customer ?? string.Empty,
-                h.Invoiceno ?? string.Empty))
+                h.Invoiceno ?? string.Empty,
+                string.Equals(h.Invtype, "Credit", StringComparison.OrdinalIgnoreCase)))
             .Where(s => s.Date is not null)
             .ToList();
 
@@ -85,9 +86,16 @@ public static class DashboardAnalyticsBuilder
             MonthlyTrend: Trend12(dated, monthStart),
             Ageing: Ageing(dated, today),
             CashFlow: CashFlow(receipts, expenses, supplierPayments, monthStart),
-            TopCustomers: TopCustomers(dated, customerNames, out var topShare),
+            TopCustomers: TopCustomers(thisMonth, customerNames, out var topShare),
             TopCustomerShare: topShare,
-            TopItems: TopItems(lines));
+            Mix: new SalesMix(
+                thisMonth.Where(s => !s.IsCredit).Sum(s => s.Total),
+                thisMonth.Where(s => s.IsCredit).Sum(s => s.Total),
+                thisMonth.Count(s => !s.IsCredit),
+                thisMonth.Count(s => s.IsCredit)),
+            DaysToCollect: DaysToCollect(dated, payments, monthStart),
+            InvoiceCount: thisMonth.Count,
+            AverageInvoice: thisMonth.Count == 0 ? 0m : decimal.Round(thisMonth.Sum(s => s.Total) / thisMonth.Count, 2));
     }
 
     /// <summary>Revenue and profit by month, oldest first, with empty months kept so gaps show as gaps.</summary>
@@ -203,30 +211,40 @@ public static class DashboardAnalyticsBuilder
     }
 
     /// <summary>
-    /// The best-selling lines, by revenue.
+    /// Average days from invoice to payment, over the last twelve months.
     /// </summary>
     /// <remarks>
-    /// Ranked on revenue because that is what the data supports: <c>invoice_l</c> has no cost column, so
-    /// there is no per-line profit to rank on. Units are carried alongside so the two questions stay
-    /// separable — a line can top the list on one large sale or on constant small ones, and those mean
-    /// different things for what to keep in stock.
+    /// Matched by invoice number, so only invoices that were actually settled count — an unpaid one has
+    /// no collection time yet, and folding it in as zero would flatter the figure. Where an invoice was
+    /// paid in instalments the last payment is used: the invoice is not collected until it is closed.
+    ///
+    /// <para>Null rather than zero when nothing in the window has been paid. Zero days would read as
+    /// "customers pay immediately", which is the opposite of what no data means.</para>
     /// </remarks>
-    private static List<ItemSales> TopItems(IReadOnlyList<InvoiceL> lines)
+    private static int? DaysToCollect(
+        IReadOnlyList<Sale> sales,
+        IReadOnlyList<Payment> payments,
+        DateOnly monthStart)
     {
-        var total = lines.Sum(l => LegacyValue.Money(l.Tot));
+        var window = monthStart.AddMonths(-11);
 
-        return lines
-            .Where(l => !string.IsNullOrWhiteSpace(l.Desc))
-            .GroupBy(l => l.Desc!.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(g =>
-            {
-                var revenue = g.Sum(l => LegacyValue.Money(l.Tot));
+        var lastPaymentFor = payments
+            .Where(p => !string.IsNullOrEmpty(p.Invoiceno))
+            .Select(p => (Invoice: p.Invoiceno!, Date: LegacyValue.Date(p.Paymentrecdate)))
+            .Where(p => p.Date is not null)
+            .GroupBy(p => p.Invoice, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Max(p => p.Date!.Value), StringComparer.Ordinal);
 
-                return new ItemSales(g.Key, revenue, g.Sum(l => LegacyValue.Money(l.Qty)), Percent(revenue, total));
-            })
-            .OrderByDescending(i => i.Revenue)
-            .Take(TopN)
+        var spans = sales
+            .Where(s => s.Date >= window && s.Number.Length > 0)
+            .Select(s => lastPaymentFor.TryGetValue(s.Number, out var paid)
+                ? paid.DayNumber - s.Date!.Value.DayNumber
+                : (int?)null)
+            .Where(days => days is >= 0)
+            .Select(days => days!.Value)
             .ToList();
+
+        return spans.Count == 0 ? null : (int)Math.Round(spans.Average());
     }
 
     private static bool InMonth(DateOnly date, DateOnly monthStart) =>
@@ -242,5 +260,6 @@ public static class DashboardAnalyticsBuilder
         decimal Cost,
         decimal Balance,
         string CustomerCode,
-        string Number);
+        string Number,
+        bool IsCredit);
 }

@@ -243,5 +243,5 @@ export type MonthPoint = Schemas["MonthPoint"];
 export type CashFlowPoint = Schemas["CashFlowPoint"];
 export type AgeingBucket = Schemas["AgeingBucket"];
 export type CustomerShare = Schemas["CustomerShare"];
-export type ItemSales = Schemas["ItemSales"];
+export type SalesMix = Schemas["SalesMix"];
 export type Trend = Schemas["Trend"];

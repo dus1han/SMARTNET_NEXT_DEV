@@ -6704,7 +6704,13 @@ export interface components {
             topCustomers: components["schemas"]["CustomerShare"][];
             /** Format: double */
             topCustomerShare: number;
-            topItems: components["schemas"]["ItemSales"][];
+            mix: components["schemas"]["SalesMix"];
+            /** Format: int32 */
+            daysToCollect?: number | null;
+            /** Format: int32 */
+            invoiceCount: number;
+            /** Format: double */
+            averageInvoice: number;
         };
         DashboardCompanyOption: {
             /** Format: int64 */
@@ -7105,15 +7111,6 @@ export interface components {
             name: string;
             /** Format: double */
             percentage: number;
-        };
-        ItemSales: {
-            description: string;
-            /** Format: double */
-            revenue: number;
-            /** Format: double */
-            quantity: number;
-            /** Format: double */
-            share: number;
         };
         ItemStockResponse: {
             /** Format: int64 */
@@ -7578,6 +7575,16 @@ export interface components {
             /** Format: int64 */
             companyId?: number | null;
             permissions: string[];
+        };
+        SalesMix: {
+            /** Format: double */
+            cash: number;
+            /** Format: double */
+            credit: number;
+            /** Format: int32 */
+            cashCount: number;
+            /** Format: int32 */
+            creditCount: number;
         };
         SalesReportResponse: {
             summary: components["schemas"]["SalesReportSummary"];

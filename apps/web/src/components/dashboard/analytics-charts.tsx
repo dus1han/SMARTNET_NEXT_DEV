@@ -98,6 +98,38 @@ function Key({ colour, children }: { colour: string; children: string }) {
   );
 }
 
+
+/**
+ * The hover read-out, floated over the plot at the band being pointed at.
+ *
+ * Previously this was a line of text beneath the chart, which is exactly where a reader is not looking:
+ * the eye is on the bar. It follows the band now, flipping to the other side near the right edge so it
+ * never runs off the card, and it is `pointer-events-none` so it cannot steal the hover that summoned it.
+ */
+function Tooltip({ x, width, children }: { x: number; width: number; children: React.ReactNode }) {
+  const flip = x > width * 0.62;
+
+  return (
+    <div
+      className="pointer-events-none absolute top-2 z-10 rounded-lg border border-subtle bg-surface px-3 py-2 text-xs shadow-lg"
+      style={flip ? { right: width - x + 12 } : { left: x + 12 }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** One labelled figure inside a tooltip, with its series swatch so identity is never colour alone. */
+function TipRow({ colour, label, value }: { colour?: string; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2 whitespace-nowrap">
+      {colour && <span className="size-2 rounded-sm" style={{ background: colour }} aria-hidden />}
+      <span className="text-muted">{label}</span>
+      <span className="tabular ml-auto font-medium text-text">{value}</span>
+    </div>
+  );
+}
+
 // --- Revenue and profit, twelve months ----------------------------------------------------------
 
 /**
@@ -140,7 +172,7 @@ export function MonthlyTrendChart({ points }: { points: MonthPoint[] }) {
         <Key colour="var(--profit)">Gross profit</Key>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <svg width={width} height={H} role="img" aria-label="Revenue and gross profit by month">
           {[0, 0.25, 0.5, 0.75, 1].map((t) => (
             <g key={t}>
@@ -183,13 +215,12 @@ export function MonthlyTrendChart({ points }: { points: MonthPoint[] }) {
       </div>
 
       {hovered !== null && points[hovered] && (
-        <p className="mt-2 text-sm">
-          <span className="font-medium text-text">{monthFull(points[hovered].month)}</span>
-          <span className="text-muted"> · revenue </span>
-          <span className="tabular text-text">{formatMoney(points[hovered].revenue)}</span>
-          <span className="text-muted"> · profit </span>
-          <span className="tabular text-text">{formatMoney(points[hovered].profit)}</span>
-        </p>
+        <Tooltip x={PAD.left + band * hovered + band / 2} width={width}>
+          <p className="mb-1 font-medium text-text">{monthFull(points[hovered].month)}</p>
+          <TipRow colour="var(--revenue)" label="Revenue" value={formatMoney(points[hovered].revenue)} />
+          <TipRow colour="var(--profit)" label="Gross profit" value={formatMoney(points[hovered].profit)} />
+          <TipRow label="Cost" value={formatMoney(points[hovered].revenue - points[hovered].profit)} />
+        </Tooltip>
       )}
         </>
       )}
@@ -284,7 +315,7 @@ export function CashFlowChart({ points }: { points: CashFlowPoint[] }) {
         <Key colour="var(--out)">Paid out</Key>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <svg width={width} height={H} role="img" aria-label="Cash received and paid out by month">
           {[0, 0.5, 1].map((t) => (
             <g key={t}>
@@ -319,16 +350,12 @@ export function CashFlowChart({ points }: { points: CashFlowPoint[] }) {
       </div>
 
       {hovered !== null && points[hovered] && (
-        <p className="mt-2 text-sm">
-          <span className="font-medium text-text">{monthFull(points[hovered].month)}</span>
-          <span className="text-muted"> · in </span>
-          <span className="tabular text-text">{formatMoney(points[hovered].in)}</span>
-          <span className="text-muted"> · out </span>
-          <span className="tabular text-text">{formatMoney(points[hovered].out)}</span>
-          <span className={points[hovered].in >= points[hovered].out ? "text-muted" : "text-warning-text"}>
-            {" · net "}{formatMoney(points[hovered].in - points[hovered].out)}
-          </span>
-        </p>
+        <Tooltip x={PAD.left + band * hovered + band / 2} width={width}>
+          <p className="mb-1 font-medium text-text">{monthFull(points[hovered].month)}</p>
+          <TipRow colour="var(--in)" label="Received" value={formatMoney(points[hovered].in)} />
+          <TipRow colour="var(--out)" label="Paid out" value={formatMoney(points[hovered].out)} />
+          <TipRow label="Net" value={formatMoney(points[hovered].in - points[hovered].out)} />
+        </Tooltip>
       )}
     </div>
   );
