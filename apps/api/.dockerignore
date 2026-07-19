@@ -1,0 +1,12 @@
+# Build output — the image compiles its own; a stale local bin/ would shadow it.
+bin
+obj
+
+# Not needed to build, and large.
+.git
+.vs
+*.user
+
+# NOTE: Smartnet.Tests is deliberately NOT ignored. The Dockerfile copies its .csproj so the
+# solution restores as a whole, and ignoring the folder makes that COPY fail with a confusing
+# "file not found" during build.

@@ -1,0 +1,87 @@
+# Build both images, push them to GHCR, then tell the server to pull and restart.
+#
+# The server never builds. It pulls what CI has already produced, so a deploy cannot fail halfway
+# through a compile on a machine that is also serving traffic, and what runs in production is the exact
+# artefact that was tested.
+#
+# Runs on main only. Development happens on branches; merging to main is the act that deploys.
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+
+  # Deliberately available by hand as well: a redeploy after a server rebuild should not need a
+  # meaningless commit to trigger it.
+  workflow_dispatch:
+
+concurrency:
+  # One deploy at a time. Two overlapping runs would race on `docker compose up` and the later push
+  # could finish first, leaving the older image running.
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Lower-cased because GHCR rejects capitals in an image name and this repository has them.
+      - name: Work out the image names
+        id: names
+        run: echo "repo=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push the API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/api
+          push: true
+          tags: |
+            ghcr.io/${{ steps.names.outputs.repo }}-api:latest
+            ghcr.io/${{ steps.names.outputs.repo }}-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The repository root, not apps/web: the app compiles against packages/api-client, which lives
+      # outside apps/web. See apps/web/Dockerfile.
+      - name: Build and push the frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/web/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.names.outputs.repo }}-frontend:latest
+            ghcr.io/${{ steps.names.outputs.repo }}-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # --pull always so a retag of :latest is actually fetched; --remove-orphans so a service
+          # deleted from the compose file stops rather than lingering.
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" \
+            "cd /var/www/sys && docker compose pull && docker compose up -d --remove-orphans"

@@ -7,6 +7,10 @@
 
 services:
   api:
+    # Pulled on the server, built locally. `docker compose build` tags the result as this name, so the
+    # same file serves both; without image:, `docker compose pull` has nothing to fetch and the server
+    # would build from source — which is exactly what the pipeline exists to stop.
+    image: ${API_IMAGE:-ghcr.io/dus1han/smartnet_next_dev-api:latest}
     build:
       context: ../apps/api
       dockerfile: Dockerfile
@@ -27,9 +31,12 @@ services:
     restart: unless-stopped
 
   web:
+    image: ${WEB_IMAGE:-ghcr.io/dus1han/smartnet_next_dev-frontend:latest}
     build:
-      context: ../apps/web
-      dockerfile: Dockerfile
+      # The repo root, not apps/web: the app compiles against packages/api-client, which sits outside
+      # apps/web and would not exist in a narrower context. See apps/web/Dockerfile.
+      context: ..
+      dockerfile: apps/web/Dockerfile
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5080}
     ports:

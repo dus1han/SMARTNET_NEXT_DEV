@@ -1,0 +1,14 @@
+# Installed inside the image; copying the host's tree is slow and can be the wrong platform.
+node_modules
+
+# Build output — the image runs its own build.
+.next
+.next-e2e
+
+.git
+.env*.local
+
+# Test and tooling output that has no business in a runtime image.
+playwright-report
+test-results
+coverage
