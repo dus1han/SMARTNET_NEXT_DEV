@@ -14,7 +14,6 @@ import { currentMonthStart, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { ReportFilterBar, StatTile, formatMoney, formatReportDate } from "@/components/reports";
-import { useMarginAccess } from "@/lib/margin-access";
 import { AnimatedNumber, Badge, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function JobCardsReportPage() {
@@ -29,14 +28,6 @@ export default function JobCardsReportPage() {
 
   const loadError = report.error as ApiError | null;
   const data = report.data;
-
-  // Cost and profit are already withheld by the server for a caller without margin access — these
-  // columns would render as zeros. A Profit column full of noughts reads as "the business made
-  // nothing", which is a worse answer than not asking, so the columns come out entirely.
-  const canSeeMargin = useMarginAccess();
-  const visibleColumns = canSeeMargin
-    ? columns
-    : columns.filter((c) => c.id !== "cost" && c.id !== "profit");
 
   return (
     <FadeIn className="space-y-6">
@@ -56,15 +47,13 @@ export default function JobCardsReportPage() {
           color="indigo"
           value={data ? <AnimatedNumber value={data.totalSell} format={formatMoney} /> : "—"}
         />
-        {canSeeMargin && (
-          <StatTile
-            label="Total profit"
-            icon={Coins}
-            color="emerald"
-            delayMs={70}
-            value={data ? <AnimatedNumber value={data.totalProfit} format={formatMoney} /> : "—"}
-          />
-        )}
+        <StatTile
+          label="Total profit"
+          icon={Coins}
+          color="emerald"
+          delayMs={70}
+          value={data ? <AnimatedNumber value={data.totalProfit} format={formatMoney} /> : "—"}
+        />
         <StatTile
           label="Jobs"
           icon={Wrench}
@@ -83,7 +72,7 @@ export default function JobCardsReportPage() {
       )}
 
       <DataTable
-        columns={visibleColumns}
+        columns={columns}
         rows={data?.rows}
         loading={report.isPending}
         defaultSort={{ id: "date", desc: true }}

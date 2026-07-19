@@ -56,10 +56,9 @@ public sealed class ItemsController : ControllerBase
     {
         var items = await _db.Items.ToListAsync(cancellationToken).ConfigureAwait(false);
         var balances = await BalancesByItem(cancellationToken).ConfigureAwait(false);
-        var showCost = MarginAccess.CanSee(User);
 
         return Ok(items
-            .Select(i => Summarise(i, balances.GetValueOrDefault(i.Id), showCost))
+            .Select(i => Summarise(i, balances.GetValueOrDefault(i.Id)))
             .OrderBy(s => CodeOrder(s.Code))
             .ThenBy(s => s.Code, StringComparer.Ordinal)
             .ToList());
@@ -71,11 +70,9 @@ public sealed class ItemsController : ControllerBase
     {
         var items = await _db.Items.ToListAsync(cancellationToken).ConfigureAwait(false);
         var balances = await BalancesByItem(cancellationToken).ConfigureAwait(false);
-        var showCost = MarginAccess.CanSee(User);
-
 
         var rows = items
-            .Select(i => Summarise(i, balances.GetValueOrDefault(i.Id), showCost))
+            .Select(i => Summarise(i, balances.GetValueOrDefault(i.Id)))
             .OrderBy(s => CodeOrder(s.Code))
             .ThenBy(s => s.Code, StringComparer.Ordinal)
             .ToList();
@@ -118,7 +115,7 @@ public sealed class ItemsController : ControllerBase
         }
 
         var balance = await BalanceFor(id, cancellationToken).ConfigureAwait(false);
-        return Ok(Summarise(item, balance, MarginAccess.CanSee(User)));
+        return Ok(Summarise(item, balance));
     }
 
     [HttpPost]
@@ -137,7 +134,7 @@ public sealed class ItemsController : ControllerBase
         var code = await _codes.NextAsync(cancellationToken).ConfigureAwait(false);
 
         var item = new Item { Code = code };
-        Apply(item, request, MarginAccess.CanSee(User));
+        Apply(item, request);
 
         _db.Items.Add(item);
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -161,7 +158,7 @@ public sealed class ItemsController : ControllerBase
             return NotFound();
         }
 
-        Apply(item, request, MarginAccess.CanSee(User));
+        Apply(item, request);
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return NoContent();
@@ -306,51 +303,24 @@ public sealed class ItemsController : ControllerBase
             .SumAsync(m => m.Quantity, cancellationToken)
             .ConfigureAwait(false);
 
-    /// <summary>
-    /// One item for the list.
-    /// </summary>
-    /// <remarks>
-    /// <paramref name="showCost"/> is threaded in rather than read from the request here, because this
-    /// is static and reaching for the caller from a helper is how the check gets forgotten on the third
-    /// call site. What an item cost us is margin: the selling price is what the customer is told, the
-    /// cost is what they are not.
-    /// </remarks>
-    private static ItemSummary Summarise(Item i, decimal balance, bool showCost) => new(
+    private static ItemSummary Summarise(Item i, decimal balance) => new(
         i.Id,
         i.Code ?? string.Empty,
         i.Name ?? string.Empty,
         i.SellingPrice,
-        showCost ? i.Cost : null,
+        i.Cost,
         i.ReorderLevel,
         i.Unit,
         balance,
         i.ReorderLevel.HasValue && balance <= i.ReorderLevel.Value);
 
-    /// <summary>
-    /// Copies a save request onto an item.
-    /// </summary>
-    /// <remarks>
-    /// <b>Cost is only taken from a caller who may see it.</b> Without this, redacting cost on the way
-    /// out silently destroys it on the way back: a user without margin access loads an item and reads a
-    /// null cost because that is what they are allowed to see, changes the name, saves, and the real
-    /// cost is overwritten with the null they were shown. Their own screen would look right, and the
-    /// figure would be gone.
-    ///
-    /// <para>So for those callers the stored cost is left exactly as it was. Redaction has to be
-    /// symmetric — anything hidden on read must be ignored on write, or hiding it is a way of deleting
-    /// it.</para>
-    /// </remarks>
-    private static void Apply(Item item, SaveItemRequest request, bool canSetCost)
+    private static void Apply(Item item, SaveItemRequest request)
     {
         item.Name = request.Name;
         item.SellingPrice = request.SellingPrice;
+        item.Cost = request.Cost;
         item.ReorderLevel = request.ReorderLevel;
         item.Unit = string.IsNullOrWhiteSpace(request.Unit) ? null : request.Unit.Trim();
-
-        if (canSetCost)
-        {
-            item.Cost = request.Cost;
-        }
     }
 
     /// <summary>The number inside an item code, so "I-2" orders before "I-10".</summary>

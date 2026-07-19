@@ -17,7 +17,6 @@ import { getSalesReport, salesReportExportUrl, type CompanyFilter, type SalesRep
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { ReportFilterBar, StatTile, formatMoney, formatReportDate } from "@/components/reports";
-import { useMarginAccess } from "@/lib/margin-access";
 import { AnimatedNumber, Badge, ErrorBanner, FadeIn } from "@/components/ui";
 import { currentMonthStart, today } from "@/lib/period";
 
@@ -33,14 +32,6 @@ export default function SalesReportPage() {
 
   const loadError = report.error as ApiError | null;
   const summary = report.data?.summary;
-
-  // Cost and profit are already withheld by the server for a caller without margin access — these
-  // columns would render as zeros. A Profit column full of noughts reads as "the business made
-  // nothing", which is a worse answer than not asking, so the columns come out entirely.
-  const canSeeMargin = useMarginAccess();
-  const visibleColumns = canSeeMargin
-    ? columns
-    : columns.filter((c) => c.id !== "cost" && c.id !== "profit");
 
   return (
     <FadeIn className="space-y-6">
@@ -76,7 +67,7 @@ export default function SalesReportPage() {
           color="violet"
           delayMs={140}
           value={summary ? <AnimatedNumber value={summary.totalSales} format={formatMoney} /> : "—"}
-          sub={canSeeMargin && summary ? `Profit ${formatMoney(summary.totalProfit)}` : undefined}
+          sub={summary ? `Profit ${formatMoney(summary.totalProfit)}` : undefined}
         />
       </div>
 
@@ -89,7 +80,7 @@ export default function SalesReportPage() {
       )}
 
       <DataTable
-        columns={visibleColumns}
+        columns={columns}
         rows={report.data?.rows}
         loading={report.isPending}
         defaultSort={{ id: "date", desc: true }}

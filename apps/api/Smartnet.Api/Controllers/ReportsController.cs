@@ -407,28 +407,14 @@ public sealed class ReportsController : ControllerBase
 
     // --- Profit & loss (general ledger) ------------------------------------------------------
 
-    /// <remarks>
-    /// Refused outright rather than redacted for a caller without margin access. Every figure in a
-    /// profit-and-loss statement is the thing being withheld, so a zeroed one would be a page of noughts
-    /// pretending to be a report.
-    /// </remarks>
     [HttpGet("profit-loss")]
     [RequirePermission(Permissions.GeneralLedger)]
     public async Task<ActionResult<ProfitLossResponse>> ProfitLoss(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
         [FromQuery] string? company,
-        CancellationToken cancellationToken)
-    {
-        if (!MarginAccess.CanSee(User))
-        {
-            return Problem(
-                statusCode: StatusCodes.Status403Forbidden,
-                title: "Profit and loss is not available on the operations dashboard.");
-        }
-
-        return Ok(await BuildProfitLoss(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false));
-    }
+        CancellationToken cancellationToken) =>
+        Ok(await BuildProfitLoss(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false));
 
     [HttpGet("profit-loss/export")]
     [RequirePermission(Permissions.GeneralLedger)]
@@ -438,13 +424,6 @@ public sealed class ReportsController : ControllerBase
         [FromQuery] string? company,
         CancellationToken cancellationToken)
     {
-        if (!MarginAccess.CanSee(User))
-        {
-            return Problem(
-                statusCode: StatusCodes.Status403Forbidden,
-                title: "Profit and loss is not available on the operations dashboard.");
-        }
-
         var report = await BuildProfitLoss(new ReportPeriod(from, to), company, cancellationToken).ConfigureAwait(false);
 
         var rows = ProfitLossExportRows(report);
@@ -1041,18 +1020,7 @@ public sealed class ReportsController : ControllerBase
 
         var customerNames = await CustomerNames(cancellationToken).ConfigureAwait(false);
 
-        var sales = SalesReport.Build(invoices, customerNames, period);
-
-        if (MarginAccess.CanSee(User))
-        {
-            return sales;
-        }
-
-        return sales with
-        {
-            Summary = sales.Summary with { CashProfit = 0m, CreditProfit = 0m, TotalProfit = 0m },
-            Rows = [.. sales.Rows.Select(r => r with { Cost = 0m, Profit = 0m })],
-        };
+        return SalesReport.Build(invoices, customerNames, period);
     }
 
     private async Task<ExpenseReportResponse> BuildExpenses(
@@ -1099,18 +1067,7 @@ public sealed class ReportsController : ControllerBase
 
         var customerNames = await CustomerNames(cancellationToken).ConfigureAwait(false);
 
-        var report = CustomerSalesReport.Build(invoices, customerNames, period);
-
-        if (MarginAccess.CanSee(User))
-        {
-            return report;
-        }
-
-        return report with
-        {
-            TotalProfit = 0m,
-            Rows = [.. report.Rows.Select(r => r with { Cost = 0m, Profit = 0m })],
-        };
+        return CustomerSalesReport.Build(invoices, customerNames, period);
     }
 
     private async Task<ChequeReportResponse> BuildCheques(ReportPeriod period, string? company, CancellationToken cancellationToken)
@@ -1144,20 +1101,7 @@ public sealed class ReportsController : ControllerBase
 
         var customerNames = await CustomerNames(cancellationToken).ConfigureAwait(false);
 
-        var jobCards = JobCardReport.Build(jobs, customerNames, period);
-
-        if (MarginAccess.CanSee(User))
-        {
-            return jobCards;
-        }
-
-        // A job card is quoted to the customer at its sell price; the cost and the margin are ours.
-        return jobCards with
-        {
-            TotalCost = 0m,
-            TotalProfit = 0m,
-            Rows = [.. jobCards.Rows.Select(r => r with { Cost = 0m, Profit = null })],
-        };
+        return JobCardReport.Build(jobs, customerNames, period);
     }
 
     private async Task<CustomerVatResponse> BuildCustomerVat(ReportPeriod period, string? company, CancellationToken cancellationToken)
