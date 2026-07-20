@@ -74,17 +74,34 @@ several documents insist cheque printing is future work when it shipped.
   remote-DB timeouts rather than logic.
 
 ### 4. Legacy data — decisions, not code
-`DATA-AUDIT-FINDINGS.md` raised five questions. Two blocked cutover; **one is now answered**:
-- ~~**105 orphaned line groups**~~ — **decided: delete.** Archived and removed on dev (690 rows) via
-  `infra/sql/remove-orphaned-lines.sql`; **still to run on live.** Foreign keys are no longer blocked
-  on dev.
-- **Duplicate quotation number `STQ-0`** — still blocks the unique index on `quotation_h`. Needs a
-  business decision: somebody holds a printed PDF with that number on it.
 
-Plus the seven money questions in `MIGRATION-DATA-CHECKS.md`, and this, which is easy to miss:
-**a clean duplicate-payment count does not mean nothing is overpaid.** The remediation matched same
-invoice + same amount + *same date*; `STI-38` and `SNI-915` are dated weeks apart, survived it, and
-are still overpaid. Check the Overpaid tile as well.
+**Dev is at 8 exceptions, down from 155.** Four were decided and worked to zero on 2026-07-20; every
+one still has to be repeated on live, and the scripts are in `infra/sql/`. Full detail, including the
+checks made before each, is in [MIGRATION-DATA-CHECKS.md](MIGRATION-DATA-CHECKS.md).
+
+| Fixed on dev | How | Live |
+|---|---|---|
+| 105 orphaned line groups (690 rows) | `remove-orphaned-lines.sql`, archived first | **to run** |
+| 38 supplier paid-not-settled | `settle-supplier-paid-not-settled.sql`, rows marked `RECONSTRUCTED` | **to run** |
+| 3 payments naming no invoice (70,381) | `remove-orphaned-payments.sql`, archived with their GL | **to run** |
+| STI-1068 paid, no payment (21,500) | The app's audited correction, not a script | **to do** |
+
+**The eight that remain**, none of which is a script's job:
+
+- **`STQ-0` — the only one still blocking cutover.** Two quotations share the number, so the unique
+  index cannot be built on `quotation_h`. Somebody holds a printed PDF with it on, and renumbering to
+  make an index build is the historical rewriting LEGACY-DATA-POLICY forbids. Business decision.
+- **2 overpaid** — STI-38 (71,000 paid twice, seventeen days apart) and SNI-915 (23,600, three weeks
+  apart). Either void the payment that should not be there, or leave the customer in credit — both are
+  legitimate; zeroing a balance is not.
+- **4 lines ≠ header** — STI-1150 is the serious one (header 12,041 against 1,916 of lines); the other
+  three are gaps of 700, 240 and 60. Each needs a per-invoice decision about which side is right.
+- **1 supplier settled twice** — invoice 9784, 165,000 recorded as settled twice, each settlement
+  standing for the whole invoice.
+
+And this, which is easy to miss: **a clean duplicate-payment count does not mean nothing is
+overpaid.** The remediation matched same invoice + same amount + *same date*; STI-38 and SNI-915 are
+dated weeks apart, survived it, and are the two still on the list. Check the Overpaid tile as well.
 
 ### 5. Security items outstanding
 - **The legacy `notes` table is a plaintext credential store** — banking, email, iCloud and
