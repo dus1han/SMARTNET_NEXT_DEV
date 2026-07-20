@@ -69,25 +69,20 @@ not claim a total lands in the right box; content streams are compressed, and th
 - **The audit log records EF's temporary key on Create rows** — `Id: -9223372036854775000` instead of
   the real id. Affects every entity (visible on `CustomerContact` and `UserNote`). `entity_id` is
   correct so records stay findable; only the `changes` JSON is wrong.
-- **`audit_log` is not append-only on dev — confirmed, with the cause.** The app's own user reports:
+- **~~`audit_log` is not append-only~~ — fixed on live (2026-07-20).** The cause was a schema-wide
+  `GRANT ALL PRIVILEGES ON smartnet_invsys.*`, which MySQL unions over any table-level revoke — so
+  `infra/sql/audit-log-grants.sql` on its own achieved nothing, exactly as its own closing note warns.
+  Verified live: after running only that script, `GRANT ALL` was still present.
 
-  ```
-  GRANT ALL PRIVILEGES ON `smartnet_invsys_dev`.* TO `smartnet_invsys_next`@`%`
-  ```
+  `infra/sql/narrow-app-user-grants.sh` replaces it: schema-level SELECT/INSERT (neither can rewrite
+  history) plus table-level UPDATE/DELETE on every table **except** `audit_log` and
+  `document_versions`. No DDL — the API does not migrate at startup, so the running app never needs it.
 
-  Two things follow. There are **no table-level grants at all**, so `infra/sql/audit-log-grants.sql`
-  was never run here. And even if it were, that schema-wide `GRANT ALL` would outrank it — MySQL
-  takes the union of privileges across levels, which is exactly what the script's own closing note
-  warns about. `DELETE FROM audit_log` as the application user succeeds.
+  Proven as the application user on live: INSERT into `audit_log` succeeds; UPDATE and DELETE are
+  refused with 1142; UPDATE and DELETE on business tables still work.
 
-  **Production is unchecked** — that user holds rights on `smartnet_invsys_dev` only, so production
-  uses different credentials. Run `SHOW GRANTS FOR '<prod app user>'@'%'` there. If it shows a
-  schema-level `GRANT ALL` or any `UPDATE`/`DELETE` on the schema, the log is rewritable by anything
-  holding the app's password, and `AUDIT.md`'s central claim does not hold where it matters.
-
-  **Fixing it needs a DB admin.** The app user has no `GRANT OPTION`, so it cannot narrow its own
-  privileges: run the grants script as an admin, then narrow the schema-wide grant to the specific
-  tables the app needs.
+  **Dev is still unfixed** — its app user holds `GRANT ALL` on `smartnet_invsys_dev` and no account
+  available to us has `GRANT OPTION` there. Run the same script on that host with an admin account.
 - **`/api/dashboard/analytics` and `/api/reports/companies` return 500 on dev**, apparently from
   remote-DB timeouts rather than logic.
 
