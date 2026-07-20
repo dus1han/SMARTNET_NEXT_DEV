@@ -358,7 +358,16 @@ public sealed class SettingsController : ControllerBase
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false));
 
+    /// <remarks>
+    /// <b>Dev_Admin, not merely settings.manage.</b> A tax rate is money-correctness, not presentation:
+    /// a wrong or wrongly-dated default rate does not fail loudly, it silently mis-taxes every document
+    /// raised under it, and — via <c>ClearOtherDefaults</c> — can stand down the rate in force. It sits
+    /// with adding a company as a structural act reserved to the superuser, above the class-level
+    /// settings.manage that the rest of the surface carries. Reading the rates stays open to anyone with
+    /// settings access; only writing is raised.
+    /// </remarks>
     [HttpPost("tax-rates")]
+    [RequirePermission(Permissions.SystemDevAdmin)]
     [RequireChangeReason]
     public async Task<ActionResult<TaxRateDto>> CreateTaxRate(
         SaveTaxRateRequest request,
@@ -399,8 +408,10 @@ public sealed class SettingsController : ControllerBase
     /// each line at save. Changing 18% to 20% here affects tomorrow's invoices, not last year's —
     /// which is exactly what the legacy system gets wrong, because it re-resolves the rate at print
     /// time and reprints old invoices with today's tax on them.
+    /// <para>Dev_Admin, for the same reason as <see cref="CreateTaxRate"/>.</para>
     /// </remarks>
     [HttpPut("tax-rates/{id:long}")]
+    [RequirePermission(Permissions.SystemDevAdmin)]
     [RequireChangeReason]
     public async Task<IActionResult> UpdateTaxRate(
         long id,

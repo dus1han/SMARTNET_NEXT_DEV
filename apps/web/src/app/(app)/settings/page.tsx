@@ -68,14 +68,15 @@ export default function SettingsPage() {
   const [companyId, setCompanyId] = useState<number | null>(null);
   const [section, setSection] = useState<SectionKey>("company");
   const [adding, setAdding] = useState(false);
+  const [addingRate, setAddingRate] = useState(false);
 
   const active = companyId ?? companies.data?.[0]?.id ?? null;
 
-  // Adding a trading entity is Dev_Admin's, not an administrator's — it changes what the business is,
-  // and everyone sees the result. Hiding the button is a courtesy, not the control: the endpoint is
-  // gated server-side, which is the lesson of ISSUES A5 (the legacy app hid menu items while leaving
-  // the endpoints behind them open to anyone signed in).
-  const canAddCompany = user.data?.permissions.includes("system.dev_admin") ?? false;
+  // Adding a company or a tax rate are Dev_Admin's, not an ordinary administrator's — both are
+  // money/structure, not presentation, and both are enforced server-side. Hiding the buttons is a
+  // courtesy, not the control: the lesson of ISSUES A5 is that the legacy app hid menu items while
+  // leaving the endpoints behind them open to anyone signed in.
+  const isDevAdmin = user.data?.permissions.includes("system.dev_admin") ?? false;
 
   return (
     <FadeIn className="space-y-6">
@@ -99,17 +100,22 @@ export default function SettingsPage() {
         </Card>
       ) : (
         <>
-          <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-end gap-4">
             <CompanyPicker
               companies={companies.data ?? []}
               active={active}
               onChange={setCompanyId}
             />
 
-            {canAddCompany && (
-              <Button variant="secondary" onClick={() => setAdding(true)}>
-                Add company
-              </Button>
+            {isDevAdmin && (
+              <div className="ml-auto flex gap-2">
+                <Button variant="secondary" onClick={() => setAddingRate(true)}>
+                  Add tax rate
+                </Button>
+                <Button variant="secondary" onClick={() => setAdding(true)}>
+                  Add company
+                </Button>
+              </div>
             )}
           </div>
 
@@ -123,6 +129,25 @@ export default function SettingsPage() {
                 // one wants next — the address and bank details it was not asked for.
                 setCompanyId(created.id);
                 setSection("company");
+              }}
+            />
+          )}
+
+          {addingRate && (
+            <TaxRateDialog
+              rate={null}
+              onCancel={() => setAddingRate(false)}
+              onSave={async (draft, reason) => {
+                try {
+                  await createTaxRate(draft, reason, active);
+                  toast.success("Tax rate added.");
+                  setAddingRate(false);
+                  await queryClient.invalidateQueries({ queryKey: ["tax-rates", active] });
+                  // Show the result: jump to the tax section, wherever they were when they added it.
+                  setSection("tax");
+                } catch (error: unknown) {
+                  toast.error(message(error));
+                }
               }}
             />
           )}
@@ -264,24 +289,35 @@ function AddCompanyDialog({ onCancel, onCreated }: {
           </span>
         </label>
 
-        {vatRegistered && (
-          <>
-            <Input label="VAT number" value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} />
-            <Input label="Default tax rate name" value={taxName} onChange={(e) => setTaxName(e.target.value)} />
-            <Input
-              label="Rate %"
-              inputMode="decimal"
-              value={taxPercent}
-              onChange={(e) => setTaxPercent(e.target.value)}
-            />
-          </>
-        )}
-
+        {/* Shown always, read-only when the company is not VAT-registered — so unchecking the box greys
+            these out rather than making the form jump, and it stays clear what "not registered" excludes.
+            The values are ignored server-side for an unregistered company (it gets only a zero rate), so a
+            stale figure sitting disabled here does nothing. */}
+        <Input
+          label="VAT number"
+          value={vatNumber}
+          onChange={(e) => setVatNumber(e.target.value)}
+          disabled={!vatRegistered}
+        />
+        <Input
+          label="Default tax rate name"
+          value={taxName}
+          onChange={(e) => setTaxName(e.target.value)}
+          disabled={!vatRegistered}
+        />
+        <Input
+          label="Rate %"
+          inputMode="decimal"
+          value={taxPercent}
+          onChange={(e) => setTaxPercent(e.target.value)}
+          disabled={!vatRegistered}
+        />
         <Input
           label="Rate valid from"
           type="date"
           value={taxFrom}
           onChange={(e) => setTaxFrom(e.target.value)}
+          disabled={!vatRegistered}
           hint="Documents dated before this cannot be raised at all — set it to when the company starts trading, not today by reflex."
         />
 
@@ -742,7 +778,8 @@ function RulesForm({ rules, onSave }: {
 
 function TaxSection({ companyId }: { companyId: number }) {
   const queryClient = useQueryClient();
-  const [editing, setEditing] = useState<TaxRate | "new" | null>(null);
+  const user = useQuery({ queryKey: ["me"], queryFn: me });
+  const [editing, setEditing] = useState<TaxRate | null>(null);
 
   const taxRates = useQuery({
     queryKey: ["tax-rates", companyId],
@@ -755,15 +792,17 @@ function TaxSection({ companyId }: { companyId: number }) {
   const rates = taxRates.data ?? [];
   const today = new Date().toISOString().slice(0, 10);
 
+  // Editing a rate is Dev_Admin's, same as adding one (the "Add tax rate" button lives up top with
+  // "Add company"). Non-admins get the read-only table — the server enforces this too, so the Edit
+  // button is hidden rather than shown-and-403ing.
+  const canManage = user.data?.permissions.includes("system.dev_admin") ?? false;
+
   async function save(draft: SaveTaxRate, reason: string) {
-    const action =
-      editing === "new"
-        ? createTaxRate(draft, reason, companyId)
-        : updateTaxRate((editing as TaxRate).id, draft, reason, companyId);
+    if (editing === null) return;
 
     try {
-      await action;
-      toast.success(editing === "new" ? "Tax rate added." : "Tax rate saved.");
+      await updateTaxRate(editing.id, draft, reason, companyId);
+      toast.success("Tax rate saved.");
       setEditing(null);
       await queryClient.invalidateQueries({ queryKey: ["tax-rates", companyId] });
     } catch (error: unknown) {
@@ -787,7 +826,7 @@ function TaxSection({ companyId }: { companyId: number }) {
               <th className="pb-2 font-medium">From</th>
               <th className="pb-2 font-medium">Until</th>
               <th className="pb-2 font-medium">Default</th>
-              <th className="pb-2" />
+              {canManage && <th className="pb-2" />}
             </tr>
           </thead>
           <tbody className="divide-y divide-subtle">
@@ -823,18 +862,20 @@ function TaxSection({ companyId }: { companyId: number }) {
                       <span>—</span>
                     )}
                   </td>
-                  <td className="py-2.5 text-right">
-                    <Button variant="ghost" onClick={() => setEditing(rate)}>
-                      Edit
-                    </Button>
-                  </td>
+                  {canManage && (
+                    <td className="py-2.5 text-right">
+                      <Button variant="ghost" onClick={() => setEditing(rate)}>
+                        Edit
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
 
             {rates.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-6 text-center text-muted">
+                <td colSpan={canManage ? 6 : 5} className="py-6 text-center text-muted">
                   No tax rates configured for this company. A VAT-registered company cannot raise any
                   document until it has a default rate in force.
                 </td>
@@ -844,21 +885,16 @@ function TaxSection({ companyId }: { companyId: number }) {
         </table>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-4">
-        <p className="text-xs text-muted">
-          To change a rate from a future date, add a new one with that start date — don&rsquo;t edit the
-          rate in force. Editing rewrites what the current rate <em>is</em>; adding records that it
-          changed.
+      {canManage && (
+        <p className="mt-4 text-xs text-muted">
+          To change a rate from a future date, use <strong>Add tax rate</strong> above with that start
+          date — don&rsquo;t edit the rate in force. Editing rewrites what the current rate <em>is</em>;
+          adding records that it changed.
         </p>
-        <Button onClick={() => setEditing("new")}>Add rate</Button>
-      </div>
+      )}
 
       {editing && (
-        <TaxRateDialog
-          rate={editing === "new" ? null : editing}
-          onCancel={() => setEditing(null)}
-          onSave={save}
-        />
+        <TaxRateDialog rate={editing} onCancel={() => setEditing(null)} onSave={save} />
       )}
     </Card>
   );
