@@ -200,7 +200,7 @@ transactional, ledger + legacy shadow in step — proven by unit + integration t
 
 ## Slice 2 — Cheque register · ~0.4 week
 
-> **Built and shipped.** Adopted `cheques` additively (id promoted to PK; typed amount/dates + supplier_id beside the legacy varchars; company_id already existed). `ChequeService` dual-writes the legacy row for `ChequeReport`; soft reason-gated void. `/cheques` web module (list new+legacy, Manual/Supplier form, detail + void). No printing (Phase 8). Tests green (469).
+> **Built and shipped.** Adopted `cheques` additively (id promoted to PK; typed amount/dates + supplier_id beside the legacy varchars; company_id already existed). `ChequeService` dual-writes the legacy row for `ChequeReport`; soft reason-gated void. `/cheques` web module (list new+legacy, Manual/Supplier form, detail + void). No printing at the time (Phase 8) — **cheque printing has since been built**: `ChequeRenderer` + `ChequesController`, page size set to a measured 7×3.5in, every print audited and reprints counted. Tests green (469).
 
 
 - **Adopt `cheques`** additively (surrogate id, typed `decimal`/`date`, `data_origin`, audit; `company_id`
@@ -209,7 +209,7 @@ transactional, ledger + legacy shadow in step — proven by unit + integration t
 - **A `ChequeCreator`** — a validated, audited write dual-writing the full legacy `cheques` row for
   `ChequeReport`. Standalone; touches no balance. Soft, reason-gated void (not the legacy hard delete).
 - **Web:** a cheque list (new + legacy), a new-cheque form (Manual/Supplier, bank, cheque no, dates), a read
-  view. **No printing** (Phase 8) — `printeddt` is shown, not produced.
+  view. ~~**No printing** (Phase 8) — `printeddt` is shown, not produced.~~ **Superseded:** Phase 8 built the cheque overlay; the detail page prints and `printeddt` is produced.
 
 **Exit:** a cheque is recorded and read back (new + legacy), voided softly; `ChequeReport` still reads it.
 
@@ -259,8 +259,9 @@ transactional, ledger + legacy shadow in step — proven by unit + integration t
   affordance where it makes sense.
 
 **Exit:** a file uploads to disk outside the web root under a safe name (a bad extension/oversize is refused),
-downloads by streaming, the existing legacy BLOBs are materialised into the store, and `docstore.pdfdoc` is
-dropped. A8/C4 closed (bloat reclaimed); no file served from a guessable web-root path (C3).
+downloads by streaming, the existing legacy BLOBs are materialised into the store, and ~~`docstore.pdfdoc` is
+dropped~~. A8 and C3 closed; **C4's bloat reclamation is pending the column drop, which moved to cutover** —
+see the banner above and MIGRATION-DATA-CHECKS.md.
 
 ---
 
@@ -343,7 +344,8 @@ recorded, and the payments E2E uses the real path.
   rows and the trivial legacy `Note` table are left in place (LEGACY-DATA-POLICY). The exception: after every
   `docstore` BLOB is materialised to a file, the redundant **`docstore.pdfdoc` column is dropped** (your
   decision) — the document itself is preserved (on disk + in `documents`), only the in-DB copy goes; the
-  `docstore` metadata rows remain.
+  `docstore` metadata rows remain. **The drop did not happen in this phase** — it moved to cutover,
+  because it is the one irreversible step. Dev is materialised and verified; live is not.
 - **No object storage yet** — documents go to the local filesystem behind `IDocumentStorage`; the S3/MinIO swap
   is a later config change, not a rewrite.
 - **No supplier/customer double-entry accounting** — expenses are a flat log; cheques are a register; neither

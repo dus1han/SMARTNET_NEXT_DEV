@@ -1,0 +1,118 @@
+# Where the build actually is
+
+Verified against the code on **2026-07-20**, not against the plans. Written because the plans had
+drifted: Phases 1–6 carry no completion markers at all despite being finished, Phase 7 claimed a
+column drop that never happened, Phase 1 still declared an "open blocker" resolved months ago, and
+several documents insist cheque printing is future work when it shipped.
+
+**This file is the answer to "what is done and what is left."** The phase plans remain the record of
+*why* each thing was built the way it was; they are no longer the record of *whether* it was.
+
+---
+
+## Phases
+
+| Phase | State | Notes |
+|---|---|---|
+| 0 · Foundations | **Done** | Monorepo, CI, compose, EF scaffold. Deviation: nginx no longer falls back to the legacy app — this host has no legacy app. |
+| 1 · Auth, users & settings | **Done**, one gap | Argon2id + hash-on-login, JWT cookie, 35 permissions → policies, user admin, settings. **`document_templates` was never built** — see Phase 8. |
+| 2 · Design system & shell | **Done** | Generated client, DataTable/form abstractions, History tab, company switcher. One leftover: the line-item prototype route, which its own header says to delete. |
+| 3 · Master data | **Done** | Customers, suppliers, items, stock, Excel export. |
+| 4 · Dashboard & reports | **Done** | **10/10 reports**, plus trial balance, P&L and data exceptions. Dunning queue + `email_log` built but **sending is off** — deliberately, until the balances are corrected. |
+| 5 · Documents engine | **Done** | Tax engine on `decimal`, transactional numbering, ledger-derived balances, versioning, quote → invoice. |
+| 6 · Purchasing & service | **Done** | POs, supplier invoices, job cards, structured contacts. **GRN deferred** out of scope — no phase assigned. |
+| 7 · Money & documents | **5 of 6 slices** | Receipts, cheques, expenses, document storage, notes all shipped. **Slice 6 not started.** |
+| 8 · PDF templates | **Substantially done** | All six QuestPDF templates exist and **cheque printing works** — measured 7×3.5in, every print audited. Gaps: no `document_templates` configurability, and no rendering tests. |
+| 9 · Cutover | **Not started** | Only artifact is `MIGRATION-DATA-CHECKS.md`. |
+| GL (unnumbered) | **Done** | Chart of accounts, posting engine, backfill, trial balance, P&L. Never assigned a phase number. |
+
+---
+
+## What is actually pending
+
+### 1. Phase 7 slice 6 — the phase cannot close without it
+- **The acceptance case is not automated.** A receipt across two invoices settling both, idempotent
+  and transactional, is the stated exit criterion for the whole phase and rests on manual checks.
+- **`POST /api/dev/seed-payment` still ships.** `Program.cs:254-287`, Development-only but
+  **anonymous and it writes ledger rows**. Slice 6 was where it retires. `e2e/invoice.spec.ts:53`
+  still depends on it.
+- **No Phase 7 reconciliation section** in `legacy-analysis/RECONCILIATION.md`.
+- **No `phase7.spec.ts`.**
+
+### 2. Test-shaped holes
+- **There is no HTTP-level test layer at all** — no `WebApplicationFactory`, no `TestServer`. Every
+  one of the 663 API tests is service-level. The middleware pipeline (auth, must-change-password,
+  correlation id, rate limiting, CORS, exception handling) is proven only by four browser tests.
+- **No PDF rendering tests.** `Smartnet.Tests/Pdf/` contains only `AmountInWordsTests.cs`, so six
+  templates that produce customer-facing documents have no test asserting what they render.
+- `Smartnet.Tests/UnitTest1.cs` is still the scaffold file.
+
+### 3. Known defects, unfixed
+- **The audit log records EF's temporary key on Create rows** — `Id: -9223372036854775000` instead of
+  the real id. Affects every entity (visible on `CustomerContact` and `UserNote`). `entity_id` is
+  correct so records stay findable; only the `changes` JSON is wrong.
+- **`audit_log` is not append-only in practice.** DEVELOPMENT-PLAN says the app's DB user holds
+  `INSERT`/`SELECT` only. On dev it can `DELETE` — verified by deleting rows as that user. **The
+  production grants have not been checked.** This matters: the "invoices stay editable" decision is
+  defensible only because the trail cannot be rewritten.
+- **`/api/dashboard/analytics` and `/api/reports/companies` return 500 on dev**, apparently from
+  remote-DB timeouts rather than logic.
+
+### 4. Legacy data — decisions, not code
+Five questions in `DATA-AUDIT-FINDINGS.md` are unanswered, and **two block cutover**:
+- **105 orphaned line groups** (4,678,439.54 of line value) — every foreign key the new schema wants
+  will refuse to build while they stand.
+- **Duplicate quotation number `STQ-0`** — blocks the unique index on `quotation_h`.
+
+Plus the seven money questions in `MIGRATION-DATA-CHECKS.md`, and this, which is easy to miss:
+**a clean duplicate-payment count does not mean nothing is overpaid.** The remediation matched same
+invoice + same amount + *same date*; `STI-38` and `SNI-915` are dated weeks apart, survived it, and
+are still overpaid. Check the Overpaid tile as well.
+
+### 5. Security items outstanding
+- **The legacy `notes` table is a plaintext credential store** — banking, email, iCloud and
+  third-party logins, still being appended to as of July 2026. It must not be carried into the Legacy
+  Archive as it stands. See `MIGRATION-DATA-CHECKS.md`.
+- **Plaintext `password` column is still live** and still written on password change — correct for
+  the dual-write window, dropped at cutover.
+- **Data Protection keys are not persisted.** Carried unresolved since Phase 1. A redeploy invalidates
+  every stored SMTP password.
+
+### 6. Phase 8 gaps
+- **`document_templates` does not exist.** Promised in both Phase 1 and Phase 8; templates are driven
+  by `Company` alone. There is no per-company template settings surface.
+- **Whether the cheque overlay registers on physical stationery is unverified in the repo.** The page
+  size is measured, but only a real cheque through a real printer settles it.
+
+### 7. Phase 9 — all of it
+Drop the plaintext password column · `varchar → DECIMAL/DATE` retype · drop `docstore.pdfdoc`
+(bytes are already on disk; C4's bloat reclamation is blocked on this) · remove the Crystal and
+legacy dual-writes · delete `DBConnect` · archive the legacy app · numbering initialisation ·
+work `MIGRATION-DATA-CHECKS.md` to zero.
+
+### 8. Deferred with no home
+- **GRN (goods received note)** — deferred out of Phase 6, never assigned a phase. Until it exists a
+  PO posts no stock and all stock-in goes through a manual adjustment.
+- **Turn dunning on**, once balances are trusted.
+- **`LegacySchema.cs` needs a real `mysqldump --no-data` baseline** — its own comment says "before
+  staging".
+- **`documents.entity_type` is dead** — every row is NULL, no caller sets it, and its doc comment
+  describes a lowercase vocabulary that conflicts with the PascalCase one `audit_log` and the notes
+  module use. Wire it up or delete it; a column that is always NULL with two competing vocabularies
+  is worse than neither.
+- **Tax rates are read-only in the UI.**
+- **Price the ~500 items**, and explain `c_form`.
+
+---
+
+## Suggested order
+
+1. **Phase 7 slice 6.** One task closes the highest-severity item (`seed-payment`) and the largest
+   missing test.
+2. **Check the production `audit_log` grants.** Cheap, and the answer either confirms or undermines
+   the audit design.
+3. **Get the five legacy-data decisions answered** — the orphaned lines block foreign keys, which is
+   structural and gets more expensive the longer it waits.
+4. **Add a `WebApplicationFactory` fixture.**
+5. **Fix the audit interceptor's temporary-key bug.**
+6. Then Phase 9.

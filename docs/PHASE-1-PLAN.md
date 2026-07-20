@@ -142,7 +142,13 @@ of those changes is in the audit log with a reason attached.
 A1 A2 A2b A2c A3 A4 A5 A6 A7 A9 A10 · B7 B8 · E2 E4 · F2 — and the silent-overwrite
 concurrency hole.
 
-## Open blocker
+## Open blocker — ~~resolved~~
 
-`ConnectionStrings__Smartnet` is absent from `.env`. Migrations cannot run without a reachable
-`smartnet_invsys_dev`. `.env.example` has the key; it needs filling in locally.
+> **Resolved.** `.env` now carries `ConnectionStrings__Smartnet` and 39 migrations have been authored
+> and applied against `smartnet_invsys_dev`. Left here struck through rather than deleted, because
+> "the plan says this is blocked" was still readable months after it stopped being true — which is
+> the failure mode this note is now an example of. See [STATUS.md](STATUS.md) for what is actually
+> outstanding.
+
+~~`ConnectionStrings__Smartnet` is absent from `.env`. Migrations cannot run without a reachable
+`smartnet_invsys_dev`. `.env.example` has the key; it needs filling in locally.~~

@@ -1,5 +1,11 @@
 # Development Plan — SMARTNET_NEXT
 
+> **This document is the plan, not the status.** For what is actually built and what is still
+> outstanding, see **[STATUS.md](STATUS.md)** (verified against the code, 2026-07-20). In short:
+> Phases 0–6 and the general ledger are done, Phase 7 is 5 slices of 6, Phase 8 is substantially
+> done — including cheque printing, which several documents here still call future work — and
+> Phase 9 has not begun.
+
 Decisions taken (2026-07-14):
 
 | # | Decision |

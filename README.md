@@ -25,8 +25,13 @@ docs/
 
 ## Docs
 
+**Start here: [docs/STATUS.md](docs/STATUS.md)** — what is built, what is pending, verified against
+the code rather than the plans. The phase plans record *why* each thing was built; STATUS records
+*whether* it was.
+
 | File | What it is |
 |---|---|
+| [docs/STATUS.md](docs/STATUS.md) | Current build state and the outstanding work, per phase |
 | [docs/legacy-analysis/FUNCTIONS.md](docs/legacy-analysis/FUNCTIONS.md) | Every function in the old app — 248 actions across 44 controllers, grouped into modules |
 | [docs/legacy-analysis/ISSUES.md](docs/legacy-analysis/ISSUES.md) | 34 defects that must not be carried across, with severity and the standard to meet |
 | [docs/legacy-analysis/MIGRATION.md](docs/legacy-analysis/MIGRATION.md) | Target architecture, the settings model, phased delivery plan |
