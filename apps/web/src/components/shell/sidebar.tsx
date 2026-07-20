@@ -142,9 +142,6 @@ export function Sidebar({ permissions, onNavigate }: {
         ))}
       </div>
 
-      <div className="border-t border-sidebar-border px-5 py-3">
-        <p className="text-[11px] text-sidebar-text/50">Phase 2 · design system</p>
-      </div>
     </nav>
   );
 }
