@@ -2758,6 +2758,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["NoteSummary"][];
+                        "application/json": components["schemas"]["NoteSummary"][];
+                        "text/json": components["schemas"]["NoteSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateNoteRequest"];
+                    "text/json": components["schemas"]["CreateNoteRequest"];
+                    "application/*+json": components["schemas"]["CreateNoteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["NoteSummary"];
+                        "application/json": components["schemas"]["NoteSummary"];
+                        "text/json": components["schemas"]["NoteSummary"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["NoteSummary"];
+                        "application/json": components["schemas"]["NoteSummary"];
+                        "text/json": components["schemas"]["NoteSummary"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["UpdateNoteRequest"];
+                    "text/json": components["schemas"]["UpdateNoteRequest"];
+                    "application/*+json": components["schemas"]["UpdateNoteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["NoteSummary"];
+                        "application/json": components["schemas"]["NoteSummary"];
+                        "text/json": components["schemas"]["NoteSummary"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/numbering": {
         parameters: {
             query?: never;
@@ -6642,6 +6795,10 @@ export interface components {
             technician?: string | null;
             lines: components["schemas"]["CreateJobCardLineRequest"][];
         };
+        CreateNoteRequest: {
+            title: string;
+            body: string;
+        };
         CreatePurchaseOrderRequest: {
             /** Format: int64 */
             companyId: number;
@@ -7633,6 +7790,18 @@ export interface components {
             /** Format: double */
             profit: number;
         };
+        NoteSummary: {
+            /** Format: int64 */
+            id: number;
+            title: string;
+            body: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt?: string | null;
+            /** Format: int32 */
+            rowVersion: number;
+        };
         NumberPreview: {
             now: string;
             nextMonth: string;
@@ -8419,6 +8588,12 @@ export interface components {
             credit: number;
             /** Format: double */
             balance: number;
+        };
+        UpdateNoteRequest: {
+            title: string;
+            body: string;
+            /** Format: int32 */
+            expectedRowVersion: number;
         };
         UpdateUserRequest: {
             name: string;

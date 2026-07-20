@@ -4,6 +4,7 @@ using Smartnet.Domain.Documents;
 using Smartnet.Domain.Identity;
 using Smartnet.Domain.Ledger;
 using Smartnet.Domain.MasterData;
+using Smartnet.Domain.Notes;
 using Smartnet.Domain.Settings;
 
 namespace Smartnet.Infrastructure.Persistence;
@@ -123,6 +124,17 @@ public class SmartnetDbContext : DbContext
     /// <see cref="Smartnet.Domain.Documents.IDocumentStorage"/>.
     /// </summary>
     public DbSet<StoredDocument> StoredDocuments => Set<StoredDocument>();
+
+    /// <summary>
+    /// Personal notes (Phase 7, slice 5) — title and body, private to their author, on the new
+    /// <c>user_notes</c> table.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately <b>not</b> the legacy <c>notes</c> table, which was one shared textarea and stays
+    /// where it is — see <see cref="UserNote"/>. The legacy context exposes that one as <c>.Notes</c>,
+    /// which is why this type is <c>UserNote</c> and not <c>Note</c>.
+    /// </remarks>
+    public DbSet<UserNote> UserNotes => Set<UserNote>();
 
     // --- Purchasing (Phase 6) ----------------------------------------------------------------
 

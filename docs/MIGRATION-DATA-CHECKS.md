@@ -128,6 +128,29 @@ copy, `docstore.pdfdoc` is **9.8 MB across 18 rows** (largest 1.98 MB). The secu
 leave the web root and sit behind a permission check — but the space is not the reason to do it, and it
 is not a reason to hurry step 6.
 
+### The legacy `notes` table keeps its name — the new one is `entity_notes`
+
+Phase 7 slice 5 added per-entity notes. The obvious table name was `notes`, and that is **already a
+legacy table**: 49 rows of `id`, `note`, `dt`, scaffolded as `Smartnet.Infrastructure.Entities.Note`
+via `.ToTable("notes")`. The first migration failed on `smartnet_invsys_dev` with *"Table 'notes'
+already exists"*, which is the only reason it was caught — the safety came from MySQL, not from
+anything we had written.
+
+The new table is therefore **`entity_notes`** and the entity is **`EntityNote`** (the same
+disambiguation `StoredDocument` made when "document" was taken). Nothing dual-writes the legacy
+`notes`: it carries no entity reference and no author, so there is nothing in it to keep in step, and
+per LEGACY-DATA-POLICY it stays where it is and stays readable through the Legacy Archive.
+
+**At cutover:** nothing to do beyond letting the migration run — it creates `entity_notes` and leaves
+`notes` untouched. Confirm both exist afterwards and that `notes` still reads 49 rows (or whatever
+live holds); a migration that touched it did something it was not supposed to. **Do not fold the 49
+legacy rows into `entity_notes`** — they cannot be attributed to a record or an author, which is the
+whole reason the legacy table was not ported.
+
+A regression test now pins this: `LegacyTableNameTests` asserts the exact set of table names the new
+context shares with the legacy schema. Adoptions are listed explicitly, so any *new* table that
+quietly takes a legacy name fails the build instead of the migration.
+
 ### Four dates have a five-digit year
 
 Found while moving the lists onto server-side paging, which orders on the stored `varchar` date. All

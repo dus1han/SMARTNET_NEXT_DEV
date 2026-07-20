@@ -232,6 +232,18 @@ transactional, ledger + legacy shadow in step — proven by unit + integration t
 
 ## Slice 4 — Document storage · ~0.6 week · *closes A8 / C3 / C4*
 
+> **Built and shipped**, with one deliberate deferral. `IDocumentStorage` + `LocalFileDocumentStorage`
+> (outside the web root, server-generated names, extension/content-type whitelist, size cap); a `documents`
+> metadata table (no bytes) with optional `entity_type`/`entity_id`; upload / list / streamed download /
+> reason-gated soft delete, all behind `docstorage`. `/documents` web module (upload dialog, paged table,
+> preview dialog). `tools/DocstoreMigrate` materialises the legacy BLOBs (dry-run by default, idempotent
+> via a unique `legacy_docstore_id`, refuses production).
+>
+> **`docstore.pdfdoc` is NOT dropped.** The exit below says it is; the drop was moved to cutover instead —
+> see `docs/MIGRATION-DATA-CHECKS.md`. The bytes are safely on disk, so the column is redundant rather than
+> load-bearing, but dropping it is irreversible and belongs with the other cutover steps. A8 and C3 are
+> closed; **C4's bloat reclamation is pending that drop.**
+
 - **`IDocumentStorage` + a local-filesystem backend** writing **outside the web root** under
   **server-generated names**, with an **extension + content-type whitelist** and a **size cap**; a new
   `documents` metadata table (no bytes), streamed downloads (never re-materialised under the web root).
@@ -252,14 +264,53 @@ dropped. A8/C4 closed (bloat reclaimed); no file served from a guessable web-roo
 
 ---
 
-## Slice 5 — Per-entity notes · ~0.3 week
+## Slice 5 — Personal notes · ~0.3 week
 
-- **A `notes` table** (`entity_type, entity_id, body`, audit) + `NotesController` (list/add/edit/soft-delete
-  for an entity) and a small reusable web **Notes** panel dropped onto the customer, invoice and job-card
-  views (and reusable elsewhere). Timestamped and attributed via the audit spine.
+> **Built and shipped**, after one false start — see below. New **`user_notes`** table
+> (`Phase7UserNotes` migration): `title` + `body`, **private to the author**, audit columns, soft-delete
+> filter. `NotesController` (list/get/create/edit/reason-gated soft-delete) behind the existing legacy
+> `notes` permission, with ownership enforced on every read and write. A standalone **`/notes` screen**
+> — list, new/edit popup, per-note History dialog — plus a sidebar entry under Documents. Tests green
+> (663); migration applied to the dev DB.
 
-**Exit:** a note added to a customer (or invoice) shows with who/when, edits and soft-deletes, and appears on
-that record's view.
+- **A `user_notes` table** (`title, body`, audit) + `NotesController` and a standalone **Notes screen**
+  replacing the legacy one. Timestamped and attributed via the audit spine.
+
+### What the legacy screen actually was
+
+Worth recording, because it explains both the 49 legacy rows and the shape of the replacement.
+`NotesController.NotesIndex` rendered **one textarea and a Save button**. `getNote` returned
+`SELECT note FROM notes ORDER BY id DESC LIMIT 1` — only the newest row — and `saveNote` **INSERTed a
+whole new row** on every save. So it was a single shared scratchpad, and its 49 rows are 49 full
+snapshots of the same growing list (which is why lengths climb 22 → 940 characters and checksums
+repeat). No titles, no list, no editing, no history, and no privacy.
+
+### Decisions taken while building it
+
+- **The first cut was wrong and was rebuilt.** It was first built as a *per-entity panel* bolted onto the
+  invoice, job-card and customer views — reading this plan's "per-entity notes" literally instead of
+  checking what the legacy screen did or what was actually wanted. The requirement was a standalone
+  module with a title, a list, a popup, edit and history. The panel was removed and the model rebuilt as
+  `UserNote`. Recorded because the plan's own wording is what misled the build.
+
+- **Notes are private to their author, not company-scoped.** `created_by` is the visibility rule; the
+  `notes` permission decides who may use the feature at all. Two independent checks. `company_id` is
+  recorded but deliberately **not** filtered on — switching company must not hide a personal note, and a
+  test pins that.
+
+- **A note that is not yours is a 404, not a 403.** A 403 would confirm the note exists.
+
+- **The table is `user_notes`, the entity `UserNote` — because `notes` was already taken.** The legacy
+  table owns that name (49 rows) and the first migration failed on dev with *"Table 'notes' already
+  exists"*. `LegacyTableNameTests` now pins the set of table names the new context shares with the legacy
+  schema, so this class of collision fails the build rather than the migration.
+
+- **Nothing migrates the 49 legacy rows.** They are one shared list with no author and no per-note
+  structure. See MIGRATION-DATA-CHECKS.md — which also records that they are **plaintext credentials**
+  and should not be carried into the Legacy Archive as they stand.
+
+**Exit:** a note is created from the popup with a title and body, appears in the list, is edited in place,
+carries its own audit history, and is invisible to every other user.
 
 ---
 

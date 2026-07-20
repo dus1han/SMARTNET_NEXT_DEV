@@ -9,6 +9,7 @@ import {
   HandCoins,
   LayoutDashboard,
   Package,
+  NotebookPen,
   Paperclip,
   Percent,
   Receipt,
@@ -89,6 +90,7 @@ export const NAVIGATION: NavSection[] = [
     title: "Documents",
     items: [
       { href: "/documents", label: "Documents", icon: Paperclip, permission: "docstorage" },
+      { href: "/notes", label: "Notes", icon: NotebookPen, permission: "notes" },
     ],
   },
   {

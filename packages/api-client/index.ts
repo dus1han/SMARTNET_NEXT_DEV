@@ -241,6 +241,13 @@ export type ApiPaths = paths;
 
 /** An uploaded file (Phase 7, slice 4) — metadata; the bytes come from the download endpoint. */
 export type DocumentSummary = Schemas["DocumentSummary"];
+
+// --- Notes (Phase 7, slice 5) ------------------------------------------------------------------
+
+/** A remark about a record, with who wrote it and when. */
+export type NoteSummary = Schemas["NoteSummary"];
+export type CreateNoteRequest = Schemas["CreateNoteRequest"];
+export type UpdateNoteRequest = Schemas["UpdateNoteRequest"];
 export type DashboardAnalytics = Schemas["DashboardAnalytics"];
 export type MonthPoint = Schemas["MonthPoint"];
 export type CashFlowPoint = Schemas["CashFlowPoint"];
