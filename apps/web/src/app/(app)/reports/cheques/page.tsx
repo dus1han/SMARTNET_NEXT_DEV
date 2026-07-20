@@ -8,19 +8,15 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Banknote, Hash } from "lucide-react";
-import { useState } from "react";
 import { ApiError } from "@/lib/api";
-import { chequeReportExportUrl, getChequeReport, type ChequeRow, type CompanyFilter } from "@/lib/reports";
-import { currentMonthStart, today } from "@/lib/period";
+import { chequeReportExportUrl, getChequeReport, type ChequeRow } from "@/lib/reports";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { ReportFilterBar, StatTile, formatMoney, formatReportDate } from "@/components/reports";
+import { ReportFilterBar, StatTile, formatMoney, formatReportDate , useReportFilters } from "@/components/reports";
 import { AnimatedNumber, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function ChequesReportPage() {
-  const [from, setFrom] = useState(currentMonthStart);
-  const [to, setTo] = useState(today);
-  const [company, setCompany] = useState<CompanyFilter>("all");
+  const { from, setFrom, to, setTo, company, setCompany } = useReportFilters();
 
   const report = useQuery({
     queryKey: ["cheque-report", from, to, company],

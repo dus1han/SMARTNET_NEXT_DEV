@@ -7,20 +7,16 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react";
-import { useState } from "react";
 import { ApiError } from "@/lib/api";
-import { getTrialBalanceReport, trialBalanceReportExportUrl, type CompanyFilter, type TrialBalanceRow } from "@/lib/reports";
-import { currentMonthStart, today } from "@/lib/period";
+import { getTrialBalanceReport, trialBalanceReportExportUrl, type TrialBalanceRow } from "@/lib/reports";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { PeriodPreset, ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
+import { PeriodPreset, ReportFilterBar, StatTile, formatMoney , useReportFilters } from "@/components/reports";
 import { AnimatedNumber, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function TrialBalanceReportPage() {
   // Opens on the current month, with a one-click switch to all history.
-  const [from, setFrom] = useState(currentMonthStart);
-  const [to, setTo] = useState(today);
-  const [company, setCompany] = useState<CompanyFilter>("all");
+  const { from, setFrom, to, setTo, company, setCompany } = useReportFilters();
 
   const report = useQuery({
     queryKey: ["trial-balance-report", from, to, company],

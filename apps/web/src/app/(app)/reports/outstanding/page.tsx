@@ -30,12 +30,11 @@ import {
 import { today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, downloadExcel, type ColumnDef } from "@/components/data-table";
-import { ReportFilterBar, StatTile, formatMoney, formatReportDate } from "@/components/reports";
+import { ReportFilterBar, StatTile, formatMoney, formatReportDate , useAsAtFilters } from "@/components/reports";
 import { AnimatedNumber, Badge, Button, Checkbox, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 
 export default function OutstandingReportPage() {
-  const [company, setCompany] = useState<CompanyFilter>("all");
-  const [asAt, setAsAt] = useState(today);
+  const { asAt, setAsAt, company, setCompany } = useAsAtFilters();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const [exportingSelected, setExportingSelected] = useState(false);

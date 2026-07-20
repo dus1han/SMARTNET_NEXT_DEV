@@ -11,19 +11,15 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, CreditCard, TrendingUp, Wallet } from "lucide-react";
-import { useState } from "react";
 import { ApiError } from "@/lib/api";
-import { getSalesReport, salesReportExportUrl, type CompanyFilter, type SalesReportRow } from "@/lib/reports";
+import { getSalesReport, salesReportExportUrl, type SalesReportRow } from "@/lib/reports";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { ReportFilterBar, StatTile, formatMoney, formatReportDate } from "@/components/reports";
+import { ReportFilterBar, StatTile, formatMoney, formatReportDate , useReportFilters } from "@/components/reports";
 import { AnimatedNumber, Badge, ErrorBanner, FadeIn } from "@/components/ui";
-import { currentMonthStart, today } from "@/lib/period";
 
 export default function SalesReportPage() {
-  const [from, setFrom] = useState(currentMonthStart);
-  const [to, setTo] = useState(today);
-  const [company, setCompany] = useState<CompanyFilter>("all");
+  const { from, setFrom, to, setTo, company, setCompany } = useReportFilters();
 
   const report = useQuery({
     queryKey: ["sales-report", from, to, company],

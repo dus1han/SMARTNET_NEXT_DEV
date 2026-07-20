@@ -24,12 +24,11 @@ import {
   getDataExceptions,
   dataExceptionsExportUrl,
   resolveDataException,
-  type CompanyFilter,
   type DataExceptionRow,
 } from "@/lib/reports";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
+import { ReportFilterBar, StatTile, formatMoney , useCompanyFilter } from "@/components/reports";
 import { AnimatedNumber, Badge, Button, Dialog, ErrorBanner, FadeIn, Select, Textarea, toast } from "@/components/ui";
 
 /** The audited corrections available for each exception type. "Lines ≠ header" has none yet. */
@@ -42,7 +41,7 @@ const RESOLUTIONS: Record<string, { value: string; label: string }[]> = {
 };
 
 export default function DataExceptionsPage() {
-  const [company, setCompany] = useState<CompanyFilter>("all");
+  const { company, setCompany } = useCompanyFilter();
   const [resolving, setResolving] = useState<DataExceptionRow | null>(null);
   const [resolution, setResolution] = useState("");
   const [reason, setReason] = useState("");

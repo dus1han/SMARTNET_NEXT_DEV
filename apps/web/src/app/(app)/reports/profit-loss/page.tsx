@@ -12,21 +12,17 @@ import { ApiError } from "@/lib/api";
 import {
   getProfitLossReport,
   profitLossReportExportUrl,
-  type CompanyFilter,
   type ProfitLossLine,
   type ProfitLossResponse,
 } from "@/lib/reports";
-import { currentMonthStart, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
-import { PeriodPreset, ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
+import { PeriodPreset, ReportFilterBar, StatTile, formatMoney , useReportFilters } from "@/components/reports";
 import { downloadExcel } from "@/components/data-table/export";
 import { AnimatedNumber, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function ProfitLossReportPage() {
   // Opens on the current month, with a one-click switch to all history.
-  const [from, setFrom] = useState(currentMonthStart);
-  const [to, setTo] = useState(today);
-  const [company, setCompany] = useState<CompanyFilter>("all");
+  const { from, setFrom, to, setTo, company, setCompany } = useReportFilters();
   const [exporting, setExporting] = useState(false);
 
   const report = useQuery({

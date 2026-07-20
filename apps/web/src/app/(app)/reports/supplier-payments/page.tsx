@@ -12,20 +12,15 @@ import { ApiError } from "@/lib/api";
 import {
   getReportSuppliers,
   getSupplierPaymentReport,
-  supplierPaymentReportExportUrl,
-  type CompanyFilter,
-  type SupplierPaymentRow,
+  supplierPaymentReportExportUrl,  type SupplierPaymentRow,
 } from "@/lib/reports";
-import { currentMonthStart, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { ReportFilterBar, StatTile, formatMoney, formatReportDate } from "@/components/reports";
+import { ReportFilterBar, StatTile, formatMoney, formatReportDate , useReportFilters } from "@/components/reports";
 import { AnimatedNumber, ErrorBanner, FadeIn, Select } from "@/components/ui";
 
 export default function SupplierPaymentsReportPage() {
-  const [from, setFrom] = useState(currentMonthStart);
-  const [to, setTo] = useState(today);
-  const [company, setCompany] = useState<CompanyFilter>("all");
+  const { from, setFrom, to, setTo, company, setCompany } = useReportFilters();
   const [supplier, setSupplier] = useState<string>("all");
 
   const suppliers = useQuery({ queryKey: ["report-suppliers"], queryFn: getReportSuppliers });

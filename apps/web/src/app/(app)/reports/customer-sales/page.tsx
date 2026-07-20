@@ -7,24 +7,18 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Coins, TrendingUp, Users } from "lucide-react";
-import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import {
   customerSalesReportExportUrl,
-  getCustomerSalesReport,
-  type CompanyFilter,
-  type CustomerSalesRow,
+  getCustomerSalesReport,  type CustomerSalesRow,
 } from "@/lib/reports";
-import { currentMonthStart, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
+import { ReportFilterBar, StatTile, formatMoney , useReportFilters } from "@/components/reports";
 import { AnimatedNumber, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function CustomerSalesReportPage() {
-  const [from, setFrom] = useState(currentMonthStart);
-  const [to, setTo] = useState(today);
-  const [company, setCompany] = useState<CompanyFilter>("all");
+  const { from, setFrom, to, setTo, company, setCompany } = useReportFilters();
 
   const report = useQuery({
     queryKey: ["customer-sales-report", from, to, company],

@@ -17,20 +17,15 @@ import { ApiError } from "@/lib/api";
 import {
   expenseReportExportUrl,
   getExpenseCategories,
-  getExpenseReport,
-  type CompanyFilter,
-  type ExpenseReportRow,
+  getExpenseReport,  type ExpenseReportRow,
 } from "@/lib/reports";
-import { currentMonthStart, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { ReportFilterBar, StatTile, formatMoney, formatReportDate } from "@/components/reports";
+import { ReportFilterBar, StatTile, formatMoney, formatReportDate , useReportFilters } from "@/components/reports";
 import { AnimatedNumber, ErrorBanner, FadeIn, Select } from "@/components/ui";
 
 export default function ExpensesReportPage() {
-  const [from, setFrom] = useState(currentMonthStart);
-  const [to, setTo] = useState(today);
-  const [company, setCompany] = useState<CompanyFilter>("all");
+  const { from, setFrom, to, setTo, company, setCompany } = useReportFilters();
   const [category, setCategory] = useState<number | undefined>(undefined);
 
   const categories = useQuery({ queryKey: ["expense-categories"], queryFn: getExpenseCategories });

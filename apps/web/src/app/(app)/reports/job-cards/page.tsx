@@ -7,19 +7,15 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Coins, TrendingUp, Wrench } from "lucide-react";
-import { useState } from "react";
 import { ApiError } from "@/lib/api";
-import { getJobCardReport, jobCardReportExportUrl, type CompanyFilter, type JobCardRow } from "@/lib/reports";
-import { currentMonthStart, today } from "@/lib/period";
+import { getJobCardReport, jobCardReportExportUrl, type JobCardRow } from "@/lib/reports";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { ReportFilterBar, StatTile, formatMoney, formatReportDate } from "@/components/reports";
+import { ReportFilterBar, StatTile, formatMoney, formatReportDate , useReportFilters } from "@/components/reports";
 import { AnimatedNumber, Badge, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function JobCardsReportPage() {
-  const [from, setFrom] = useState(currentMonthStart);
-  const [to, setTo] = useState(today);
-  const [company, setCompany] = useState<CompanyFilter>("all");
+  const { from, setFrom, to, setTo, company, setCompany } = useReportFilters();
 
   const report = useQuery({
     queryKey: ["job-card-report", from, to, company],

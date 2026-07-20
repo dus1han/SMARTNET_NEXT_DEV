@@ -7,24 +7,18 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Clock, ShoppingCart, Truck } from "lucide-react";
-import { useState } from "react";
 import { ApiError } from "@/lib/api";
 import {
   getSupplierPurchaseReport,
-  supplierPurchaseReportExportUrl,
-  type CompanyFilter,
-  type SupplierPurchaseRow,
+  supplierPurchaseReportExportUrl,  type SupplierPurchaseRow,
 } from "@/lib/reports";
-import { currentMonthStart, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
-import { ReportFilterBar, StatTile, formatMoney } from "@/components/reports";
+import { ReportFilterBar, StatTile, formatMoney , useReportFilters } from "@/components/reports";
 import { AnimatedNumber, ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function SupplierPurchaseReportPage() {
-  const [from, setFrom] = useState(currentMonthStart);
-  const [to, setTo] = useState(today);
-  const [company, setCompany] = useState<CompanyFilter>("all");
+  const { from, setFrom, to, setTo, company, setCompany } = useReportFilters();
 
   const report = useQuery({
     queryKey: ["supplier-purchase-report", from, to, company],

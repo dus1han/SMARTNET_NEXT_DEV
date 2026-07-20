@@ -51,10 +51,25 @@ several documents insist cheque printing is future work when it shipped.
 - **The audit log records EF's temporary key on Create rows** — `Id: -9223372036854775000` instead of
   the real id. Affects every entity (visible on `CustomerContact` and `UserNote`). `entity_id` is
   correct so records stay findable; only the `changes` JSON is wrong.
-- **`audit_log` is not append-only in practice.** DEVELOPMENT-PLAN says the app's DB user holds
-  `INSERT`/`SELECT` only. On dev it can `DELETE` — verified by deleting rows as that user. **The
-  production grants have not been checked.** This matters: the "invoices stay editable" decision is
-  defensible only because the trail cannot be rewritten.
+- **`audit_log` is not append-only on dev — confirmed, with the cause.** The app's own user reports:
+
+  ```
+  GRANT ALL PRIVILEGES ON `smartnet_invsys_dev`.* TO `smartnet_invsys_next`@`%`
+  ```
+
+  Two things follow. There are **no table-level grants at all**, so `infra/sql/audit-log-grants.sql`
+  was never run here. And even if it were, that schema-wide `GRANT ALL` would outrank it — MySQL
+  takes the union of privileges across levels, which is exactly what the script's own closing note
+  warns about. `DELETE FROM audit_log` as the application user succeeds.
+
+  **Production is unchecked** — that user holds rights on `smartnet_invsys_dev` only, so production
+  uses different credentials. Run `SHOW GRANTS FOR '<prod app user>'@'%'` there. If it shows a
+  schema-level `GRANT ALL` or any `UPDATE`/`DELETE` on the schema, the log is rewritable by anything
+  holding the app's password, and `AUDIT.md`'s central claim does not hold where it matters.
+
+  **Fixing it needs a DB admin.** The app user has no `GRANT OPTION`, so it cannot narrow its own
+  privileges: run the grants script as an admin, then narrow the schema-wide grant to the specific
+  tables the app needs.
 - **`/api/dashboard/analytics` and `/api/reports/companies` return 500 on dev**, apparently from
   remote-DB timeouts rather than logic.
 
@@ -107,10 +122,10 @@ work `MIGRATION-DATA-CHECKS.md` to zero.
 
 ## Suggested order
 
-1. **Phase 7 slice 6.** One task closes the highest-severity item (`seed-payment`) and the largest
+1. **Fix the `audit_log` grants** — dev is confirmed broken, production is unknown. Needs a DB admin,
+   takes minutes, and until it is done the audit trail is not evidence.
+2. **Phase 7 slice 6.** One task closes the highest-severity item (`seed-payment`) and the largest
    missing test.
-2. **Check the production `audit_log` grants.** Cheap, and the answer either confirms or undermines
-   the audit design.
 3. **Get the five legacy-data decisions answered** — the orphaned lines block foreign keys, which is
    structural and gets more expensive the longer it waits.
 4. **Add a `WebApplicationFactory` fixture.**
