@@ -144,6 +144,10 @@ public static class DependencyInjection
         // interface so the S3/MinIO swap stays a config change rather than a rewrite.
         services.AddSingleton<IDocumentStorage, Storage.LocalFileDocumentStorage>();
 
+        // Creating a trading entity, with the tax rate, numbering series and email templates it cannot
+        // work without. Scoped, because it writes through the request's DbContext and its own transaction.
+        services.AddScoped<Settings.ICompanyProvisioner, Settings.CompanyProvisioner>();
+
         services.AddDbContext<SmartnetDbContext>((provider, options) => options
             .UseMySql(connectionString, serverVersion)
             .AddInterceptors(provider.GetRequiredService<AuditSaveChangesInterceptor>()));

@@ -73,6 +73,35 @@ export async function uploadCompanyLogo(companyId: number, file: File): Promise<
 export const deleteCompanyLogo = (companyId: number) =>
   api<void>("/api/settings/company/logo", { method: "DELETE", companyId });
 
+/**
+ * A new trading entity, and the setup it needs to be usable.
+ *
+ * The tax fields are ignored for a company that is not VAT-registered — the engine forces 0% for one
+ * regardless, so a rate it can never charge would just be a row that misstates what it does.
+ */
+export interface CreateCompany {
+  name: string;
+  isVatRegistered: boolean;
+  vatNumber: string | null;
+  businessRegistrationNo: string | null;
+  numberPrefix: string;
+  taxRateName: string;
+  taxPercentage: number;
+  taxEffectiveFrom: string;
+}
+
+export interface CompanyCreated {
+  id: number;
+  name: string;
+  taxRatesCreated: number;
+  numberSeriesCreated: number;
+  emailTemplatesCreated: number;
+}
+
+/** Dev_Admin only. Creates the company, a default tax rate, nine numbering series and five templates. */
+export const createCompany = (company: CreateCompany, reason: string) =>
+  api<CompanyCreated>("/api/companies", { method: "POST", body: company, reason });
+
 export const getBusinessRules = (companyId: number) =>
   api<BusinessRule[]>("/api/settings/business-rules", { companyId });
 

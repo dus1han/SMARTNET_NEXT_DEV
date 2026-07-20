@@ -6396,6 +6396,64 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Settings"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateCompanyRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateCompanyRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateCompanyRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyCreatedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyCreatedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyCreatedResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/settings/company": {
@@ -8521,6 +8579,38 @@
         },
         "additionalProperties": false
       },
+      "CompanyCreatedResponse": {
+        "required": [
+          "emailTemplatesCreated",
+          "id",
+          "name",
+          "numberSeriesCreated",
+          "taxRatesCreated"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "taxRatesCreated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "numberSeriesCreated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "emailTemplatesCreated": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "CompanyOption": {
         "required": [
           "id",
@@ -8738,6 +8828,48 @@
             "type": "string",
             "format": "date",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateCompanyRequest": {
+        "required": [
+          "isVatRegistered",
+          "name",
+          "numberPrefix",
+          "taxEffectiveFrom",
+          "taxPercentage",
+          "taxRateName"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "isVatRegistered": {
+            "type": "boolean"
+          },
+          "vatNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "businessRegistrationNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "numberPrefix": {
+            "type": "string"
+          },
+          "taxRateName": {
+            "type": "string"
+          },
+          "taxPercentage": {
+            "type": "number",
+            "format": "double"
+          },
+          "taxEffectiveFrom": {
+            "type": "string",
+            "format": "date"
           }
         },
         "additionalProperties": false

@@ -8,6 +8,7 @@ using Smartnet.Api.Contracts;
 using Smartnet.Domain.Identity;
 using Smartnet.Domain.Settings;
 using Smartnet.Infrastructure.Persistence;
+using Smartnet.Infrastructure.Settings;
 
 namespace Smartnet.Api.Controllers;
 
@@ -28,17 +29,20 @@ public sealed class SettingsController : ControllerBase
     private readonly SmartnetDbContext _db;
     private readonly ICompanyContext _companies;
     private readonly IMailSender _mail;
+    private readonly ICompanyProvisioner _provisioner;
     private readonly IDataProtector _protector;
 
     public SettingsController(
         SmartnetDbContext db,
         ICompanyContext companies,
         IMailSender mail,
+        ICompanyProvisioner provisioner,
         IDataProtectionProvider protection)
     {
         _db = db;
         _companies = companies;
         _mail = mail;
+        _provisioner = provisioner;
 
         // A named purpose, so a ciphertext from this protector cannot be decrypted by another —
         // an SMTP password must not be interchangeable with, say, a reset token.
@@ -64,6 +68,55 @@ public sealed class SettingsController : ControllerBase
             .Select(c => new CompanySummary(c.Id, c.Name, c.IsVatRegistered))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// Adds a trading entity, and everything it needs to be able to raise a document.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Dev_Admin only</b>, and the first endpoint in this codebase actually gated on that permission
+    /// — until now it existed solely to satisfy every other policy implicitly. Adding a trading entity
+    /// is a structural act, not an administrative one: it changes what the business *is*, everyone can
+    /// then see it (company scoping is not an authorisation boundary — see ICompanyAccessService), and
+    /// it is done perhaps once. The rest of the settings surface stays on settings.manage.
+    /// </para>
+    /// <para>
+    /// The work is in <c>ICompanyProvisioner</c>, not here, because creating the row is the small part:
+    /// a company without a default tax rate cannot raise any document at all, and one without numbering
+    /// series or email templates fails later and less legibly. All of it commits together or not at all.
+    /// </para>
+    /// </remarks>
+    [HttpPost("/api/companies")]
+    [RequirePermission(Permissions.SystemDevAdmin)]
+    [RequireChangeReason]
+    public async Task<ActionResult<CompanyCreatedResponse>> CreateCompany(
+        CreateCompanyRequest request,
+        CancellationToken cancellationToken)
+    {
+        ProvisionedCompany created;
+
+        try
+        {
+            created = await _provisioner.CreateAsync(
+                new NewCompany(
+                    request.Name,
+                    request.IsVatRegistered,
+                    request.VatNumber,
+                    request.BusinessRegistrationNo,
+                    request.NumberPrefix,
+                    request.TaxRateName,
+                    request.TaxPercentage,
+                    request.TaxEffectiveFrom),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (CompanyAlreadyExistsException duplicate)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: duplicate.Message);
+        }
+
+        return Ok(new CompanyCreatedResponse(
+            created.Id, created.Name, created.TaxRates, created.NumberSeries, created.EmailTemplates));
     }
 
     [HttpGet("company")]

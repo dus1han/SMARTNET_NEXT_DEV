@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiError } from "@/lib/api";
 import {
   RULE_LABELS,
+  createCompany,
   createTaxRate,
   deleteCompanyLogo,
   getBusinessRules,
@@ -24,10 +25,12 @@ import {
   type CompanyProfile,
   type CompanySummary,
   type MailSettings,
+  type CompanyCreated,
   type SaveTaxRate,
   type TaxRate,
 } from "@/lib/settings";
 import { MINIMUM_REASON_LENGTH } from "@/lib/admin";
+import { me } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import { Numbering } from "@/components/numbering";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -59,11 +62,20 @@ const SECTIONS: { key: SectionKey; label: string; icon: LucideIcon; blurb: strin
 ];
 
 export default function SettingsPage() {
+  const queryClient = useQueryClient();
   const companies = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
+  const user = useQuery({ queryKey: ["me"], queryFn: me });
   const [companyId, setCompanyId] = useState<number | null>(null);
   const [section, setSection] = useState<SectionKey>("company");
+  const [adding, setAdding] = useState(false);
 
   const active = companyId ?? companies.data?.[0]?.id ?? null;
+
+  // Adding a trading entity is Dev_Admin's, not an administrator's — it changes what the business is,
+  // and everyone sees the result. Hiding the button is a courtesy, not the control: the endpoint is
+  // gated server-side, which is the lesson of ISSUES A5 (the legacy app hid menu items while leaving
+  // the endpoints behind them open to anyone signed in).
+  const canAddCompany = user.data?.permissions.includes("system.dev_admin") ?? false;
 
   return (
     <FadeIn className="space-y-6">
@@ -87,11 +99,33 @@ export default function SettingsPage() {
         </Card>
       ) : (
         <>
-          <CompanyPicker
-            companies={companies.data ?? []}
-            active={active}
-            onChange={setCompanyId}
-          />
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <CompanyPicker
+              companies={companies.data ?? []}
+              active={active}
+              onChange={setCompanyId}
+            />
+
+            {canAddCompany && (
+              <Button variant="secondary" onClick={() => setAdding(true)}>
+                Add company
+              </Button>
+            )}
+          </div>
+
+          {adding && (
+            <AddCompanyDialog
+              onCancel={() => setAdding(false)}
+              onCreated={async (created) => {
+                setAdding(false);
+                await queryClient.invalidateQueries({ queryKey: ["companies"] });
+                // Land on the new entity, on its details, because that is what anyone who just made
+                // one wants next — the address and bank details it was not asked for.
+                setCompanyId(created.id);
+                setSection("company");
+              }}
+            />
+          )}
 
           <div className="grid gap-6 lg:grid-cols-[13rem_1fr]">
             <SectionNav section={section} onChange={setSection} />
@@ -105,6 +139,160 @@ export default function SettingsPage() {
         </>
       )}
     </FadeIn>
+  );
+}
+
+/**
+ * Add a trading entity.
+ *
+ * It asks for four things and provisions the rest, because the alternative is a company that exists and
+ * cannot do anything. A new `companies_m` row on its own has no tax rate — which means the tax engine
+ * refuses to rate any document it raises — no numbering series, and no email templates, and there is no
+ * screen anywhere that would let someone add the templates afterwards.
+ *
+ * The address, bank details, logo and brand colour are deliberately not asked for. They are edited on
+ * this same screen a moment later, and putting a dozen optional fields in front of the one thing being
+ * asked for is how a form stops being used.
+ */
+function AddCompanyDialog({ onCancel, onCreated }: {
+  onCancel: () => void;
+  onCreated: (created: CompanyCreated) => void | Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [vatRegistered, setVatRegistered] = useState(true);
+  const [vatNumber, setVatNumber] = useState("");
+  const [brc, setBrc] = useState("");
+  const [prefix, setPrefix] = useState("");
+  const [taxName, setTaxName] = useState("VAT 18%");
+  const [taxPercent, setTaxPercent] = useState("18");
+  const [taxFrom, setTaxFrom] = useState(new Date().toISOString().slice(0, 10));
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const percent = Number(taxPercent);
+  const valid =
+    name.trim() !== ""
+    && prefix.trim() !== ""
+    && taxFrom !== ""
+    && reason.trim().length >= MINIMUM_REASON_LENGTH
+    && (!vatRegistered
+      || (taxName.trim() !== "" && Number.isFinite(percent) && percent >= 0 && percent <= 100));
+
+  async function submit() {
+    setSaving(true);
+    try {
+      const created = await createCompany(
+        {
+          name: name.trim(),
+          isVatRegistered: vatRegistered,
+          vatNumber: vatRegistered && vatNumber.trim() !== "" ? vatNumber.trim() : null,
+          businessRegistrationNo: brc.trim() === "" ? null : brc.trim(),
+          numberPrefix: prefix.trim(),
+          taxRateName: taxName.trim(),
+          taxPercentage: Number.isFinite(percent) ? percent : 0,
+          taxEffectiveFrom: taxFrom,
+        },
+        reason.trim(),
+      );
+
+      toast.success(
+        `${created.name} created — ${created.taxRatesCreated} tax rates, `
+        + `${created.numberSeriesCreated} numbering series, ${created.emailTemplatesCreated} email templates.`,
+      );
+
+      await onCreated(created);
+    } catch (error: unknown) {
+      toast.error(message(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      title="Add a company"
+      description="A second trading entity, with its own document numbering, tax rate and letterhead. Everyone who uses the system will be able to work in it."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={submit} pending={saving} disabled={!valid}>
+            Create
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Input
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Smart Solar (Pvt) Ltd"
+          hint="As it should appear on documents."
+        />
+
+        <Input
+          label="Document number prefix"
+          value={prefix}
+          onChange={(e) => setPrefix(e.target.value)}
+          placeholder="SS-"
+          hint="Applied to all nine document types; each is editable afterwards under Numbering. {YY}{MON}_SS_ works too."
+        />
+
+        <Input
+          label="Business registration no."
+          value={brc}
+          onChange={(e) => setBrc(e.target.value)}
+        />
+
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={vatRegistered}
+            onChange={(e) => setVatRegistered(e.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            <span className="text-text">Registered for VAT</span>
+            <span className="block text-xs text-muted">
+              An unregistered company is taxed at 0% whatever its rates say, so it gets a zero rate and
+              nothing else.
+            </span>
+          </span>
+        </label>
+
+        {vatRegistered && (
+          <>
+            <Input label="VAT number" value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} />
+            <Input label="Default tax rate name" value={taxName} onChange={(e) => setTaxName(e.target.value)} />
+            <Input
+              label="Rate %"
+              inputMode="decimal"
+              value={taxPercent}
+              onChange={(e) => setTaxPercent(e.target.value)}
+            />
+          </>
+        )}
+
+        <Input
+          label="Rate valid from"
+          type="date"
+          value={taxFrom}
+          onChange={(e) => setTaxFrom(e.target.value)}
+          hint="Documents dated before this cannot be raised at all — set it to when the company starts trading, not today by reflex."
+        />
+
+        <Input
+          label="Reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          hint={`Recorded in the audit log. At least ${MINIMUM_REASON_LENGTH} characters.`}
+        />
+      </div>
+    </Dialog>
   );
 }
 

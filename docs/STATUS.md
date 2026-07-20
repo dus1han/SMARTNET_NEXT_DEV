@@ -63,7 +63,7 @@ asserted at the measured 7×3.5in — a template that renders beautifully on A4 
 not claim a total lands in the right box; content streams are compressed, and that is what
 `tools/PdfPreview` and a human eye are for.
 
-710 API tests, up from 664. Still outstanding: `Smartnet.Tests/UnitTest1.cs` is the scaffold file.
+721 API tests, up from 664. Still outstanding: `Smartnet.Tests/UnitTest1.cs` is the scaffold file.
 
 ### 2b. Where a document's cost comes from (changed 2026-07-20)
 
@@ -183,6 +183,22 @@ dated weeks apart, survived it, and are the two still on the list. Check the Ove
 - **Data Protection keys are not persisted.** Carried unresolved since Phase 1. A redeploy invalidates
   every stored SMTP password.
 
+### 5b. Settings — companies and tax rates (2026-07-20)
+
+- **Adding a company is possible, and it provisions.** `POST /api/companies`, **Dev_Admin only** — the
+  first endpoint in the codebase actually gated on `system.dev_admin`, which until now existed only to
+  satisfy every other policy implicitly. It writes the company, a default tax rate (plus a zero rate),
+  **9 numbering series** and **5 email templates** in one transaction. That list is not padding: the
+  two original companies were provisioned by a migration that cross-joined `FROM companies_m` over the
+  companies present when it ran, nothing re-runs it, and a bare row is a company that cannot raise any
+  document (`TaxEngine` throws with no default rate in force) and cannot email one — with no way to fix
+  the templates from the UI, because that API reads and updates but has no insert.
+- **Tax rates are editable, with valid-from.** The backend already supported effective dating; the UI
+  was read-only. It now adds and edits, shows both dates, and distinguishes Default / Scheduled / Ended
+  by the dates rather than the flag.
+- Company **delete/deactivate is still not implemented** — `deleted_at` exists and is filtered on, but
+  nothing sets it.
+
 ### 6. Phase 8 gaps
 - **`document_templates` does not exist.** Promised in both Phase 1 and Phase 8; templates are driven
   by `Company` alone. There is no per-company template settings surface.
@@ -206,7 +222,7 @@ work `MIGRATION-DATA-CHECKS.md` to zero.
   describes a lowercase vocabulary that conflicts with the PascalCase one `audit_log` and the notes
   module use. Wire it up or delete it; a column that is always NULL with two competing vocabularies
   is worse than neither.
-- **Tax rates are read-only in the UI.**
+- ~~**Tax rates are read-only in the UI.**~~ Done 2026-07-20 — see §5b.
 - **Price the ~500 items**, and explain `c_form`.
 
 ---

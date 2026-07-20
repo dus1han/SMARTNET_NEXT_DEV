@@ -5142,7 +5142,34 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateCompanyRequest"];
+                    "text/json": components["schemas"]["CreateCompanyRequest"];
+                    "application/*+json": components["schemas"]["CreateCompanyRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CompanyCreatedResponse"];
+                        "application/json": components["schemas"]["CompanyCreatedResponse"];
+                        "text/json": components["schemas"]["CompanyCreatedResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -6627,6 +6654,17 @@ export interface components {
             sell: number;
             completionRemarks?: string | null;
         };
+        CompanyCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int32 */
+            taxRatesCreated: number;
+            /** Format: int32 */
+            numberSeriesCreated: number;
+            /** Format: int32 */
+            emailTemplatesCreated: number;
+        };
         CompanyOption: {
             /** Format: int64 */
             id: number;
@@ -6691,6 +6729,18 @@ export interface components {
             chequeDate?: string | null;
             /** Format: date */
             dueDate?: string | null;
+        };
+        CreateCompanyRequest: {
+            name: string;
+            isVatRegistered: boolean;
+            vatNumber?: string | null;
+            businessRegistrationNo?: string | null;
+            numberPrefix: string;
+            taxRateName: string;
+            /** Format: double */
+            taxPercentage: number;
+            /** Format: date */
+            taxEffectiveFrom: string;
         };
         CreateCreditNoteRequest: {
             /** Format: int64 */

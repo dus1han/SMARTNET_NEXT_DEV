@@ -43,6 +43,53 @@ public sealed record SaveTaxRateRequest(
     bool IsDefault);
 
 /// <summary>
+/// A new trading entity, with the minimum it needs to be able to raise a document.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The fields beyond the name are here because a bare <c>companies_m</c> row is a company that cannot
+/// invoice. The two existing companies were provisioned by a one-shot migration that cross-joined over
+/// the companies present when it ran; nothing re-runs it, and there is no create endpoint for email
+/// templates at all. So creation provisions, in one transaction — see <c>CompanyProvisioner</c>.
+/// </para>
+/// <para>
+/// The rest of the company profile (address, bank details, logo, brand colour) is deliberately not here.
+/// It is edited on the settings screen afterwards, and requiring it up front would put a dozen optional
+/// fields in front of the one thing being asked for.
+/// </para>
+/// </remarks>
+/// <param name="NumberPrefix">
+/// The prefix its document numbers carry, e.g. <c>SS-</c>. A template rather than a literal — see
+/// <c>DocumentNumberFormat</c> — so <c>{YY}{MON}_SS_</c> is equally valid. Applied to all nine document
+/// types; each is editable afterwards under Numbering.
+/// </param>
+/// <param name="TaxRateName">
+/// What the default rate is called, e.g. "VAT 18%". Ignored when the company is not VAT-registered.
+/// </param>
+/// <param name="TaxPercentage">Its percentage. Ignored when the company is not VAT-registered.</param>
+/// <param name="TaxEffectiveFrom">
+/// The date the rate starts applying. Documents dated before it cannot be raised at all, so this wants
+/// to be on or before the date the company starts trading — not today by reflex.
+/// </param>
+public sealed record CreateCompanyRequest(
+    string Name,
+    bool IsVatRegistered,
+    string? VatNumber,
+    string? BusinessRegistrationNo,
+    string NumberPrefix,
+    string TaxRateName,
+    decimal TaxPercentage,
+    DateOnly TaxEffectiveFrom);
+
+/// <summary>What was created, and what was provisioned alongside it.</summary>
+public sealed record CompanyCreatedResponse(
+    long Id,
+    string Name,
+    int TaxRatesCreated,
+    int NumberSeriesCreated,
+    int EmailTemplatesCreated);
+
+/// <summary>
 /// Mail settings as the client is allowed to see them.
 /// </summary>
 /// <remarks>
@@ -122,6 +169,29 @@ public sealed class SaveTaxRateRequestValidator : AbstractValidator<SaveTaxRateR
             .GreaterThanOrEqualTo(r => r.EffectiveFrom)
             .When(r => r.EffectiveTo is not null)
             .WithMessage("A rate cannot stop applying before it starts.");
+    }
+}
+
+public sealed class CreateCompanyRequestValidator : AbstractValidator<CreateCompanyRequest>
+{
+    public CreateCompanyRequestValidator()
+    {
+        RuleFor(r => r.Name).NotEmpty().MaximumLength(100);
+        RuleFor(r => r.VatNumber).MaximumLength(64);
+        RuleFor(r => r.BusinessRegistrationNo).MaximumLength(64);
+
+        // Without a prefix every document in the new company is a bare number, indistinguishable at a
+        // glance from the other company's. It is editable afterwards, but it should never start absent.
+        RuleFor(r => r.NumberPrefix).NotEmpty().MaximumLength(32);
+
+        // Only meaningful for a VAT-registered company: the engine forces 0% for one that is not, so a
+        // rate would be seeded and never used. Demanding a name and a percentage for it anyway would be
+        // asking for an answer that changes nothing.
+        When(r => r.IsVatRegistered, () =>
+        {
+            RuleFor(r => r.TaxRateName).NotEmpty().MaximumLength(64);
+            RuleFor(r => r.TaxPercentage).InclusiveBetween(0m, 100m);
+        });
     }
 }
 
