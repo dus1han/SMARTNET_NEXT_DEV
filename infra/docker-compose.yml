@@ -56,6 +56,18 @@ services:
     # here, which is what host-gateway does. Without it the connection string's host does not resolve
     # and the API starts, then fails its first query — the failure looks like a database problem and is
     # actually a networking one.
+    #
+    # THIS IS ONLY HALF OF IT. The host firewall must also let the container in. A sensible server
+    # denies 3306 from everywhere, and that rule catches the Docker bridge too — so the API comes up,
+    # reports "Now listening", and then every request dies on a database timeout. It shows as
+    # `(unhealthy)` in `docker ps` because /health pings the database, while the logs look perfectly
+    # healthy. On this host:
+    #
+    #     sudo ufw insert 3 allow from 172.16.0.0/12 to any port 3306 proto tcp
+    #
+    # inserted ABOVE the existing `3306 DENY` — ufw is first-match, so appending it does nothing. The
+    # range is the private space Docker allocates bridges from, so it survives the network being
+    # recreated with a different subnet; it is not reachable from the internet.
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
