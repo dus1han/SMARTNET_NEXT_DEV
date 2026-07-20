@@ -208,6 +208,18 @@ public sealed class InvoicesController : ControllerBase
             .SumAsync(e => e.Amount, cancellationToken)
             .ConfigureAwait(false);
 
+        // The detail behind that figure. Payment entries are stored negative (they reduce what is owed),
+        // so the sign is flipped to read as an amount received. Ledger only — a receipt also writes a
+        // legacy `payments` row, and reading both would double every payment.
+        var payments = await _db.ReceivablesLedger
+            .Where(e => e.InvoiceId == id && e.Type == LedgerEntryType.Payment)
+            .OrderBy(e => e.OccurredAt)
+            .ThenBy(e => e.Id)
+            .Select(e => new InvoicePaymentLine(
+                DateOnly.FromDateTime(e.OccurredAt), -e.Amount, null, e.Note))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         // Item vs service is the line-level distinction (slice 0-B): an invoice with any item line is an
         // item invoice, otherwise a service one.
         var kind = invoice.Lines.Any(l => l.ItemId is not null) ? "Item" : "Service";
@@ -235,7 +247,8 @@ public sealed class InvoicesController : ControllerBase
             invoice.RowVersion,
             "new",
             [.. invoice.Lines.Select(l => new InvoiceLineDetail(
-                l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
+                l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))],
+            payments));
     }
 
     /// <summary>
@@ -297,6 +310,24 @@ public sealed class InvoicesController : ControllerBase
         var net = LegacyValue.Money(h.Novattotal);
         var total = LegacyValue.Money(h.Totamount);
 
+        // Payments from the legacy table, keyed by the document number as the old app keyed them. This is
+        // the complete list even now: a new receipt taken against a legacy invoice dual-writes a row here
+        // as well as posting to the ledger, so reading both sources would show it twice. Amounts are
+        // varchar and parsed defensively — unlike the supplier side, the customer table does record one.
+        var payments = h.Invoiceno is null
+            ? []
+            : (await _legacy.Payments
+                .Where(p => p.Invoiceno == h.Invoiceno)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+                .Select(p => new InvoicePaymentLine(
+                    LegacyValue.Date(p.Paymentrecdate) ?? DateOnly.MinValue,
+                    LegacyValue.Money(p.Amount),
+                    p.Paym,
+                    p.Payref))
+                .OrderBy(p => p.Date)
+                .ToList();
+
         // The legacy `it` column already records ITEM vs SERVICE.
         var kind = string.Equals(h.It, "ITEM", StringComparison.OrdinalIgnoreCase) ? "Item" : "Service";
 
@@ -332,7 +363,8 @@ public sealed class InvoicesController : ControllerBase
                 0m,
                 LegacyValue.Money(l.Tot),
                 LegacyValue.Money(l.Tot),
-                null))]));
+                null))],
+            payments));
     }
 
     /// <summary>

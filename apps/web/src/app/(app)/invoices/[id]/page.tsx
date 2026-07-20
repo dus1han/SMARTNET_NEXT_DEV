@@ -25,7 +25,7 @@ import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toas
 import { History } from "@/components/history/history";
 import { PrintPreview } from "@/components/print-preview";
 import { EmailDocumentDialog } from "@/components/email-document-dialog";
-import type { InvoiceLineDetail } from "@/lib/invoices";
+import type { InvoiceLineDetail, InvoicePaymentLine } from "@/lib/invoices";
 
 export default function InvoiceViewPage() {
   const { id } = useParams<{ id: string }>();
@@ -157,6 +157,24 @@ export default function InvoiceViewPage() {
               </p>
             </Card>
           </div>
+
+          {/*
+            The detail behind the Outstanding tile. That figure is derived, so without this the screen
+            asserts a balance and shows nothing of how it got there — and "why does this say 7,580?"
+            is the question the counter actually gets asked.
+          */}
+          <Card className="p-5">
+            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">Payments</h2>
+            {data.payments.length === 0 ? (
+              <p className="text-sm text-muted">
+                {settled
+                  ? "Settled, with no payment recorded against it."
+                  : "No payments received yet."}
+              </p>
+            ) : (
+              <DataTable columns={paymentColumns} rows={data.payments} pageSize={50} />
+            )}
+          </Card>
 
           <Card className="p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">History</h2>
@@ -330,5 +348,41 @@ const lineColumns: ColumnDef<InvoiceLineDetail, unknown>[] = [
     header: "Net",
     meta: { align: "right" },
     cell: ({ row }) => <span className="tabular font-medium text-text">{formatMoney(row.original.net)}</span>,
+  },
+];
+
+/**
+ * A received payment. Mirrors the supplier-invoice table deliberately — the two screens answer the
+ * same question from opposite sides of the ledger, and staff move between them.
+ */
+const paymentColumns: ColumnDef<InvoicePaymentLine, unknown>[] = [
+  {
+    id: "date",
+    accessorFn: (row) => row.date,
+    header: "Date",
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap text-muted">{formatReportDate(row.original.date)}</span>
+    ),
+  },
+  {
+    id: "amount",
+    accessorFn: (row) => row.amount,
+    header: "Amount",
+    meta: { align: "right" },
+    cell: ({ row }) => (
+      <span className="tabular font-medium text-text">{formatMoney(row.original.amount)}</span>
+    ),
+  },
+  {
+    id: "method",
+    accessorFn: (row) => row.method ?? "",
+    header: "Method",
+    cell: ({ row }) => <span className="text-text">{row.original.method || "—"}</span>,
+  },
+  {
+    id: "reference",
+    accessorFn: (row) => row.reference ?? "",
+    header: "Reference",
+    cell: ({ row }) => <span className="text-muted">{row.original.reference || "—"}</span>,
   },
 ];

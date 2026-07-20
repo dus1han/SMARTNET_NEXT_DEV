@@ -7556,6 +7556,7 @@ export interface components {
             rowVersion: number;
             origin: string;
             lines: components["schemas"]["InvoiceLineDetail"][];
+            payments: components["schemas"]["InvoicePaymentLine"][];
         };
         InvoiceEditedResponse: {
             /** Format: int64 */
@@ -7587,6 +7588,14 @@ export interface components {
             net: number;
             /** Format: double */
             cost?: number | null;
+        };
+        InvoicePaymentLine: {
+            /** Format: date */
+            date: string;
+            /** Format: double */
+            amount: number;
+            method?: string | null;
+            reference?: string | null;
         };
         InvoiceRecipients: {
             contacts: components["schemas"]["DocumentContact"][];

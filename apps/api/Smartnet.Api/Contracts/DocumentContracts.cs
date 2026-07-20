@@ -200,7 +200,23 @@ public sealed record InvoiceDetail(
     int RowVersion,
     string Origin,
 
-    IReadOnlyList<InvoiceLineDetail> Lines);
+    IReadOnlyList<InvoiceLineDetail> Lines,
+
+    /// <summary>
+    /// What has been received against this invoice, oldest first — the detail behind
+    /// <see cref="Outstanding"/>.
+    /// </summary>
+    /// <remarks>
+    /// Read from <b>one</b> source per invoice, never merged, because a receipt dual-writes both: it
+    /// posts a receivables-ledger entry <i>and</i> a legacy <c>payments</c> row. A new invoice takes the
+    /// ledger; a legacy invoice takes the legacy table, which is complete for it precisely because new
+    /// receipts against legacy invoices are dual-written there too. Merging would show every new payment
+    /// twice. Same rule the <see cref="Outstanding"/> figure already follows on each path.
+    /// </remarks>
+    IReadOnlyList<InvoicePaymentLine> Payments);
+
+/// <summary>A payment received against a customer invoice — part or all of what was owed.</summary>
+public sealed record InvoicePaymentLine(DateOnly Date, decimal Amount, string? Method, string? Reference);
 
 // --- Quotations (Phase 5, slice 3) --------------------------------------------------------------
 

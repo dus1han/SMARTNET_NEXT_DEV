@@ -11501,6 +11501,7 @@
           "number",
           "origin",
           "outstanding",
+          "payments",
           "rowVersion",
           "subtotal",
           "taxAmount",
@@ -11595,6 +11596,12 @@
             "items": {
               "$ref": "#/components/schemas/InvoiceLineDetail"
             }
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoicePaymentLine"
+            }
           }
         },
         "additionalProperties": false
@@ -11682,6 +11689,32 @@
           "cost": {
             "type": "number",
             "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InvoicePaymentLine": {
+        "required": [
+          "amount",
+          "date"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "method": {
+            "type": "string",
+            "nullable": true
+          },
+          "reference": {
+            "type": "string",
             "nullable": true
           }
         },

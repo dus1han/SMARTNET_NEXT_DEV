@@ -125,6 +125,7 @@ export type CreditStatus = Schemas["CreditStatus"];
 export type InvoiceSummary = Schemas["InvoiceSummary"];
 export type InvoiceDetail = Schemas["InvoiceDetail"];
 export type InvoiceLineDetail = Schemas["InvoiceLineDetail"];
+export type InvoicePaymentLine = Schemas["InvoicePaymentLine"];
 export type EditInvoiceRequest = Schemas["EditInvoiceRequest"];
 export type EditInvoiceLineRequest = Schemas["EditInvoiceLineRequest"];
 export type InvoiceEditedResponse = Schemas["InvoiceEditedResponse"];

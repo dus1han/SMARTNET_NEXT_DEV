@@ -30,6 +30,7 @@ export type {
   InvoiceDetail,
   InvoiceEditedResponse,
   InvoiceLineDetail,
+  InvoicePaymentLine,
   InvoiceSummary,
   InvoiceTaxRate,
 } from "@smartnet/api-client";
