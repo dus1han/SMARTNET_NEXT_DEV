@@ -20,6 +20,14 @@ Thumbs.db
 *.dump
 data/
 
+# ...but infra/sql holds operational scripts, not data. They contain no customer
+# rows and they have to be version-controlled, because they are steps somebody
+# runs against live at cutover. The blanket *.sql above had been silently
+# swallowing them: audit-log-grants.sql sat on one developer's disk and in no
+# clone, which is the likeliest reason it was never run anywhere.
+!infra/sql/
+!infra/sql/*.sql
+
 # build artifacts
 bin/
 obj/
