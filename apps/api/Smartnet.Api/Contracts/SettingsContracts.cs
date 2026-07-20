@@ -35,12 +35,33 @@ public sealed record TaxRateDto(
     DateOnly? EffectiveTo,
     bool IsDefault);
 
-public sealed record SaveTaxRateRequest(
+/// <summary>
+/// The business VAT rate, set once and applied to every VAT-registered company at once.
+/// </summary>
+/// <remarks>
+/// VAT is a national rate, not a per-company setting: when it changes, it changes for every registered
+/// entity on the same day. So this carries no company — the endpoint fans it out across all VAT-registered
+/// companies as the new default from <see cref="EffectiveFrom"/>. Individual companies can then have only
+/// their adoption date nudged (see <see cref="UpdateTaxRateFromRequest"/>); the rate and percentage are the
+/// same everywhere by construction.
+/// </remarks>
+public sealed record SetVatRateRequest(
     string Name,
     decimal Percentage,
-    DateOnly EffectiveFrom,
-    DateOnly? EffectiveTo,
-    bool IsDefault);
+    DateOnly EffectiveFrom);
+
+/// <summary>How many companies a VAT-rate change touched.</summary>
+public sealed record VatRateAppliedResponse(int CompaniesAffected);
+
+/// <summary>
+/// Shift when one company's rate starts — the only thing editable per company.
+/// </summary>
+/// <remarks>
+/// The rate's name and percentage are business-wide and set through <see cref="SetVatRateRequest"/>; what a
+/// single company gets to vary is <i>when it adopts</i> that rate, e.g. a company that changed its systems a
+/// month later. So the per-company edit carries a date and nothing else.
+/// </remarks>
+public sealed record UpdateTaxRateFromRequest(DateOnly EffectiveFrom);
 
 /// <summary>
 /// A new trading entity, with the minimum it needs to be able to raise a document.
@@ -53,9 +74,10 @@ public sealed record SaveTaxRateRequest(
 /// templates at all. So creation provisions, in one transaction — see <c>CompanyProvisioner</c>.
 /// </para>
 /// <para>
-/// The rest of the company profile (address, bank details, logo, brand colour) is deliberately not here.
-/// It is edited on the settings screen afterwards, and requiring it up front would put a dozen optional
-/// fields in front of the one thing being asked for.
+/// <b>No VAT detail is asked for — the tick is enough.</b> A VAT-registered company inherits the rate the
+/// other VAT companies charge today; an unregistered one gets a zero rate and nothing else. Either way the
+/// rate is not something to re-type per company, because it is not per-company. The rest of the profile
+/// (address, bank, logo, VAT number) is edited on the settings screen afterwards.
 /// </para>
 /// </remarks>
 /// <param name="NumberPrefix">
@@ -63,23 +85,11 @@ public sealed record SaveTaxRateRequest(
 /// <c>DocumentNumberFormat</c> — so <c>{YY}{MON}_SS_</c> is equally valid. Applied to all nine document
 /// types; each is editable afterwards under Numbering.
 /// </param>
-/// <param name="TaxRateName">
-/// What the default rate is called, e.g. "VAT 18%". Ignored when the company is not VAT-registered.
-/// </param>
-/// <param name="TaxPercentage">Its percentage. Ignored when the company is not VAT-registered.</param>
-/// <param name="TaxEffectiveFrom">
-/// The date the rate starts applying. Documents dated before it cannot be raised at all, so this wants
-/// to be on or before the date the company starts trading — not today by reflex.
-/// </param>
 public sealed record CreateCompanyRequest(
     string Name,
     bool IsVatRegistered,
-    string? VatNumber,
     string? BusinessRegistrationNo,
-    string NumberPrefix,
-    string TaxRateName,
-    decimal TaxPercentage,
-    DateOnly TaxEffectiveFrom);
+    string NumberPrefix);
 
 /// <summary>What was created, and what was provisioned alongside it.</summary>
 public sealed record CompanyCreatedResponse(
@@ -156,19 +166,14 @@ public sealed class BusinessRuleValidator : AbstractValidator<BusinessRule>
     }
 }
 
-public sealed class SaveTaxRateRequestValidator : AbstractValidator<SaveTaxRateRequest>
+public sealed class SetVatRateRequestValidator : AbstractValidator<SetVatRateRequest>
 {
-    public SaveTaxRateRequestValidator()
+    public SetVatRateRequestValidator()
     {
         RuleFor(r => r.Name).NotEmpty().MaximumLength(64);
 
         // A negative tax rate is not a discount, it is a bug.
         RuleFor(r => r.Percentage).InclusiveBetween(0m, 100m);
-
-        RuleFor(r => r.EffectiveTo)
-            .GreaterThanOrEqualTo(r => r.EffectiveFrom)
-            .When(r => r.EffectiveTo is not null)
-            .WithMessage("A rate cannot stop applying before it starts.");
     }
 }
 
@@ -177,21 +182,14 @@ public sealed class CreateCompanyRequestValidator : AbstractValidator<CreateComp
     public CreateCompanyRequestValidator()
     {
         RuleFor(r => r.Name).NotEmpty().MaximumLength(100);
-        RuleFor(r => r.VatNumber).MaximumLength(64);
         RuleFor(r => r.BusinessRegistrationNo).MaximumLength(64);
 
         // Without a prefix every document in the new company is a bare number, indistinguishable at a
         // glance from the other company's. It is editable afterwards, but it should never start absent.
         RuleFor(r => r.NumberPrefix).NotEmpty().MaximumLength(32);
 
-        // Only meaningful for a VAT-registered company: the engine forces 0% for one that is not, so a
-        // rate would be seeded and never used. Demanding a name and a percentage for it anyway would be
-        // asking for an answer that changes nothing.
-        When(r => r.IsVatRegistered, () =>
-        {
-            RuleFor(r => r.TaxRateName).NotEmpty().MaximumLength(64);
-            RuleFor(r => r.TaxPercentage).InclusiveBetween(0m, 100m);
-        });
+        // No VAT fields to validate — a VAT-registered company inherits the rate the others charge, and an
+        // unregistered one has none. The tick is the whole of the VAT decision.
     }
 }
 

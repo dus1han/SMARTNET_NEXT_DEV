@@ -197,10 +197,11 @@ public sealed class TaxEngineTests
     [Fact]
     public void An_open_ended_rate_yields_to_a_later_one_once_that_starts()
     {
-        // The likelier shape in practice: nobody closed off the old rate, so it is open-ended and the two
-        // overlap. The engine takes the latest EffectiveFrom on or before the document date, so the
-        // scheduled rate wins from its start date and the old one governs everything before it. This is
-        // what lets ClearOtherDefaults leave the old rate alone instead of rewriting its end date.
+        // The shape live actually has, and the one the earlier overlap-based clearing broke: nobody closed
+        // off the old rate, so BOTH are open-ended and default at once. The engine takes the latest
+        // EffectiveFrom on or before the document date, so the scheduled rate wins from its start and the old
+        // one governs everything before it — no end date on the old rate, no clearing of its flag. This is
+        // exactly why a scheduled VAT change must leave the current rate a default rather than superseding it.
         var current = Rate(1, "VAT 18%", 18m, from: new DateOnly(2024, 1, 1));
         var scheduled = Rate(2, "VAT 20%", 20m, from: new DateOnly(2027, 1, 1));
 
@@ -212,25 +213,6 @@ public sealed class TaxEngineTests
                 rates: [current, scheduled],
                 date: new DateOnly(2027, 6, 1)))
             .Totals.Tax.Should().Be(20m);
-    }
-
-    [Fact]
-    public void Rates_that_never_coexist_do_not_overlap_and_ones_that_do_are_caught()
-    {
-        var current = Rate(1, "VAT 18%", 18m, from: new DateOnly(2024, 1, 1), to: new DateOnly(2026, 12, 31));
-        var scheduled = Rate(2, "VAT 20%", 20m, from: new DateOnly(2027, 1, 1));
-        var openEnded = Rate(3, "VAT 18%", 18m, from: new DateOnly(2024, 1, 1));
-
-        // Adjacent, not overlapping — 31 December and 1 January.
-        current.Overlaps(scheduled).Should().BeFalse();
-        scheduled.Overlaps(current).Should().BeFalse();
-
-        // An open end runs into everything after it, in both directions.
-        openEnded.Overlaps(scheduled).Should().BeTrue();
-        scheduled.Overlaps(openEnded).Should().BeTrue();
-
-        // And a rate always overlaps itself, which is why the caller excludes the one being saved.
-        current.Overlaps(current).Should().BeTrue();
     }
 
     [Fact]

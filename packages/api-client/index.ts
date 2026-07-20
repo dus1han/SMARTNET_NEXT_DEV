@@ -37,7 +37,6 @@ export type CompanySummary = Schemas["CompanySummary"];
 export type CompanyProfile = Schemas["CompanyProfile"];
 export type BusinessRule = Schemas["BusinessRule"];
 export type TaxRate = Schemas["TaxRateDto"];
-export type SaveTaxRateRequest = Schemas["SaveTaxRateRequest"];
 export type MailSettings = Schemas["MailSettingsResponse"];
 export type SaveMailSettingsRequest = Schemas["SaveMailSettingsRequest"];
 export type EmailTemplate = Schemas["EmailTemplateDto"];

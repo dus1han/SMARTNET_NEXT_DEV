@@ -5404,6 +5404,22 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/vat-rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
         post: {
             parameters: {
                 query?: never;
@@ -5413,9 +5429,9 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["SaveTaxRateRequest"];
-                    "text/json": components["schemas"]["SaveTaxRateRequest"];
-                    "application/*+json": components["schemas"]["SaveTaxRateRequest"];
+                    "application/json": components["schemas"]["SetVatRateRequest"];
+                    "text/json": components["schemas"]["SetVatRateRequest"];
+                    "application/*+json": components["schemas"]["SetVatRateRequest"];
                 };
             };
             responses: {
@@ -5425,9 +5441,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["TaxRateDto"];
-                        "application/json": components["schemas"]["TaxRateDto"];
-                        "text/json": components["schemas"]["TaxRateDto"];
+                        "text/plain": components["schemas"]["VatRateAppliedResponse"];
+                        "application/json": components["schemas"]["VatRateAppliedResponse"];
+                        "text/json": components["schemas"]["VatRateAppliedResponse"];
                     };
                 };
             };
@@ -5457,9 +5473,9 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["SaveTaxRateRequest"];
-                    "text/json": components["schemas"]["SaveTaxRateRequest"];
-                    "application/*+json": components["schemas"]["SaveTaxRateRequest"];
+                    "application/json": components["schemas"]["UpdateTaxRateFromRequest"];
+                    "text/json": components["schemas"]["UpdateTaxRateFromRequest"];
+                    "application/*+json": components["schemas"]["UpdateTaxRateFromRequest"];
                 };
             };
             responses: {
@@ -6733,14 +6749,8 @@ export interface components {
         CreateCompanyRequest: {
             name: string;
             isVatRegistered: boolean;
-            vatNumber?: string | null;
             businessRegistrationNo?: string | null;
             numberPrefix: string;
-            taxRateName: string;
-            /** Format: double */
-            taxPercentage: number;
-            /** Format: date */
-            taxEffectiveFrom: string;
         };
         CreateCreditNoteRequest: {
             /** Format: int64 */
@@ -8329,16 +8339,6 @@ export interface components {
             email?: string | null;
             vatNumber?: string | null;
         };
-        SaveTaxRateRequest: {
-            name: string;
-            /** Format: double */
-            percentage: number;
-            /** Format: date */
-            effectiveFrom: string;
-            /** Format: date */
-            effectiveTo?: string | null;
-            isDefault: boolean;
-        };
         SendTestEmailRequest: {
             to: string;
         };
@@ -8361,6 +8361,13 @@ export interface components {
         };
         SetUserPermissionsRequest: {
             permissions: string[];
+        };
+        SetVatRateRequest: {
+            name: string;
+            /** Format: double */
+            percentage: number;
+            /** Format: date */
+            effectiveFrom: string;
         };
         StatementRecipients: {
             contacts: components["schemas"]["DocumentContact"][];
@@ -8656,6 +8663,10 @@ export interface components {
             /** Format: int32 */
             expectedRowVersion: number;
         };
+        UpdateTaxRateFromRequest: {
+            /** Format: date */
+            effectiveFrom: string;
+        };
         UpdateUserRequest: {
             name: string;
             roleIds: number[];
@@ -8670,6 +8681,10 @@ export interface components {
             isLockedOut: boolean;
             roles: components["schemas"]["RoleSummary"][];
             effectivePermissions: string[];
+        };
+        VatRateAppliedResponse: {
+            /** Format: int32 */
+            companiesAffected: number;
         };
     };
     responses: never;

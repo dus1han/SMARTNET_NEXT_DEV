@@ -102,12 +102,8 @@ public sealed class SettingsController : ControllerBase
                 new NewCompany(
                     request.Name,
                     request.IsVatRegistered,
-                    request.VatNumber,
                     request.BusinessRegistrationNo,
-                    request.NumberPrefix,
-                    request.TaxRateName,
-                    request.TaxPercentage,
-                    request.TaxEffectiveFrom),
+                    request.NumberPrefix),
                 cancellationToken).ConfigureAwait(false);
         }
         catch (CompanyAlreadyExistsException duplicate)
@@ -358,64 +354,71 @@ public sealed class SettingsController : ControllerBase
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false));
 
+    /// <summary>
+    /// Set the business VAT rate — applied to every VAT-registered company at once.
+    /// </summary>
     /// <remarks>
-    /// <b>Dev_Admin, not merely settings.manage.</b> A tax rate is money-correctness, not presentation:
-    /// a wrong or wrongly-dated default rate does not fail loudly, it silently mis-taxes every document
-    /// raised under it, and — via <c>ClearOtherDefaults</c> — can stand down the rate in force. It sits
-    /// with adding a company as a structural act reserved to the superuser, above the class-level
-    /// settings.manage that the rest of the surface carries. Reading the rates stays open to anyone with
-    /// settings access; only writing is raised.
+    /// <para>
+    /// <b>Dev_Admin, and deliberately not company-scoped.</b> VAT is a national rate: when it changes it
+    /// changes for every registered entity on the same day, so this fans the new rate out across all
+    /// VAT-registered companies as their default from <see cref="SetVatRateRequest.EffectiveFrom"/>.
+    /// Unregistered companies are untouched — the engine taxes them at 0% regardless, and they carry only a
+    /// zero rate.
+    /// </para>
+    /// <para>
+    /// It does not close off the previous rate. Adding "20% from January" leaves the current rate open-ended
+    /// and both stay default: the engine resolves each document against the default with the latest start on
+    /// or before its date, so the old rate governs everything before January and the new one from January on.
+    /// A single <c>SaveChanges</c> makes the whole fan-out atomic — no company is left a rate behind.
+    /// </para>
     /// </remarks>
-    [HttpPost("tax-rates")]
+    [HttpPost("vat-rate")]
     [RequirePermission(Permissions.SystemDevAdmin)]
     [RequireChangeReason]
-    public async Task<ActionResult<TaxRateDto>> CreateTaxRate(
-        SaveTaxRateRequest request,
+    public async Task<ActionResult<VatRateAppliedResponse>> SetVatRate(
+        SetVatRateRequest request,
         CancellationToken cancellationToken)
     {
-        var companyId = _companies.Active;
+        var vatCompanies = await _db.Companies
+            .Where(c => c.DeletedAt == null && c.IsVatRegistered)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        if (companyId is null)
+        foreach (var companyId in vatCompanies)
         {
-            return Forbid();
-        }
+            var rate = new TaxRate
+            {
+                CompanyId = companyId,
+                Name = request.Name,
+                Percentage = request.Percentage,
+                EffectiveFrom = request.EffectiveFrom,
+                EffectiveTo = null,
+                IsDefault = true,
+            };
 
-        var rate = new TaxRate
-        {
-            CompanyId = companyId.Value,
-            Name = request.Name,
-            Percentage = request.Percentage,
-            EffectiveFrom = request.EffectiveFrom,
-            EffectiveTo = request.EffectiveTo,
-            IsDefault = request.IsDefault,
-        };
-
-        _db.TaxRates.Add(rate);
-
-        if (request.IsDefault)
-        {
-            await ClearOtherDefaults(companyId.Value, rate, cancellationToken).ConfigureAwait(false);
+            _db.TaxRates.Add(rate);
+            await ClearOtherDefaults(companyId, rate, cancellationToken).ConfigureAwait(false);
         }
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        return Ok(new TaxRateDto(
-            rate.Id, rate.Name, rate.Percentage, rate.EffectiveFrom, rate.EffectiveTo, rate.IsDefault));
+        return Ok(new VatRateAppliedResponse(vatCompanies.Count));
     }
 
+    /// <summary>Shift when one company adopts its rate — the only per-company tax edit.</summary>
     /// <remarks>
-    /// Editing a rate does NOT change any document that used it: Phase 5 snapshots the rate onto
-    /// each line at save. Changing 18% to 20% here affects tomorrow's invoices, not last year's —
-    /// which is exactly what the legacy system gets wrong, because it re-resolves the rate at print
-    /// time and reprints old invoices with today's tax on them.
-    /// <para>Dev_Admin, for the same reason as <see cref="CreateTaxRate"/>.</para>
+    /// The rate and percentage are business-wide (set through <see cref="SetVatRate"/>); a company gets to
+    /// vary only <i>when</i> it starts, for the case where one entity changed its systems on a different day.
+    /// Moving a document's rate does not touch any document already raised — Phase 5 snapshots the rate onto
+    /// each line at save — so this affects tomorrow's documents, not last year's. Dev_Admin, like setting it.
     /// </remarks>
     [HttpPut("tax-rates/{id:long}")]
     [RequirePermission(Permissions.SystemDevAdmin)]
     [RequireChangeReason]
-    public async Task<IActionResult> UpdateTaxRate(
+    public async Task<IActionResult> UpdateTaxRateFrom(
         long id,
-        SaveTaxRateRequest request,
+        UpdateTaxRateFromRequest request,
         CancellationToken cancellationToken)
     {
         var rate = await _db.TaxRates
@@ -429,13 +432,11 @@ public sealed class SettingsController : ControllerBase
             return NotFound();
         }
 
-        rate.Name = request.Name;
-        rate.Percentage = request.Percentage;
         rate.EffectiveFrom = request.EffectiveFrom;
-        rate.EffectiveTo = request.EffectiveTo;
-        rate.IsDefault = request.IsDefault;
 
-        if (request.IsDefault)
+        // Only re-check the one-default-per-start-date invariant; name, percentage and the default flag are
+        // left exactly as they were, because none of them is editable here.
+        if (rate.IsDefault)
         {
             await ClearOtherDefaults(rate.CompanyId, rate, cancellationToken).ConfigureAwait(false);
         }
@@ -614,33 +615,37 @@ public sealed class SettingsController : ControllerBase
         .FirstOrDefaultAsync(m => m.CompanyId == _companies.Active, cancellationToken);
 
     /// <summary>
-    /// One default rate <b>in force at any given date</b> — not one per company for all time.
+    /// Keep at most one default per <b>start date</b>. A new default supersedes an existing one only if the
+    /// two begin on the same day.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This used to clear the default flag on every other rate, date-blind, and that made scheduling a rate
-    /// change impossible in the most damaging way available. Adding "VAT 20%, from 1 January" — the obvious
-    /// thing to do when a rate change is announced — unset the flag on the 18% currently in force. The engine
-    /// then looked for a default in force *today*, found the 18% no longer default and the 20% not yet
-    /// started, and threw <c>TaxRateNotResolvableException</c>: every invoice, quotation and credit note in
-    /// that company would stop saving, immediately, from an edit that looked like forward planning.
+    /// This is the whole mechanism behind scheduling a rate change, and it is subtler than "one default per
+    /// company". Two defaults that begin on <i>different</i> dates coexist by design: the engine resolves a
+    /// document against the default with the latest <c>EffectiveFrom</c> on or before that document's date
+    /// (<c>TaxEngine.ResolveDocumentRate</c>), so "18% from 2024, 20% from 2027" schedules itself — 18%
+    /// governs everything before 2027, 20% from 2027 on — with no end date written onto the 18% and no
+    /// clearing of its flag.
     /// </para>
     /// <para>
-    /// Only rates whose date ranges actually <b>overlap</b> the one being saved are cleared, so two defaults
-    /// that never coexist both keep their flag. Where ranges do overlap — an open-ended 18% and a 20% that
-    /// starts later — the engine already resolves it correctly by taking the latest
-    /// <c>EffectiveFrom</c> on or before the document date, so the old rate can be left open-ended rather
-    /// than having its end date rewritten underneath whoever set it.
+    /// The earlier version cleared every <i>overlapping</i> default, which read as correct and was not.
+    /// Live's 18% is open-ended, so a scheduled 20% overlaps it, so adding the 20% cleared the 18% — and the
+    /// engine, finding no default in force before 2027, threw <c>TaxRateNotResolvableException</c> on every
+    /// document. The only case that genuinely must not persist is two defaults sharing a start date, where
+    /// "the latest" is a coin toss; that is exactly, and only, what this clears.
     /// </para>
     /// </remarks>
     private async Task ClearOtherDefaults(long companyId, TaxRate keeping, CancellationToken cancellationToken)
     {
-        var others = await _db.TaxRates
-            .Where(t => t.CompanyId == companyId && t.IsDefault && t.DeletedAt == null)
+        var sameStart = await _db.TaxRates
+            .Where(t => t.CompanyId == companyId
+                && t.IsDefault
+                && t.DeletedAt == null
+                && t.EffectiveFrom == keeping.EffectiveFrom)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        foreach (var other in others.Where(t => !ReferenceEquals(t, keeping) && t.Overlaps(keeping)))
+        foreach (var other in sameStart.Where(t => !ReferenceEquals(t, keeping)))
         {
             other.IsDefault = false;
         }

@@ -7,7 +7,6 @@ import { ApiError } from "@/lib/api";
 import {
   RULE_LABELS,
   createCompany,
-  createTaxRate,
   deleteCompanyLogo,
   getBusinessRules,
   getCompany,
@@ -17,7 +16,8 @@ import {
   listCompanies,
   saveBusinessRules,
   saveCompany,
-  updateTaxRate,
+  setVatRate,
+  updateTaxRateFrom,
   uploadCompanyLogo,
   saveMailSettings,
   sendTestEmail,
@@ -26,7 +26,6 @@ import {
   type CompanySummary,
   type MailSettings,
   type CompanyCreated,
-  type SaveTaxRate,
   type TaxRate,
 } from "@/lib/settings";
 import { MINIMUM_REASON_LENGTH } from "@/lib/admin";
@@ -110,7 +109,7 @@ export default function SettingsPage() {
             {isDevAdmin && (
               <div className="ml-auto flex gap-2">
                 <Button variant="secondary" onClick={() => setAddingRate(true)}>
-                  Add tax rate
+                  Set VAT rate
                 </Button>
                 <Button variant="secondary" onClick={() => setAdding(true)}>
                   Add company
@@ -134,20 +133,18 @@ export default function SettingsPage() {
           )}
 
           {addingRate && (
-            <TaxRateDialog
-              rate={null}
+            <SetVatRateDialog
               onCancel={() => setAddingRate(false)}
-              onSave={async (draft, reason) => {
-                try {
-                  await createTaxRate(draft, reason, active);
-                  toast.success("Tax rate added.");
-                  setAddingRate(false);
-                  await queryClient.invalidateQueries({ queryKey: ["tax-rates", active] });
-                  // Show the result: jump to the tax section, wherever they were when they added it.
-                  setSection("tax");
-                } catch (error: unknown) {
-                  toast.error(message(error));
-                }
+              onSaved={async (companiesAffected) => {
+                setAddingRate(false);
+                toast.success(
+                  companiesAffected === 1
+                    ? "VAT rate set for the VAT-registered company."
+                    : `VAT rate set across ${companiesAffected} VAT-registered companies.`,
+                );
+                await queryClient.invalidateQueries({ queryKey: ["tax-rates"] });
+                // Show the result: jump to the tax section, wherever they were when they set it.
+                setSection("tax");
               }}
             />
           )}
@@ -170,14 +167,14 @@ export default function SettingsPage() {
 /**
  * Add a trading entity.
  *
- * It asks for four things and provisions the rest, because the alternative is a company that exists and
- * cannot do anything. A new `companies_m` row on its own has no tax rate — which means the tax engine
- * refuses to rate any document it raises — no numbering series, and no email templates, and there is no
- * screen anywhere that would let someone add the templates afterwards.
+ * It asks for a name, a number prefix and whether it charges VAT, and provisions the rest — because the
+ * alternative is a company that exists and cannot do anything. A bare `companies_m` row has no tax rate
+ * (so the engine refuses to rate any document it raises), no numbering series, and no email templates,
+ * and there is no screen anywhere that would let someone add the templates afterwards.
  *
- * The address, bank details, logo and brand colour are deliberately not asked for. They are edited on
- * this same screen a moment later, and putting a dozen optional fields in front of the one thing being
- * asked for is how a form stops being used.
+ * <b>No VAT rate is asked for.</b> A VAT-registered company inherits the rate the others charge today;
+ * VAT is not a per-company figure to re-type. The rest of the profile (address, bank, logo, VAT number)
+ * is edited on this same screen a moment later.
  */
 function AddCompanyDialog({ onCancel, onCreated }: {
   onCancel: () => void;
@@ -185,23 +182,15 @@ function AddCompanyDialog({ onCancel, onCreated }: {
 }) {
   const [name, setName] = useState("");
   const [vatRegistered, setVatRegistered] = useState(true);
-  const [vatNumber, setVatNumber] = useState("");
   const [brc, setBrc] = useState("");
   const [prefix, setPrefix] = useState("");
-  const [taxName, setTaxName] = useState("VAT 18%");
-  const [taxPercent, setTaxPercent] = useState("18");
-  const [taxFrom, setTaxFrom] = useState(new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const percent = Number(taxPercent);
   const valid =
     name.trim() !== ""
     && prefix.trim() !== ""
-    && taxFrom !== ""
-    && reason.trim().length >= MINIMUM_REASON_LENGTH
-    && (!vatRegistered
-      || (taxName.trim() !== "" && Number.isFinite(percent) && percent >= 0 && percent <= 100));
+    && reason.trim().length >= MINIMUM_REASON_LENGTH;
 
   async function submit() {
     setSaving(true);
@@ -210,12 +199,8 @@ function AddCompanyDialog({ onCancel, onCreated }: {
         {
           name: name.trim(),
           isVatRegistered: vatRegistered,
-          vatNumber: vatRegistered && vatNumber.trim() !== "" ? vatNumber.trim() : null,
           businessRegistrationNo: brc.trim() === "" ? null : brc.trim(),
           numberPrefix: prefix.trim(),
-          taxRateName: taxName.trim(),
-          taxPercentage: Number.isFinite(percent) ? percent : 0,
-          taxEffectiveFrom: taxFrom,
         },
         reason.trim(),
       );
@@ -238,7 +223,7 @@ function AddCompanyDialog({ onCancel, onCreated }: {
       open
       onOpenChange={(open) => !open && onCancel()}
       title="Add a company"
-      description="A second trading entity, with its own document numbering, tax rate and letterhead. Everyone who uses the system will be able to work in it."
+      description="A second trading entity, with its own document numbering and letterhead. Everyone who uses the system will be able to work in it."
       footer={
         <>
           <Button variant="secondary" onClick={onCancel} disabled={saving}>
@@ -283,43 +268,12 @@ function AddCompanyDialog({ onCancel, onCreated }: {
           <span>
             <span className="text-text">Registered for VAT</span>
             <span className="block text-xs text-muted">
-              An unregistered company is taxed at 0% whatever its rates say, so it gets a zero rate and
-              nothing else.
+              Ticked, it inherits the VAT rate the other registered companies charge today. Unticked, it is
+              taxed at 0% and carries a zero rate only. The VAT number is added afterwards, in Company
+              details.
             </span>
           </span>
         </label>
-
-        {/* Shown always, read-only when the company is not VAT-registered — so unchecking the box greys
-            these out rather than making the form jump, and it stays clear what "not registered" excludes.
-            The values are ignored server-side for an unregistered company (it gets only a zero rate), so a
-            stale figure sitting disabled here does nothing. */}
-        <Input
-          label="VAT number"
-          value={vatNumber}
-          onChange={(e) => setVatNumber(e.target.value)}
-          disabled={!vatRegistered}
-        />
-        <Input
-          label="Default tax rate name"
-          value={taxName}
-          onChange={(e) => setTaxName(e.target.value)}
-          disabled={!vatRegistered}
-        />
-        <Input
-          label="Rate %"
-          inputMode="decimal"
-          value={taxPercent}
-          onChange={(e) => setTaxPercent(e.target.value)}
-          disabled={!vatRegistered}
-        />
-        <Input
-          label="Rate valid from"
-          type="date"
-          value={taxFrom}
-          onChange={(e) => setTaxFrom(e.target.value)}
-          disabled={!vatRegistered}
-          hint="Documents dated before this cannot be raised at all — set it to when the company starts trading, not today by reflex."
-        />
 
         <Input
           label="Reason"
@@ -792,17 +746,17 @@ function TaxSection({ companyId }: { companyId: number }) {
   const rates = taxRates.data ?? [];
   const today = new Date().toISOString().slice(0, 10);
 
-  // Editing a rate is Dev_Admin's, same as adding one (the "Add tax rate" button lives up top with
+  // Editing a rate is Dev_Admin's, same as setting one (the "Set VAT rate" button lives up top with
   // "Add company"). Non-admins get the read-only table — the server enforces this too, so the Edit
   // button is hidden rather than shown-and-403ing.
   const canManage = user.data?.permissions.includes("system.dev_admin") ?? false;
 
-  async function save(draft: SaveTaxRate, reason: string) {
+  async function saveDate(effectiveFrom: string, reason: string) {
     if (editing === null) return;
 
     try {
-      await updateTaxRate(editing.id, draft, reason, companyId);
-      toast.success("Tax rate saved.");
+      await updateTaxRateFrom(editing.id, effectiveFrom, reason, companyId);
+      toast.success("Adoption date updated.");
       setEditing(null);
       await queryClient.invalidateQueries({ queryKey: ["tax-rates", companyId] });
     } catch (error: unknown) {
@@ -887,36 +841,33 @@ function TaxSection({ companyId }: { companyId: number }) {
 
       {canManage && (
         <p className="mt-4 text-xs text-muted">
-          To change a rate from a future date, use <strong>Add tax rate</strong> above with that start
-          date — don&rsquo;t edit the rate in force. Editing rewrites what the current rate <em>is</em>;
-          adding records that it changed.
+          The rate and percentage are business-wide — change them with <strong>Set VAT rate</strong> above,
+          which applies to every VAT-registered company at once. Here you can only move <em>this</em>
+          company&rsquo;s adoption date, for when one entity switched over on a different day.
         </p>
       )}
 
       {editing && (
-        <TaxRateDialog rate={editing} onCancel={() => setEditing(null)} onSave={save} />
+        <EditRateFromDialog rate={editing} onCancel={() => setEditing(null)} onSave={saveDate} />
       )}
     </Card>
   );
 }
 
 /**
- * Add or edit one rate.
+ * Set the business VAT rate — the one applied to every VAT-registered company.
  *
- * The valid-from date is the point of the whole screen: it is what lets a rate change be entered when it
- * is announced rather than remembered on the morning it takes effect. The server resolves each document
- * against the rate in force on that document's own date, so a rate dated forward simply waits.
+ * The valid-from date is the point of it: it is what lets a rate change be entered when it is announced
+ * rather than on the morning it takes effect. The server resolves each document against the rate in force
+ * on that document's own date, so a rate dated forward simply waits, and the current rate is left alone.
  */
-function TaxRateDialog({ rate, onCancel, onSave }: {
-  rate: TaxRate | null;
+function SetVatRateDialog({ onCancel, onSaved }: {
   onCancel: () => void;
-  onSave: (draft: SaveTaxRate, reason: string) => void | Promise<void>;
+  onSaved: (companiesAffected: number) => void | Promise<void>;
 }) {
-  const [name, setName] = useState(rate?.name ?? "");
-  const [percentage, setPercentage] = useState(rate ? String(rate.percentage) : "");
-  const [from, setFrom] = useState(rate?.effectiveFrom ?? new Date().toISOString().slice(0, 10));
-  const [until, setUntil] = useState(rate?.effectiveTo ?? "");
-  const [isDefault, setIsDefault] = useState(rate?.isDefault ?? false);
+  const [name, setName] = useState("VAT 18%");
+  const [percentage, setPercentage] = useState("18");
+  const [from, setFrom] = useState(new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -928,40 +879,36 @@ function TaxRateDialog({ rate, onCancel, onSave }: {
     && percent >= 0
     && percent <= 100
     && from !== ""
-    && (until === "" || until >= from)
-    && reason.trim().length >= 10;
+    && reason.trim().length >= MINIMUM_REASON_LENGTH;
+
+  async function submit() {
+    setSaving(true);
+    try {
+      const result = await setVatRate(
+        { name: name.trim(), percentage: percent, effectiveFrom: from },
+        reason.trim(),
+      );
+      await onSaved(result.companiesAffected);
+    } catch (error: unknown) {
+      toast.error(message(error));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <Dialog
       open
       onOpenChange={(open) => !open && onCancel()}
-      title={rate ? `Edit ${rate.name}` : "Add a tax rate"}
-      description="Documents are taxed at the rate in force on their own date, so a rate dated in the future takes effect on its own."
+      title="Set the VAT rate"
+      description="Applied to every VAT-registered company at once, from the date below. The current rate stays in place for documents dated before it, so a change can be entered ahead of time."
       footer={
         <>
           <Button variant="secondary" onClick={onCancel} disabled={saving}>
             Cancel
           </Button>
-          <Button
-            pending={saving}
-            disabled={!valid}
-            onClick={() => {
-              setSaving(true);
-              void Promise.resolve(
-                onSave(
-                  {
-                    name: name.trim(),
-                    percentage: percent,
-                    effectiveFrom: from,
-                    effectiveTo: until === "" ? null : until,
-                    isDefault,
-                  },
-                  reason.trim(),
-                ),
-              ).finally(() => setSaving(false));
-            }}
-          >
-            Save
+          <Button pending={saving} disabled={!valid} onClick={submit}>
+            Apply
           </Button>
         </>
       }
@@ -978,43 +925,85 @@ function TaxRateDialog({ rate, onCancel, onSave }: {
         />
 
         <Input
-          label="Valid from"
+          label="Applies from"
           type="date"
           value={from}
           onChange={(e) => setFrom(e.target.value)}
-          hint="Documents dated on or after this use this rate. Earlier documents are untouched."
+          hint="Documents dated on or after this use the new rate. Earlier documents keep the old one."
         />
-
-        <Input
-          label="Valid until"
-          type="date"
-          value={until}
-          onChange={(e) => setUntil(e.target.value)}
-          hint="Leave blank while it is still in force."
-        />
-
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={isDefault}
-            onChange={(e) => setIsDefault(e.target.checked)}
-            className="mt-1"
-          />
-          <span>
-            <span className="text-text">Use as the default rate</span>
-            <span className="block text-xs text-muted">
-              The rate applied to new documents. Only one default applies on any given day — an existing
-              default is stood down only if its dates overlap this one, so a rate dated forward leaves
-              today&rsquo;s rate alone.
-            </span>
-          </span>
-        </label>
 
         <Input
           label="Reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          hint="Recorded in the audit log. At least 10 characters."
+          hint={`Recorded in the audit log. At least ${MINIMUM_REASON_LENGTH} characters.`}
+        />
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Move when one company adopts its rate — the only per-company tax edit.
+ *
+ * The name and percentage are shown but not editable: they are the business's VAT rate, the same for every
+ * company, and set through <c>SetVatRate</c>. What a single company may vary is the day it starts, for the
+ * case where one entity changed its systems later than the others.
+ */
+function EditRateFromDialog({ rate, onCancel, onSave }: {
+  rate: TaxRate;
+  onCancel: () => void;
+  onSave: (effectiveFrom: string, reason: string) => void | Promise<void>;
+}) {
+  const [from, setFrom] = useState(rate.effectiveFrom);
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const valid = from !== "" && reason.trim().length >= MINIMUM_REASON_LENGTH;
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      title={`Adoption date — ${rate.name}`}
+      description="When this company started charging this rate. Documents already raised are untouched; only future ones move with it."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            pending={saving}
+            disabled={!valid}
+            onClick={() => {
+              setSaving(true);
+              void Promise.resolve(onSave(from, reason.trim())).finally(() => setSaving(false));
+            }}
+          >
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span className="text-muted">Rate</span>
+          <span className="tabular text-text">{rate.name} · {rate.percentage}%</span>
+        </div>
+
+        <Input
+          label="Valid from"
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          hint="Documents dated on or after this use this rate for this company."
+        />
+
+        <Input
+          label="Reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          hint={`Recorded in the audit log. At least ${MINIMUM_REASON_LENGTH} characters.`}
         />
       </div>
     </Dialog>

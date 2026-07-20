@@ -63,7 +63,7 @@ asserted at the measured 7×3.5in — a template that renders beautifully on A4 
 not claim a total lands in the right box; content streams are compressed, and that is what
 `tools/PdfPreview` and a human eye are for.
 
-721 API tests, up from 664. Still outstanding: `Smartnet.Tests/UnitTest1.cs` is the scaffold file.
+723 API tests, up from 664. Still outstanding: `Smartnet.Tests/UnitTest1.cs` is the scaffold file.
 
 ### 2b. Where a document's cost comes from (changed 2026-07-20)
 
@@ -183,19 +183,33 @@ dated weeks apart, survived it, and are the two still on the list. Check the Ove
 - **Data Protection keys are not persisted.** Carried unresolved since Phase 1. A redeploy invalidates
   every stored SMTP password.
 
-### 5b. Settings — companies and tax rates (2026-07-20)
+### 5b. Settings — companies and VAT (2026-07-20, VAT model reworked 2026-07-21)
 
 - **Adding a company is possible, and it provisions.** `POST /api/companies`, **Dev_Admin only** — the
   first endpoint in the codebase actually gated on `system.dev_admin`, which until now existed only to
-  satisfy every other policy implicitly. It writes the company, a default tax rate (plus a zero rate),
-  **9 numbering series** and **5 email templates** in one transaction. That list is not padding: the
-  two original companies were provisioned by a migration that cross-joined `FROM companies_m` over the
-  companies present when it ran, nothing re-runs it, and a bare row is a company that cannot raise any
-  document (`TaxEngine` throws with no default rate in force) and cannot email one — with no way to fix
-  the templates from the UI, because that API reads and updates but has no insert.
-- **Tax rates are editable, with valid-from.** The backend already supported effective dating; the UI
-  was read-only. It now adds and edits, shows both dates, and distinguishes Default / Scheduled / Ended
-  by the dates rather than the flag.
+  satisfy every other policy implicitly. It writes the company, its tax rates, **9 numbering series** and
+  **5 email templates** in one transaction. That list is not padding: the two original companies were
+  provisioned by a migration that cross-joined `FROM companies_m` over the companies present when it ran,
+  nothing re-runs it, and a bare row is a company that cannot raise any document (`TaxEngine` throws with
+  no default rate in force) and cannot email one — with no way to fix the templates from the UI, because
+  that API reads and updates but has no insert. **The create form asks only for the VAT tick** — a
+  VAT-registered company inherits the rate the others charge today; an unregistered one gets a zero rate
+  only.
+- **VAT is a business-wide rate, not a per-company one.** `POST /api/settings/vat-rate` (Dev_Admin) sets
+  it for **every VAT-registered company at once**, as their default from a valid-from date. Per company,
+  only the *adoption date* is editable (`PUT /api/settings/tax-rates/{id}`), for the case where one
+  entity switched over on a different day. The rate and percentage are the same everywhere by
+  construction.
+- **Scheduling works because default-clearing keys on the start date, not overlap.** Two defaults with
+  different start dates coexist; the engine resolves each document against the default with the latest
+  start on or before its date, so "18% now, 20% from January" needs no end date on the 18% and no
+  clearing of its flag. Only a default on the *same* start date supersedes. The earlier overlap-based
+  clearing would have felled live's open-ended 18% the moment a future rate was added — that is fixed.
+- **Non-VAT companies show only a zero rate.** Smart Technologies is flagged not-VAT-registered but the
+  seed had given it a "VAT 18%" default (it seeded blind to the flag); the engine forced 0% anyway, so
+  taxation was right while the data lied. Cleaned on live 2026-07-21 (`infra/sql/tax-rates-non-vat-zero-only.sql`):
+  ST now carries the zero rate as its default and the stray 18% is soft-deleted. **ST shows 0 only, SN
+  shows both**, which is what the business asked for.
 - Company **delete/deactivate is still not implemented** — `deleted_at` exists and is filtered on, but
   nothing sets it.
 

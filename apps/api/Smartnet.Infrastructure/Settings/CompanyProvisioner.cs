@@ -14,12 +14,8 @@ public interface ICompanyProvisioner
 public sealed record NewCompany(
     string Name,
     bool IsVatRegistered,
-    string? VatNumber,
     string? BusinessRegistrationNo,
-    string NumberPrefix,
-    string TaxRateName,
-    decimal TaxPercentage,
-    DateOnly TaxEffectiveFrom);
+    string NumberPrefix);
 
 public sealed record ProvisionedCompany(
     long Id,
@@ -64,9 +60,18 @@ public sealed record ProvisionedCompany(
 /// </remarks>
 public sealed class CompanyProvisioner : ICompanyProvisioner
 {
-    private readonly SmartnetDbContext _db;
+    // The zero rate every company carries. Dated far enough back that no document a new company could
+    // raise falls before it — a new company has no history, so any real date is later than this.
+    private static readonly DateOnly ZeroRateFrom = new(2024, 1, 1);
 
-    public CompanyProvisioner(SmartnetDbContext db) => _db = db;
+    private readonly SmartnetDbContext _db;
+    private readonly TimeProvider _time;
+
+    public CompanyProvisioner(SmartnetDbContext db, TimeProvider time)
+    {
+        _db = db;
+        _time = time;
+    }
 
     public async Task<ProvisionedCompany> CreateAsync(
         NewCompany request,
@@ -93,7 +98,6 @@ public sealed class CompanyProvisioner : ICompanyProvisioner
         {
             Name = name,
             IsVatRegistered = request.IsVatRegistered,
-            VatNumber = string.IsNullOrWhiteSpace(request.VatNumber) ? null : request.VatNumber.Trim(),
             BusinessRegistrationNo = string.IsNullOrWhiteSpace(request.BusinessRegistrationNo)
                 ? null
                 : request.BusinessRegistrationNo.Trim(),
@@ -104,7 +108,8 @@ public sealed class CompanyProvisioner : ICompanyProvisioner
         // Saved before the rest, because everything below needs the generated id.
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        var taxRates = TaxRatesFor(company.Id, request);
+        var taxRates = await TaxRatesForAsync(company.Id, request.IsVatRegistered, cancellationToken)
+            .ConfigureAwait(false);
         _db.TaxRates.AddRange(taxRates);
 
         var series = DocumentTypes.All
@@ -142,19 +147,36 @@ public sealed class CompanyProvisioner : ICompanyProvisioner
     }
 
     /// <summary>
-    /// The rates a new company starts with: its default, and a zero rate.
+    /// The rates a new company starts with.
     /// </summary>
     /// <remarks>
-    /// The zero rate is not decoration — a line may legitimately carry it (an exempt item on an
-    /// otherwise taxable invoice), and it cannot be picked if it does not exist. It is never the
-    /// default, so it is never resolved by date; it is there to be chosen.
     /// <para>
-    /// A company that is not VAT-registered gets only the zero rate. The engine forces 0% for such a
-    /// company regardless, so seeding a VAT rate it can never apply would just be a row that lies about
-    /// what the company charges.
+    /// A <b>VAT-registered</b> company inherits the rate the other VAT companies charge <i>today</i> — not
+    /// a figure typed into the create form, because the rate is not a per-company decision (see
+    /// <c>SetVatRate</c>). It is copied by name, percentage and start date, so the new entity is taxed
+    /// identically to the others from day one. Any <i>scheduled future</i> rate is deliberately not copied:
+    /// a new company joins at the rate in force now, and a pending change is applied to it when it lands, the
+    /// same fan-out that set it for everyone else.
+    /// </para>
+    /// <para>
+    /// An <b>unregistered</b> company gets only the zero rate, as its default. The engine forces 0% for such
+    /// a company regardless, so a VAT row would be a line that lies about what it charges.
+    /// </para>
+    /// <para>
+    /// Every company also carries a zero rate — a line may legitimately be zero-rated (an exempt item on an
+    /// otherwise taxable invoice), and it cannot be picked if it does not exist. For a VAT company it is a
+    /// non-default choice; for an unregistered one it is the default.
+    /// </para>
+    /// <para>
+    /// The fallback — a hardcoded VAT rate when <i>no</i> VAT company exists to copy from — is for the very
+    /// first VAT company only. On this system Smart Net already exists, so it is a safety net, not a path
+    /// anyone travels.
     /// </para>
     /// </remarks>
-    private static List<TaxRate> TaxRatesFor(long companyId, NewCompany request)
+    private async Task<List<TaxRate>> TaxRatesForAsync(
+        long companyId,
+        bool isVatRegistered,
+        CancellationToken cancellationToken)
     {
         var rates = new List<TaxRate>
         {
@@ -163,24 +185,56 @@ public sealed class CompanyProvisioner : ICompanyProvisioner
                 CompanyId = companyId,
                 Name = "Zero-rated",
                 Percentage = 0m,
-                EffectiveFrom = request.TaxEffectiveFrom,
-                IsDefault = !request.IsVatRegistered,
+                EffectiveFrom = ZeroRateFrom,
+                IsDefault = !isVatRegistered,
             },
         };
 
-        if (request.IsVatRegistered)
+        if (isVatRegistered)
         {
+            var reference = await CurrentVatRateAsync(cancellationToken).ConfigureAwait(false);
+
             rates.Insert(0, new TaxRate
             {
                 CompanyId = companyId,
-                Name = request.TaxRateName.Trim(),
-                Percentage = request.TaxPercentage,
-                EffectiveFrom = request.TaxEffectiveFrom,
+                Name = reference.Name,
+                Percentage = reference.Percentage,
+                EffectiveFrom = reference.EffectiveFrom,
                 IsDefault = true,
             });
         }
 
         return rates;
+    }
+
+    /// <summary>
+    /// The VAT default the existing VAT-registered companies charge today, to copy onto a new one.
+    /// </summary>
+    private async Task<(string Name, decimal Percentage, DateOnly EffectiveFrom)> CurrentVatRateAsync(
+        CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+
+        var candidates = await _db.TaxRates
+            .Where(t => t.DeletedAt == null && t.IsDefault && t.Percentage > 0)
+            .Join(
+                _db.Companies.Where(c => c.DeletedAt == null && c.IsVatRegistered),
+                t => t.CompanyId,
+                c => c.Id,
+                (t, _) => t)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // The one in force now, and if a change is already scheduled, the latest that has actually started —
+        // the same "latest start on or before today" the tax engine uses to resolve a document.
+        var inForce = candidates
+            .Where(t => t.IsInForceOn(today))
+            .OrderByDescending(t => t.EffectiveFrom)
+            .FirstOrDefault();
+
+        return inForce is not null
+            ? (inForce.Name, inForce.Percentage, inForce.EffectiveFrom)
+            : ("VAT 18%", 18m, ZeroRateFrom); // the first-VAT-company fallback
     }
 }
 

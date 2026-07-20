@@ -6707,7 +6707,9 @@
             }
           }
         }
-      },
+      }
+    },
+    "/api/settings/vat-rate": {
       "post": {
         "tags": [
           "Settings"
@@ -6718,7 +6720,7 @@
               "schema": {
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SaveTaxRateRequest"
+                    "$ref": "#/components/schemas/SetVatRateRequest"
                   }
                 ]
               }
@@ -6727,7 +6729,7 @@
               "schema": {
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SaveTaxRateRequest"
+                    "$ref": "#/components/schemas/SetVatRateRequest"
                   }
                 ]
               }
@@ -6736,7 +6738,7 @@
               "schema": {
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SaveTaxRateRequest"
+                    "$ref": "#/components/schemas/SetVatRateRequest"
                   }
                 ]
               }
@@ -6749,17 +6751,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaxRateDto"
+                  "$ref": "#/components/schemas/VatRateAppliedResponse"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaxRateDto"
+                  "$ref": "#/components/schemas/VatRateAppliedResponse"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaxRateDto"
+                  "$ref": "#/components/schemas/VatRateAppliedResponse"
                 }
               }
             }
@@ -6789,7 +6791,7 @@
               "schema": {
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SaveTaxRateRequest"
+                    "$ref": "#/components/schemas/UpdateTaxRateFromRequest"
                   }
                 ]
               }
@@ -6798,7 +6800,7 @@
               "schema": {
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SaveTaxRateRequest"
+                    "$ref": "#/components/schemas/UpdateTaxRateFromRequest"
                   }
                 ]
               }
@@ -6807,7 +6809,7 @@
               "schema": {
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/SaveTaxRateRequest"
+                    "$ref": "#/components/schemas/UpdateTaxRateFromRequest"
                   }
                 ]
               }
@@ -8836,10 +8838,7 @@
         "required": [
           "isVatRegistered",
           "name",
-          "numberPrefix",
-          "taxEffectiveFrom",
-          "taxPercentage",
-          "taxRateName"
+          "numberPrefix"
         ],
         "type": "object",
         "properties": {
@@ -8849,27 +8848,12 @@
           "isVatRegistered": {
             "type": "boolean"
           },
-          "vatNumber": {
-            "type": "string",
-            "nullable": true
-          },
           "businessRegistrationNo": {
             "type": "string",
             "nullable": true
           },
           "numberPrefix": {
             "type": "string"
-          },
-          "taxRateName": {
-            "type": "string"
-          },
-          "taxPercentage": {
-            "type": "number",
-            "format": "double"
-          },
-          "taxEffectiveFrom": {
-            "type": "string",
-            "format": "date"
           }
         },
         "additionalProperties": false
@@ -14123,37 +14107,6 @@
         },
         "additionalProperties": false
       },
-      "SaveTaxRateRequest": {
-        "required": [
-          "effectiveFrom",
-          "isDefault",
-          "name",
-          "percentage"
-        ],
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "percentage": {
-            "type": "number",
-            "format": "double"
-          },
-          "effectiveFrom": {
-            "type": "string",
-            "format": "date"
-          },
-          "effectiveTo": {
-            "type": "string",
-            "format": "date",
-            "nullable": true
-          },
-          "isDefault": {
-            "type": "boolean"
-          }
-        },
-        "additionalProperties": false
-      },
       "SendTestEmailRequest": {
         "required": [
           "to"
@@ -14236,6 +14189,28 @@
             "items": {
               "type": "string"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetVatRateRequest": {
+        "required": [
+          "effectiveFrom",
+          "name",
+          "percentage"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "percentage": {
+            "type": "number",
+            "format": "double"
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
           }
         },
         "additionalProperties": false
@@ -15189,6 +15164,19 @@
         },
         "additionalProperties": false
       },
+      "UpdateTaxRateFromRequest": {
+        "required": [
+          "effectiveFrom"
+        ],
+        "type": "object",
+        "properties": {
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "additionalProperties": false
+      },
       "UpdateUserRequest": {
         "required": [
           "name",
@@ -15252,6 +15240,19 @@
             "items": {
               "type": "string"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "VatRateAppliedResponse": {
+        "required": [
+          "companiesAffected"
+        ],
+        "type": "object",
+        "properties": {
+          "companiesAffected": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

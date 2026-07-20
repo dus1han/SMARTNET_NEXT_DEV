@@ -76,18 +76,14 @@ export const deleteCompanyLogo = (companyId: number) =>
 /**
  * A new trading entity, and the setup it needs to be usable.
  *
- * The tax fields are ignored for a company that is not VAT-registered — the engine forces 0% for one
- * regardless, so a rate it can never charge would just be a row that misstates what it does.
+ * No VAT rate is asked for: a VAT-registered company inherits the rate the others charge today, and an
+ * unregistered one gets a zero rate only. The tick is the whole of the VAT decision.
  */
 export interface CreateCompany {
   name: string;
   isVatRegistered: boolean;
-  vatNumber: string | null;
   businessRegistrationNo: string | null;
   numberPrefix: string;
-  taxRateName: string;
-  taxPercentage: number;
-  taxEffectiveFrom: string;
 }
 
 export interface CompanyCreated {
@@ -98,7 +94,7 @@ export interface CompanyCreated {
   emailTemplatesCreated: number;
 }
 
-/** Dev_Admin only. Creates the company, a default tax rate, nine numbering series and five templates. */
+/** Dev_Admin only. Creates the company, its tax rates, nine numbering series and five templates. */
 export const createCompany = (company: CreateCompany, reason: string) =>
   api<CompanyCreated>("/api/companies", { method: "POST", body: company, reason });
 
@@ -112,24 +108,36 @@ export const getTaxRates = (companyId: number) =>
   api<TaxRate[]>("/api/settings/tax-rates", { companyId });
 
 /**
- * A rate to save. `effectiveTo: null` means "still in force" — the usual case.
+ * The business VAT rate, set once for every VAT-registered company.
  *
- * There is no delete: a rate that has taxed a document is history, and history is not removed. To stop
- * one applying, give it an end date.
+ * VAT is a national rate: it is not set per company, so this carries no company. The server fans it out
+ * across all VAT-registered entities as their default from `effectiveFrom`, leaving the previous rate in
+ * place so it governs everything before that date. There is no delete — a rate that has taxed a document
+ * is history; to change it, set a new one from a later date.
  */
-export interface SaveTaxRate {
+export interface SetVatRate {
   name: string;
   percentage: number;
   effectiveFrom: string;
-  effectiveTo: string | null;
-  isDefault: boolean;
 }
 
-export const createTaxRate = (rate: SaveTaxRate, reason: string, companyId: number) =>
-  api<TaxRate>("/api/settings/tax-rates", { method: "POST", body: rate, reason, companyId });
+/** Dev_Admin only. Returns how many companies the change touched. */
+export const setVatRate = (rate: SetVatRate, reason: string) =>
+  api<{ companiesAffected: number }>("/api/settings/vat-rate", { method: "POST", body: rate, reason });
 
-export const updateTaxRate = (id: number, rate: SaveTaxRate, reason: string, companyId: number) =>
-  api<void>(`/api/settings/tax-rates/${id}`, { method: "PUT", body: rate, reason, companyId });
+/**
+ * Shift when one company adopts its rate — the only per-company tax edit.
+ *
+ * The rate and percentage are business-wide; a single company may only vary the date it starts, for the
+ * case where one entity changed its systems on a different day.
+ */
+export const updateTaxRateFrom = (id: number, effectiveFrom: string, reason: string, companyId: number) =>
+  api<void>(`/api/settings/tax-rates/${id}`, {
+    method: "PUT",
+    body: { effectiveFrom },
+    reason,
+    companyId,
+  });
 
 // --- Mail ----------------------------------------------------------------------------------------
 
