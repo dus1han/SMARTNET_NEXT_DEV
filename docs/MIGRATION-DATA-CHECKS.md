@@ -21,10 +21,10 @@ looking at before proceeding.
 | # | Exception | Count | Value | Blocks cutover? |
 |---|---|---|---|---|
 | 1 | Duplicate payment | **0** | — | No — remediated, but see below |
-| 2 | Paid, no payment | **1** | 21,500 | No — decide, don't block |
+| 2 | Paid, no payment | **1** | 21,500 | No — decide, don't block — *resolved on dev, still to run on live* |
 | 3 | Lines ≠ header | **4** | 11,125 | No — decide, don't block |
 | 4 | Overpaid | **2** | 94,600 | No — decide, don't block |
-| 5 | Payment without an invoice | **3** | 70,381 | No — decide, don't block |
+| 5 | Payment without an invoice | **3** | 70,381 | No — decide, don't block — *resolved on dev, still to run on live* |
 | 6 | Supplier paid, not settled | **38** | 1,435,253.01 | No — decide, don't block — *resolved on dev, still to run on live* |
 | 7 | Supplier settled twice | **1** | 165,000 | No — decide, don't block |
 | 8 | Lines without a document | **105** | 4,678,439.54 | **Yes, if foreign keys are being added** — *resolved on dev, still to run on live* |
@@ -33,7 +33,8 @@ looking at before proceeding.
 Total: **155 rows** on live.
 
 > **Dev has diverged from this table, deliberately.** Row 8 was worked to zero on
-> `smartnet_invsys_dev` on 2026-07-20, and row 6 with it, so dev now reads **12** and live still reads 155.
+> `smartnet_invsys_dev` on 2026-07-20, along with rows 2, 5 and 6, so dev now reads **8** and live
+> still reads 155.
 > That is the only intended difference. If dev shows anything else changed, something ran that
 > should not have.
 
@@ -97,8 +98,32 @@ resolved on the record itself rather than by a script:
 - **Payment without an invoice** (3 payments: 3,006 naming nothing at all, 1,000 naming STI-30,
   66,375 naming SNI-1045) — money received and attributed to nobody. They cannot be assigned a
   company without guessing which trading entity received it.
+
+  **Decided 2026-07-20: remove them.** Run
+  [`infra/sql/remove-orphaned-payments.sql`](../infra/sql/remove-orphaned-payments.sql), which
+  archives the rows first. **Already run on dev; still to run on live.**
+
+  **These rows say money arrived**, unlike the orphaned document lines, which were counted by
+  nothing — so deleting them removes the only trace that 70,381.00 came in. Archived for that reason.
+  Verified first that none would re-attach if both sides were trimmed, and that neither STI-30 nor
+  SNI-1045 appears in `del_invoice_h` — they are not payments against deleted invoices.
+
+  **The GL goes with them, and this is the part not to miss.** All three carry a posted receipt —
+  Dr Bank, Cr Accounts Receivable. Deleting the payments alone would strand 70,381.00 of Bank debits
+  and Receivable credits in the trial balance with no source behind them, turning a visible data
+  exception into an invisible accounting one. The script removes lines, then entries, then payments,
+  and verifies the GL still balances to zero — which it does.
 - **Paid, no payment** (STI-1068, 21,500) — either the money came in and was never recorded, or the
   balance was zeroed in error. The screen offers both corrections.
+
+  **Decided 2026-07-20: the money was received; record the payment.** Done through the app's own
+  audited correction (Reports → Data exceptions → Resolve), **not** a script — that path exists for
+  exactly this, and it does more than SQL would: it writes the `payments` row *and* posts the GL
+  receipt (Dr Bank 21,500 / Cr Accounts Receivable 21,500) and the audit record with the reason, all
+  in one transaction. **Already done on dev; still to do on live**, the same way.
+
+  Note the payment is dated the day the correction is made, not the invoice date — the app chooses
+  that, and it is the honest choice for a receipt whose real date is unknown.
 - **Lines ≠ header** (STI-1150 is the serious one: the header claims 12,041 against 1,916 of lines)
   — needs a per-invoice decision about which of the two is right.
 - **Supplier paid, not settled** (38 invoices, 1,435,253.01) — marked paid with nothing recording
