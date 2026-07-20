@@ -82,6 +82,26 @@ export const saveBusinessRules = (rules: BusinessRule[], reason: string, company
 export const getTaxRates = (companyId: number) =>
   api<TaxRate[]>("/api/settings/tax-rates", { companyId });
 
+/**
+ * A rate to save. `effectiveTo: null` means "still in force" — the usual case.
+ *
+ * There is no delete: a rate that has taxed a document is history, and history is not removed. To stop
+ * one applying, give it an end date.
+ */
+export interface SaveTaxRate {
+  name: string;
+  percentage: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  isDefault: boolean;
+}
+
+export const createTaxRate = (rate: SaveTaxRate, reason: string, companyId: number) =>
+  api<TaxRate>("/api/settings/tax-rates", { method: "POST", body: rate, reason, companyId });
+
+export const updateTaxRate = (id: number, rate: SaveTaxRate, reason: string, companyId: number) =>
+  api<void>(`/api/settings/tax-rates/${id}`, { method: "PUT", body: rate, reason, companyId });
+
 // --- Mail ----------------------------------------------------------------------------------------
 
 export const getMailSettings = (companyId: number) =>

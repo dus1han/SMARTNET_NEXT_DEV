@@ -1,10 +1,9 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { ApiError } from "@/lib/api";
 import { me } from "@/lib/auth";
+import { endSession } from "@/lib/session";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "@/components/ui";
 import { Sidebar } from "./sidebar";
@@ -13,25 +12,32 @@ import { Topbar } from "./topbar";
 /**
  * The frame every signed-in screen sits in.
  *
- * It also owns the session check. The `proxy.ts` guard only sees that *a* cookie exists — it cannot
- * verify a signature, and it must not try, because the signing key belongs on the server. So an
- * expired or forged token is caught here, on the first real API call.
+ * It no longer owns the session check. The `proxy.ts` guard only sees that *a* cookie exists — it
+ * cannot verify a signature, and must not try, because the signing key belongs on the server — so an
+ * expired or forged token is caught on the first real API call, in `api.ts`, for every request rather
+ * than only this one. See `lib/session.ts`: doing it here alone is what left users on a drawn shell
+ * where every action failed.
+ *
+ * What remains here is the one thing `api.ts` cannot see: a user whose session is perfectly valid but
+ * who must change their password before using it.
  */
 export function AppShell({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const [navOpen, setNavOpen] = useState(false);
 
-  const { data: user, error, isPending } = useQuery({ queryKey: ["me"], queryFn: me });
+  const { data: user, isPending } = useQuery({ queryKey: ["me"], queryFn: me });
 
+  // `/api/auth/me` is deliberately allow-listed by MustChangePasswordMiddleware, so it answers 200
+  // while every other endpoint answers 403. Without this the shell renders in full for such a user and
+  // each thing they touch fails into a toast — the same "logged in but nothing works" state, reached a
+  // different way. It bit anyone arriving at / directly, by bookmark or refresh, rather than through
+  // the sign-in form.
   useEffect(() => {
-    if (!(error instanceof ApiError)) return;
-
-    if (error.status === 401 || error.status === 403) {
-      router.push(error.code === "password_change_required" ? "/change-password" : "/login");
+    if (user?.mustChangePassword) {
+      endSession("password_change_required");
     }
-  }, [error, router]);
+  }, [user]);
 
-  if (isPending || !user) {
+  if (isPending || !user || user.mustChangePassword) {
     return <ShellSkeleton />;
   }
 

@@ -549,7 +549,26 @@ public sealed class SettingsController : ControllerBase
     private Task<MailSettings?> MailFor(CancellationToken cancellationToken) => _db.MailSettings
         .FirstOrDefaultAsync(m => m.CompanyId == _companies.Active, cancellationToken);
 
-    /// <summary>Exactly one default rate per company, or "the default" means nothing.</summary>
+    /// <summary>
+    /// One default rate <b>in force at any given date</b> — not one per company for all time.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to clear the default flag on every other rate, date-blind, and that made scheduling a rate
+    /// change impossible in the most damaging way available. Adding "VAT 20%, from 1 January" — the obvious
+    /// thing to do when a rate change is announced — unset the flag on the 18% currently in force. The engine
+    /// then looked for a default in force *today*, found the 18% no longer default and the 20% not yet
+    /// started, and threw <c>TaxRateNotResolvableException</c>: every invoice, quotation and credit note in
+    /// that company would stop saving, immediately, from an edit that looked like forward planning.
+    /// </para>
+    /// <para>
+    /// Only rates whose date ranges actually <b>overlap</b> the one being saved are cleared, so two defaults
+    /// that never coexist both keep their flag. Where ranges do overlap — an open-ended 18% and a 20% that
+    /// starts later — the engine already resolves it correctly by taking the latest
+    /// <c>EffectiveFrom</c> on or before the document date, so the old rate can be left open-ended rather
+    /// than having its end date rewritten underneath whoever set it.
+    /// </para>
+    /// </remarks>
     private async Task ClearOtherDefaults(long companyId, TaxRate keeping, CancellationToken cancellationToken)
     {
         var others = await _db.TaxRates
@@ -557,7 +576,7 @@ public sealed class SettingsController : ControllerBase
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        foreach (var other in others.Where(t => !ReferenceEquals(t, keeping)))
+        foreach (var other in others.Where(t => !ReferenceEquals(t, keeping) && t.Overlaps(keeping)))
         {
             other.IsDefault = false;
         }

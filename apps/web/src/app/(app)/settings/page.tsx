@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ApiError } from "@/lib/api";
 import {
   RULE_LABELS,
+  createTaxRate,
   deleteCompanyLogo,
   getBusinessRules,
   getCompany,
@@ -15,6 +16,7 @@ import {
   listCompanies,
   saveBusinessRules,
   saveCompany,
+  updateTaxRate,
   uploadCompanyLogo,
   saveMailSettings,
   sendTestEmail,
@@ -22,12 +24,14 @@ import {
   type CompanyProfile,
   type CompanySummary,
   type MailSettings,
+  type SaveTaxRate,
+  type TaxRate,
 } from "@/lib/settings";
 import { MINIMUM_REASON_LENGTH } from "@/lib/admin";
 import { cn } from "@/lib/cn";
 import { Numbering } from "@/components/numbering";
 import { PageHeader } from "@/components/shell/app-shell";
-import { Button, Card, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
+import { Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 
 /**
  * Settings — every constant the old system buried in its source code, editable here.
@@ -549,6 +553,9 @@ function RulesForm({ rules, onSave }: {
 // --- Tax rates -------------------------------------------------------------------------------
 
 function TaxSection({ companyId }: { companyId: number }) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState<TaxRate | "new" | null>(null);
+
   const taxRates = useQuery({
     queryKey: ["tax-rates", companyId],
     queryFn: () => getTaxRates(companyId),
@@ -556,6 +563,25 @@ function TaxSection({ companyId }: { companyId: number }) {
 
   if (taxRates.isPending) return <Skeleton className="h-64" />;
   if (taxRates.error) return <LoadError error={taxRates.error} />;
+
+  const rates = taxRates.data ?? [];
+  const today = new Date().toISOString().slice(0, 10);
+
+  async function save(draft: SaveTaxRate, reason: string) {
+    const action =
+      editing === "new"
+        ? createTaxRate(draft, reason, companyId)
+        : updateTaxRate((editing as TaxRate).id, draft, reason, companyId);
+
+    try {
+      await action;
+      toast.success(editing === "new" ? "Tax rate added." : "Tax rate saved.");
+      setEditing(null);
+      await queryClient.invalidateQueries({ queryKey: ["tax-rates", companyId] });
+    } catch (error: unknown) {
+      toast.error(message(error));
+    }
+  }
 
   return (
     <Card>
@@ -565,37 +591,64 @@ function TaxSection({ companyId }: { companyId: number }) {
       />
 
       <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-md text-sm">
+        <table className="w-full min-w-lg text-sm">
           <thead>
             <tr className="border-b border-subtle text-left text-xs uppercase tracking-wide text-muted">
               <th className="pb-2 font-medium">Name</th>
               <th className="pb-2 text-right font-medium">Rate</th>
               <th className="pb-2 font-medium">From</th>
+              <th className="pb-2 font-medium">Until</th>
               <th className="pb-2 font-medium">Default</th>
+              <th className="pb-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-subtle">
-            {taxRates.data?.map((rate) => (
-              <tr key={rate.id}>
-                <td className="py-2.5 text-text">{rate.name}</td>
-                <td className="py-2.5 text-right tabular text-text">{rate.percentage}%</td>
-                <td className="py-2.5 tabular text-muted">{rate.effectiveFrom}</td>
-                <td className="py-2.5">
-                  {rate.isDefault ? (
-                    <span className="rounded bg-success-subtle px-1.5 py-0.5 text-xs text-success-text">
-                      Default
-                    </span>
-                  ) : (
-                    <span className="text-muted">—</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {rates.map((rate) => {
+              // "In force" is about the dates, not the flag: a rate that is default but does not start
+              // until January is not the rate anything is being taxed at today, and showing it as though
+              // it were is how somebody ends up believing a change took effect when it has not.
+              const started = rate.effectiveFrom <= today;
+              // `!= null` on purpose: the generated type is `string | null | undefined`, so a strict
+              // `!== null` would let an absent field through as "ended".
+              const ended = rate.effectiveTo != null && rate.effectiveTo < today;
+              const inForce = started && !ended;
 
-            {taxRates.data?.length === 0 && (
+              return (
+                <tr key={rate.id} className={inForce ? undefined : "text-muted"}>
+                  <td className="py-2.5">{rate.name}</td>
+                  <td className="py-2.5 text-right tabular">{rate.percentage}%</td>
+                  <td className="py-2.5 tabular">{rate.effectiveFrom}</td>
+                  <td className="py-2.5 tabular">{rate.effectiveTo ?? "—"}</td>
+                  <td className="py-2.5">
+                    {rate.isDefault ? (
+                      <span
+                        className={cn(
+                          "rounded px-1.5 py-0.5 text-xs",
+                          inForce
+                            ? "bg-success-subtle text-success-text"
+                            : "border border-subtle text-muted",
+                        )}
+                      >
+                        {inForce ? "Default" : started ? "Ended" : "Scheduled"}
+                      </span>
+                    ) : (
+                      <span>—</span>
+                    )}
+                  </td>
+                  <td className="py-2.5 text-right">
+                    <Button variant="ghost" onClick={() => setEditing(rate)}>
+                      Edit
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
+
+            {rates.length === 0 && (
               <tr>
-                <td colSpan={4} className="py-6 text-center text-muted">
-                  No tax rates configured for this company.
+                <td colSpan={6} className="py-6 text-center text-muted">
+                  No tax rates configured for this company. A VAT-registered company cannot raise any
+                  document until it has a default rate in force.
                 </td>
               </tr>
             )}
@@ -603,10 +656,144 @@ function TaxSection({ companyId }: { companyId: number }) {
         </table>
       </div>
 
-      <p className="mt-4 text-xs text-muted">
-        Tax rates are seeded per company and edited in a later slice. This view is read-only for now.
-      </p>
+      <div className="mt-4 flex items-center justify-between gap-4">
+        <p className="text-xs text-muted">
+          To change a rate from a future date, add a new one with that start date — don&rsquo;t edit the
+          rate in force. Editing rewrites what the current rate <em>is</em>; adding records that it
+          changed.
+        </p>
+        <Button onClick={() => setEditing("new")}>Add rate</Button>
+      </div>
+
+      {editing && (
+        <TaxRateDialog
+          rate={editing === "new" ? null : editing}
+          onCancel={() => setEditing(null)}
+          onSave={save}
+        />
+      )}
     </Card>
+  );
+}
+
+/**
+ * Add or edit one rate.
+ *
+ * The valid-from date is the point of the whole screen: it is what lets a rate change be entered when it
+ * is announced rather than remembered on the morning it takes effect. The server resolves each document
+ * against the rate in force on that document's own date, so a rate dated forward simply waits.
+ */
+function TaxRateDialog({ rate, onCancel, onSave }: {
+  rate: TaxRate | null;
+  onCancel: () => void;
+  onSave: (draft: SaveTaxRate, reason: string) => void | Promise<void>;
+}) {
+  const [name, setName] = useState(rate?.name ?? "");
+  const [percentage, setPercentage] = useState(rate ? String(rate.percentage) : "");
+  const [from, setFrom] = useState(rate?.effectiveFrom ?? new Date().toISOString().slice(0, 10));
+  const [until, setUntil] = useState(rate?.effectiveTo ?? "");
+  const [isDefault, setIsDefault] = useState(rate?.isDefault ?? false);
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const percent = Number(percentage);
+  const valid =
+    name.trim() !== ""
+    && percentage.trim() !== ""
+    && Number.isFinite(percent)
+    && percent >= 0
+    && percent <= 100
+    && from !== ""
+    && (until === "" || until >= from)
+    && reason.trim().length >= 10;
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onCancel()}
+      title={rate ? `Edit ${rate.name}` : "Add a tax rate"}
+      description="Documents are taxed at the rate in force on their own date, so a rate dated in the future takes effect on its own."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            pending={saving}
+            disabled={!valid}
+            onClick={() => {
+              setSaving(true);
+              void Promise.resolve(
+                onSave(
+                  {
+                    name: name.trim(),
+                    percentage: percent,
+                    effectiveFrom: from,
+                    effectiveTo: until === "" ? null : until,
+                    isDefault,
+                  },
+                  reason.trim(),
+                ),
+              ).finally(() => setSaving(false));
+            }}
+          >
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="VAT 18%" />
+
+        <Input
+          label="Rate %"
+          inputMode="decimal"
+          value={percentage}
+          onChange={(e) => setPercentage(e.target.value)}
+          placeholder="18"
+        />
+
+        <Input
+          label="Valid from"
+          type="date"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          hint="Documents dated on or after this use this rate. Earlier documents are untouched."
+        />
+
+        <Input
+          label="Valid until"
+          type="date"
+          value={until}
+          onChange={(e) => setUntil(e.target.value)}
+          hint="Leave blank while it is still in force."
+        />
+
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={isDefault}
+            onChange={(e) => setIsDefault(e.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            <span className="text-text">Use as the default rate</span>
+            <span className="block text-xs text-muted">
+              The rate applied to new documents. Only one default applies on any given day — an existing
+              default is stood down only if its dates overlap this one, so a rate dated forward leaves
+              today&rsquo;s rate alone.
+            </span>
+          </span>
+        </label>
+
+        <Input
+          label="Reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          hint="Recorded in the audit log. At least 10 characters."
+        />
+      </div>
+    </Dialog>
   );
 }
 

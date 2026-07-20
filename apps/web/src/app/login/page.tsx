@@ -1,10 +1,12 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
 import { ApiError } from "@/lib/api";
 import { login } from "@/lib/auth";
+import { safeReturnPath } from "@/lib/session";
 import { cn } from "@/lib/cn";
 import { BRAND_NAME, BRAND_TAGLINE, BrandMark } from "@/components/shell/brand";
 import { Button, ErrorBanner, Input, PasswordInput } from "@/components/ui";
@@ -24,13 +26,34 @@ import { Button, ErrorBanner, Input, PasswordInput } from "@/components/ui";
  *   - **`prefers-reduced-motion` kills all of it**, by the global rule in globals.css. For some
  *     people motion causes nausea, and that is not a preference to negotiate with.
  */
+/**
+ * `useSearchParams` forces the client tree up to the nearest Suspense boundary to be client-rendered,
+ * so the boundary is here rather than swallowing the whole route. The brand panel is the slow half of
+ * this screen and it does not depend on the query string, so it still prerenders and is in the initial
+ * HTML — the sign-in card is the only thing that waits.
+ */
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginLayout />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const queryClient = useQueryClient();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+
+  // Set by endSession when a session runs out mid-task. Without it the user arrives here with no idea
+  // why — they were half-way through an invoice a moment ago, and being silently returned to a sign-in
+  // screen reads as the app having lost their work.
+  const expired = params.get("expired") === "1";
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -40,9 +63,16 @@ export default function LoginPage() {
     try {
       const result = await login(username, password);
 
+      // Nothing from the previous session may outlive it. Expiry normally arrives here by a full
+      // document navigation, which discards the cache anyway — but any other route to this screen
+      // (a signed-out user following a link, a client-side push from elsewhere) keeps the QueryClient,
+      // and a cached ["me"] error is exactly what used to bounce a freshly signed-in user straight
+      // back out. Cheap, and it removes the whole class.
+      queryClient.clear();
+
       // The server enforces this too — it refuses every other endpoint until the password is
       // changed — so this redirect is a convenience, not the control.
-      router.push(result.mustChangePassword ? "/change-password" : "/");
+      router.push(result.mustChangePassword ? "/change-password" : safeReturnPath(params.get("next")));
       router.refresh();
     } catch (caught) {
       setError(
@@ -93,6 +123,17 @@ export default function LoginPage() {
               "transition-colors duration-200 ease-out focus-within:border-strong",
             )}
           >
+            {/* Only until they try again — a failed attempt's own message replaces it, rather than the
+                two stacking up and contradicting each other. */}
+            {expired && !error && (
+              <p
+                role="status"
+                className="rounded-lg border border-subtle bg-surface px-3 py-2 text-sm text-muted"
+              >
+                Your session timed out. Sign in and we&rsquo;ll take you back to what you were doing.
+              </p>
+            )}
+
             {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
 
             <Input
@@ -143,6 +184,23 @@ export default function LoginPage() {
             Forgotten your password? An administrator can issue you a new one — it is single-use, and
             you choose your own the moment you sign in.
           </p>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/**
+ * What is on screen for the instant before the form hydrates — the same frame and the same brand panel,
+ * so the card fills in rather than the page rearranging itself around it.
+ */
+function LoginLayout() {
+  return (
+    <div className="group grid min-h-dvh overflow-y-auto lg:grid-cols-[1.05fr_1fr]">
+      <BrandPanel />
+      <main className="relative flex items-center justify-center overflow-hidden p-6">
+        <div className="relative w-full max-w-sm">
+          <div className="h-88 rounded-2xl border border-subtle bg-surface shadow-xl shadow-primary/5" />
         </div>
       </main>
     </div>

@@ -174,6 +174,79 @@ public sealed class TaxEngineTests
         act.Should().Throw<TaxRateNotResolvableException>();
     }
 
+    // --- Scheduling a rate change --------------------------------------------------------------
+
+    [Fact]
+    public void A_rate_change_can_be_scheduled_without_disturbing_the_rate_in_force()
+    {
+        // The case the business actually has: VAT goes to 20% on 1 January, and somebody enters that in
+        // advance. Both rates are default, because they are never in force on the same day.
+        var current = Rate(1, "VAT 18%", 18m, from: new DateOnly(2024, 1, 1), to: new DateOnly(2026, 12, 31));
+        var scheduled = Rate(2, "VAT 20%", 20m, from: new DateOnly(2027, 1, 1));
+
+        var today = Engine.Calculate(Request([new TaxLineInput(1m, 100m, 0m)], rates: [current, scheduled]));
+        today.Totals.Tax.Should().Be(18m);
+
+        var newYear = Engine.Calculate(Request(
+            [new TaxLineInput(1m, 100m, 0m)],
+            rates: [current, scheduled],
+            date: new DateOnly(2027, 1, 1)));
+        newYear.Totals.Tax.Should().Be(20m);
+    }
+
+    [Fact]
+    public void An_open_ended_rate_yields_to_a_later_one_once_that_starts()
+    {
+        // The likelier shape in practice: nobody closed off the old rate, so it is open-ended and the two
+        // overlap. The engine takes the latest EffectiveFrom on or before the document date, so the
+        // scheduled rate wins from its start date and the old one governs everything before it. This is
+        // what lets ClearOtherDefaults leave the old rate alone instead of rewriting its end date.
+        var current = Rate(1, "VAT 18%", 18m, from: new DateOnly(2024, 1, 1));
+        var scheduled = Rate(2, "VAT 20%", 20m, from: new DateOnly(2027, 1, 1));
+
+        Engine.Calculate(Request([new TaxLineInput(1m, 100m, 0m)], rates: [current, scheduled]))
+            .Totals.Tax.Should().Be(18m);
+
+        Engine.Calculate(Request(
+                [new TaxLineInput(1m, 100m, 0m)],
+                rates: [current, scheduled],
+                date: new DateOnly(2027, 6, 1)))
+            .Totals.Tax.Should().Be(20m);
+    }
+
+    [Fact]
+    public void Rates_that_never_coexist_do_not_overlap_and_ones_that_do_are_caught()
+    {
+        var current = Rate(1, "VAT 18%", 18m, from: new DateOnly(2024, 1, 1), to: new DateOnly(2026, 12, 31));
+        var scheduled = Rate(2, "VAT 20%", 20m, from: new DateOnly(2027, 1, 1));
+        var openEnded = Rate(3, "VAT 18%", 18m, from: new DateOnly(2024, 1, 1));
+
+        // Adjacent, not overlapping — 31 December and 1 January.
+        current.Overlaps(scheduled).Should().BeFalse();
+        scheduled.Overlaps(current).Should().BeFalse();
+
+        // An open end runs into everything after it, in both directions.
+        openEnded.Overlaps(scheduled).Should().BeTrue();
+        scheduled.Overlaps(openEnded).Should().BeTrue();
+
+        // And a rate always overlaps itself, which is why the caller excludes the one being saved.
+        current.Overlaps(current).Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_rate_knows_the_days_it_applies_to()
+    {
+        var rate = Rate(1, "VAT 18%", 18m, from: new DateOnly(2026, 1, 1), to: new DateOnly(2026, 12, 31));
+
+        rate.IsInForceOn(new DateOnly(2025, 12, 31)).Should().BeFalse();
+        rate.IsInForceOn(new DateOnly(2026, 1, 1)).Should().BeTrue();   // inclusive
+        rate.IsInForceOn(new DateOnly(2026, 12, 31)).Should().BeTrue(); // inclusive
+        rate.IsInForceOn(new DateOnly(2027, 1, 1)).Should().BeFalse();
+
+        Rate(2, "Open", 5m, from: new DateOnly(2026, 1, 1))
+            .IsInForceOn(new DateOnly(2999, 1, 1)).Should().BeTrue();
+    }
+
     // --- Rounding ------------------------------------------------------------------------------
 
     [Fact]

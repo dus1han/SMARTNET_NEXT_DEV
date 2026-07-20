@@ -118,7 +118,29 @@ public class TaxRate : IAuditable, ISoftDeletable
     public DateOnly? EffectiveTo { get; set; }
 
     /// <summary>The rate offered by default on a new document line.</summary>
+    /// <remarks>
+    /// Default <b>for a period</b>, not for all time. Two rates may both be default provided they are
+    /// never in force on the same day — that is what makes it possible to say "20% from January" in
+    /// advance without disturbing the rate currently being charged. See <see cref="Overlaps"/>.
+    /// </remarks>
     public bool IsDefault { get; set; }
+
+    /// <summary>Whether this rate applies on a given day.</summary>
+    public bool IsInForceOn(DateOnly date) =>
+        EffectiveFrom <= date && (EffectiveTo is null || date <= EffectiveTo);
+
+    /// <summary>
+    /// Whether two rates are ever in force on the same day.
+    /// </summary>
+    /// <remarks>
+    /// A null <see cref="EffectiveTo"/> is an open end, so it is treated as the furthest representable
+    /// date rather than as "no end date" — the common case is an open-ended current rate meeting a
+    /// future-dated replacement, and getting that comparison wrong is what made scheduling a rate change
+    /// take down invoicing.
+    /// </remarks>
+    public bool Overlaps(TaxRate other) =>
+        EffectiveFrom <= (other.EffectiveTo ?? DateOnly.MaxValue)
+        && other.EffectiveFrom <= (EffectiveTo ?? DateOnly.MaxValue);
 
     public long? CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; }

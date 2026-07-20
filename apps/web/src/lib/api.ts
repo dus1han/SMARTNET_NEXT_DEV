@@ -33,6 +33,8 @@ export const API_BASE_URL =
 
 const BASE_URL = API_BASE_URL;
 
+import { endSession, isCredentialCheck } from "./session";
+
 /** RFC 9457 ProblemDetails, plus the extensions our API adds. */
 interface ProblemDetails {
   title?: string;
@@ -140,6 +142,22 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
 
   const problem = await readProblem(response);
+
+  // The session boundary, handled once, here — because this is the one place every call passes through.
+  //
+  // It used to live in AppShell, keyed on the ["me"] query alone, which meant a 401 on any of the other
+  // sixty screens' queries became a toast and nothing more: the user sat on a fully-drawn app where
+  // everything failed. See lib/session.ts for why that produced both reported faults.
+  //
+  // The sign-in request is excluded: its 401 means "wrong password", and the form has to be able to say
+  // so rather than reloading itself.
+  if (!isCredentialCheck(path)) {
+    if (response.status === 401) {
+      endSession("expired");
+    } else if (response.status === 403 && problem.code === "password_change_required") {
+      endSession("password_change_required");
+    }
+  }
 
   throw new ApiError(
     response.status,

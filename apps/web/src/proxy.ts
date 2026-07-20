@@ -20,7 +20,7 @@ const PUBLIC_PATHS = ["/login"];
  * it. This file only spares a signed-out user the flash of an empty page.
  */
 export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
   if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
     return NextResponse.next();
@@ -30,7 +30,14 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  return NextResponse.redirect(new URL("/login", request.url));
+  // Carry the destination, so signing in resumes it instead of landing on the dashboard. This is the
+  // arrive-with-no-cookie case — the cookie's lifetime matches the token's 30 minutes, so it is simply
+  // what happens to anyone who comes back after lunch and clicks a bookmark. `lib/session.ts` does the
+  // same for a session that dies while the tab is open; both read back in the login form.
+  const login = new URL("/login", request.url);
+  login.searchParams.set("next", `${pathname}${search}`);
+
+  return NextResponse.redirect(login);
 }
 
 export const config = {
