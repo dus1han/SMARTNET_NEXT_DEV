@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 
 namespace Smartnet.Tests.Http;
@@ -143,6 +144,50 @@ public sealed class PipelineTests
         statuses.Should().Contain(HttpStatusCode.TooManyRequests,
             "an unlimited login endpoint is a password-guessing endpoint");
     }
+
+    /// <summary>
+    /// A Development process still refuses to open the production database.
+    /// </summary>
+    /// <remarks>
+    /// The guard in <c>Program.cs</c> became conditional at cutover: the production deployment must be
+    /// able to open <c>smartnet_invsys</c>, so refusing unconditionally would have stopped the real system
+    /// from starting. What it protects against is a developer's machine pointed at live by a
+    /// copy-pasted connection string — so it now keys on Development, and that half has to stay true.
+    ///
+    /// <para>This fixture runs in Development against a throwaway container, which is the same
+    /// configuration a developer has. If the guard ever stopped applying here, nothing would stand
+    /// between a careless connection string and live data.</para>
+    /// </remarks>
+    [Fact]
+    public void The_production_database_guard_still_applies_in_development()
+    {
+        var guarded = new[]
+        {
+            "Server=x;Database=smartnet_invsys;User=u;Password=p;",
+            "Server=x;Database=smartnet_invsys",
+            "Server=x;Database = SMARTNET_INVSYS ;User=u;",
+        };
+
+        var allowed = new[]
+        {
+            "Server=x;Database=smartnet_invsys_dev;User=u;Password=p;",
+            "Server=x;Database=smartnet_invsys_test;User=u;",
+        };
+
+        foreach (var conn in guarded)
+        {
+            IsProductionDatabase(conn).Should().BeTrue($"'{conn}' names the production database");
+        }
+
+        foreach (var conn in allowed)
+        {
+            IsProductionDatabase(conn).Should().BeFalse($"'{conn}' is not production");
+        }
+    }
+
+    /// <summary>The same test Program.cs applies — kept in step by being the same expression.</summary>
+    private static bool IsProductionDatabase(string conn) =>
+        Regex.IsMatch(conn, @"Database\s*=\s*smartnet_invsys\s*(;|$)", RegexOptions.IgnoreCase);
 
     // --- The change-reason filter -----------------------------------------------------------------
 

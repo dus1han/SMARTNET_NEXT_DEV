@@ -53,12 +53,24 @@ var conn = builder.Configuration.GetConnectionString("Smartnet")
            ?? throw new InvalidOperationException(
                "ConnectionStrings__Smartnet is not set. Copy .env.example to .env and fill it in.");
 
-// Guard rail: refuse to start against production, whatever the config says.
-if (Regex.IsMatch(conn, @"Database\s*=\s*smartnet_invsys\s*(;|$)", RegexOptions.IgnoreCase))
+// Guard rail: a DEVELOPMENT process must never open the production database.
+//
+// This used to refuse unconditionally, which was right while production still belonged to the legacy
+// app and nothing here had any business touching it. At cutover that inverts: the production
+// deployment's whole job is to serve `smartnet_invsys`, and an unconditional guard would stop the
+// real system from starting.
+//
+// What the guard was actually protecting against was never "the production database" — it was "a
+// developer's machine, pointed at live by a copy-pasted connection string". That is exactly what
+// Development means here, so that is what it now keys on. A Production deployment may open the
+// production database; nothing else may.
+if (builder.Environment.IsDevelopment()
+    && Regex.IsMatch(conn, @"Database\s*=\s*smartnet_invsys\s*(;|$)", RegexOptions.IgnoreCase))
 {
     throw new InvalidOperationException(
-        "Refusing to start: the connection string points at the PRODUCTION database " +
-        "(smartnet_invsys). Development runs against smartnet_invsys_dev.");
+        "Refusing to start: a Development process is pointed at the PRODUCTION database " +
+        "(smartnet_invsys). Development runs against smartnet_invsys_dev. If this really is the " +
+        "production deployment, it must run with ASPNETCORE_ENVIRONMENT=Production.");
 }
 
 builder.Services.AddSmartnetPersistence(conn);

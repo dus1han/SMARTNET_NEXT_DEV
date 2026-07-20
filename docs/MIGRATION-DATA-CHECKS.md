@@ -271,3 +271,76 @@ Three things that are structural rather than per-record, so they have no row to 
   `26JUL_SNIN_` mid-sequence with the counter running straight through. Handled by design: the
   prefix is stored as a template rendered at allocation time, so August produces `26AUG_SNIN_`
   without an edit.
+
+---
+
+## Applying the migrations to live — read this first
+
+Done on the VPS on **2026-07-20** against the restored `smartnet_invsys`. It took three attempts, and
+the two failures are worth knowing before anyone repeats this.
+
+### Never generate an idempotent script for this codebase
+
+`dotnet ef migrations script --idempotent` **produces invalid SQL here.** It wraps every statement in a
+stored-procedure body:
+
+```sql
+CREATE PROCEDURE MigrationsScript()
+BEGIN
+    IF NOT EXISTS(... '20260714101709_AdoptUserTable') THEN
+    UPDATE user_m SET must_change_password = 1     -- no semicolon
+    END IF;
+END //
+```
+
+Every `migrationBuilder.Sql(...)` in this project omits its trailing semicolon — **202 statements**.
+That is invisible to `dotnet ef database update`, which runs each command separately, which is why dev
+migrated cleanly for months. Inside a procedure body it is a syntax error.
+
+The failure is quiet and expensive: the broken `CREATE PROCEDURE` is skipped, but the *next* block
+still records the migration as applied. The result was **38 of 38 migrations recorded with 9 tables
+missing** — both ledgers, receipts, supplier payments, job-card lines, stock movements, contacts — and
+an unknown number of seeding statements silently skipped. A half-migrated database that believes it is
+complete cannot be repaired forward, because nothing will retry a migration already in the history.
+
+**Use a plain script** (`dotnet ef migrations script`, no `--idempotent`), and **terminate the
+statements it leaves unterminated** before running it — 202 of them. The plain script has the same
+missing semicolons, but there they merely run one statement into the next, which is detectable:
+
+```bash
+# every non-empty line followed by a blank line, outside DELIMITER blocks, that lacks a ';'
+awk 'BEGIN{d=0} /^DELIMITER \/\/$/{d=1} /^DELIMITER ;$/{d=0}
+     { if(!d && p!="" && $0=="" && p !~ /;[[:space:]]*$/ && p !~ /^DELIMITER/ && p !~ /^--/) c++; p=$0 }
+     END{print c+0}' migrate.sql
+```
+
+It must read 0 before you run it. Then verify the table list against a known-good database — 77 tables.
+
+### Live is stricter than dev
+
+The migration aborted at `supplier_inv_pay`:
+
+```
+ERROR 1411: Incorrect datetime value: '22025-02-11' for function str_to_date
+```
+
+That is one of the four five-digit dates listed above. Live runs `sql_mode=STRICT_TRANS_TABLES`, so
+`STR_TO_DATE` **errors** where dev returned NULL with a warning. **The four dates must be corrected
+before the migrations run, not after** — they are not a tidy-up, they are a blocker. All four were
+corrected on live to the values this document already proposed, and no others existed.
+
+### What the migration itself changes
+
+Expect `payments` to **fall by 49 rows** — that is `Phase8RemediateDuplicatePayments`, the Finding 1
+remediation, running as part of the migration rather than as a separate step. Everything else is
+additive. On live: `invoice_h` 2501, `invoice_l` 12749 and `cus_m` 224 were unchanged;
+`payments` 2280 → 2231; `receivables_ledger` seeded 4727 rows and `gl_entries` 8087.
+
+### The guard rail had to change
+
+`Program.cs` refused to start against a database named `smartnet_invsys` — correct while production
+belonged to the legacy app, and fatal once the production deployment's job *is* to serve it. It now
+refuses only when `ASPNETCORE_ENVIRONMENT=Development`, which is what it was always protecting
+against: a developer's machine pointed at live by a copy-pasted connection string. A test pins both
+halves. **The production deployment must therefore run with `ASPNETCORE_ENVIRONMENT=Production`** —
+which is the compose default, but it is now load-bearing rather than merely tidy.
