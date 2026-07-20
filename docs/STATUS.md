@@ -74,10 +74,12 @@ several documents insist cheque printing is future work when it shipped.
   remote-DB timeouts rather than logic.
 
 ### 4. Legacy data — decisions, not code
-Five questions in `DATA-AUDIT-FINDINGS.md` are unanswered, and **two block cutover**:
-- **105 orphaned line groups** (4,678,439.54 of line value) — every foreign key the new schema wants
-  will refuse to build while they stand.
-- **Duplicate quotation number `STQ-0`** — blocks the unique index on `quotation_h`.
+`DATA-AUDIT-FINDINGS.md` raised five questions. Two blocked cutover; **one is now answered**:
+- ~~**105 orphaned line groups**~~ — **decided: delete.** Archived and removed on dev (690 rows) via
+  `infra/sql/remove-orphaned-lines.sql`; **still to run on live.** Foreign keys are no longer blocked
+  on dev.
+- **Duplicate quotation number `STQ-0`** — still blocks the unique index on `quotation_h`. Needs a
+  business decision: somebody holds a printed PDF with that number on it.
 
 Plus the seven money questions in `MIGRATION-DATA-CHECKS.md`, and this, which is easy to miss:
 **a clean duplicate-payment count does not mean nothing is overpaid.** The remediation matched same

@@ -27,10 +27,15 @@ looking at before proceeding.
 | 5 | Payment without an invoice | **3** | 70,381 | No — decide, don't block |
 | 6 | Supplier paid, not settled | **38** | 1,435,253.01 | No — decide, don't block |
 | 7 | Supplier settled twice | **1** | 165,000 | No — decide, don't block |
-| 8 | Lines without a document | **105** | 4,678,439.54 | **Yes, if foreign keys are being added** |
+| 8 | Lines without a document | **105** | 4,678,439.54 | **Yes, if foreign keys are being added** — *resolved on dev, still to run on live* |
 | 9 | Duplicate document number | **1** | — | **Yes, for the quotation unique index** |
 
-Total: **155 rows**.
+Total: **155 rows** on live.
+
+> **Dev has diverged from this table, deliberately.** Row 8 was worked to zero on
+> `smartnet_invsys_dev` on 2026-07-20 (see below), so dev now reads **50** and live still reads 155.
+> That is the only intended difference. If dev shows anything else changed, something ran that
+> should not have.
 
 ### Read this before trusting the zero on row 1
 
@@ -43,16 +48,37 @@ same-day, and are **still overpaid today**. They are rows 4 in the table above, 
 So when the remediation is run on live: a clean duplicate-payment count does not mean no invoice is
 overpaid. Check the **Overpaid** tile as well. That is the whole reason it exists.
 
-### The two that genuinely block
+### The two that genuinely block — one is now decided
 
 **Lines without a document (105 groups — 608 invoice lines across 89 invoices, 82 quotation lines
 across 16 quotations, 4,678,439.54 of line value between them).** That value is *not* money anybody
 is owed: nothing counts these lines and nothing can reach them, because the header they belonged to
-is gone. It is recorded only so the scale is clear before somebody decides to delete them.
+is gone. It is recorded only so the scale is clear.
 
 They block because every foreign key the new schema wants will refuse to build while they stand.
-Either delete them as part of the cutover, or leave the foreign keys off — but that is a decision to
-take deliberately, not to discover halfway through a migration script.
+
+**Decided 2026-07-20: delete them.** A line with no document is of no use to anyone. Run
+[`infra/sql/remove-orphaned-lines.sql`](../infra/sql/remove-orphaned-lines.sql), which archives the
+rows into `archived_orphaned_*` tables *before* deleting them, so the decision stays reversible and
+there is a record of what the 4.6M of dangling line value consisted of. It is re-runnable, and it
+prints a verification that must read zero on both tables.
+
+**Already run on dev** — 690 rows archived and removed, `invoice_l` 12,598 → 11,990 and
+`quotation_l` 6,674 → 6,592, nothing else touched, and the exceptions endpoint now returns
+`orphanedLines: 0`. **Still to run on live**, with a backup first: this is a delete, and unlike the
+rest of this list it cannot be undone by re-running anything.
+
+Four checks were made before deleting, and are worth repeating on live because any one of them
+failing would mean these are *not* safe to remove:
+
+1. **Trimming the header side changes neither count** — so none is a whitespace near-miss that could
+   be re-attached instead of deleted.
+2. **Every orphan has a NULL `invoice_id` / `quotation_id`.** These tables were adopted and now carry
+   a real foreign key beside the legacy varchar, so a line could have had a dead `inno` and a live
+   `invoice_id`. None does. *This is the check that matters most.*
+3. **None has a header in `del_invoice_h`** — they are not the lines of deleted invoices, which would
+   still be worth keeping.
+4. **No line has a blank document reference**, so the detection rule covers the whole table.
 
 **Duplicate document number (STQ-0).** Two quotations, two customers, one number. The unique index
 is already on `invoice_h`, `cn_h`, `po_h` and `jobs_m`; it cannot go on `quotation_h` until this is
