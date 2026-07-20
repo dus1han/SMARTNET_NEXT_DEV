@@ -25,7 +25,7 @@ looking at before proceeding.
 | 3 | Lines ≠ header | **4** | 11,125 | No — decide, don't block |
 | 4 | Overpaid | **2** | 94,600 | No — decide, don't block |
 | 5 | Payment without an invoice | **3** | 70,381 | No — decide, don't block |
-| 6 | Supplier paid, not settled | **38** | 1,435,253.01 | No — decide, don't block |
+| 6 | Supplier paid, not settled | **38** | 1,435,253.01 | No — decide, don't block — *resolved on dev, still to run on live* |
 | 7 | Supplier settled twice | **1** | 165,000 | No — decide, don't block |
 | 8 | Lines without a document | **105** | 4,678,439.54 | **Yes, if foreign keys are being added** — *resolved on dev, still to run on live* |
 | 9 | Duplicate document number | **1** | — | **Yes, for the quotation unique index** |
@@ -33,7 +33,7 @@ looking at before proceeding.
 Total: **155 rows** on live.
 
 > **Dev has diverged from this table, deliberately.** Row 8 was worked to zero on
-> `smartnet_invsys_dev` on 2026-07-20 (see below), so dev now reads **50** and live still reads 155.
+> `smartnet_invsys_dev` on 2026-07-20, and row 6 with it, so dev now reads **12** and live still reads 155.
 > That is the only intended difference. If dev shows anything else changed, something ran that
 > should not have.
 
@@ -103,6 +103,24 @@ resolved on the record itself rather than by a script:
   — needs a per-invoice decision about which of the two is right.
 - **Supplier paid, not settled** (38 invoices, 1,435,253.01) — marked paid with nothing recording
   who was paid or when. All 38 are legacy-origin, so this is not the new app's own data.
+
+  **Decided 2026-07-20: record the missing settlement, dated the invoice date.** Run
+  [`infra/sql/settle-supplier-paid-not-settled.sql`](../infra/sql/settle-supplier-paid-not-settled.sql).
+  **Already run on dev** (38 rows; `supplier_inv_pay` 1,640 → 1,678); **still to run on live.**
+
+  **The date is an assumption, not a recovered fact.** Nothing records when these were actually
+  paid — that *is* the defect. The invoice date makes the record self-consistent and is the one date
+  we know relates to the transaction, but it is not evidence payment happened that day. If the real
+  dates exist on paper, entering those is strictly better than running the script.
+
+  Every row it writes is therefore marked twice: `referenceno = 'RECONSTRUCTED'`, which shows on the
+  supplier invoice screen so a reader can see the settlement was reconstructed rather than recorded at
+  the time; and `data_origin = 'reconstructed'`, which is permanent and machine-readable — every
+  genuine legacy row has NULL there. That marking is also what makes it reversible:
+  `DELETE FROM supplier_inv_pay WHERE data_origin = 'reconstructed';`
+
+  Note this changes no balance. A legacy settlement carries no amount — it stands for the whole
+  invoice — so one row records what `paymentstat='Paid'` already asserted.
 - **Supplier settled twice** (supplier invoice 621) — a legacy settlement carries no amount and
   stands for the whole invoice, so the second one is a second payment of the same money.
 
