@@ -30,6 +30,11 @@ async function waitForHttp(url: string, label: string, tries = 150): Promise<voi
  *  open so it blocks (holding the container) until teardown kills it. */
 function startHost(): Promise<{ proc: ChildProcess; conn: string }> {
   log("starting E2E database host (throwaway MariaDB + seed)…");
+  // --no-build is deliberate — building here would race the API spawn below. It does mean the host
+  // must already be built, and a STALE one is the worst failure this harness has: it applies an older
+  // migration set, so the schema silently lags the code and every save 500s with a missing column.
+  // That is what `npm run e2e` builds first (see e2e:build in package.json) — do not run
+  // `playwright test` directly unless you have just built both.
   const proc = spawn("dotnet", ["run", "--project", path.join(ROOT, "tools/E2EHost"), "--no-build"], {
     cwd: ROOT,
     stdio: ["pipe", "pipe", "pipe"],

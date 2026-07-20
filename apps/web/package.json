@@ -9,9 +9,10 @@
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "e2e": "playwright test",
+    "e2e": "npm run e2e:build && playwright test",
     "generate:api": "bash ../../packages/api-client/generate.sh",
-    "check:api": "bash ../../packages/api-client/check.sh"
+    "check:api": "bash ../../packages/api-client/check.sh",
+    "e2e:build": "dotnet build ../api/Smartnet.slnx -c Debug && dotnet build ../../tools/E2EHost/E2EHost.csproj -c Debug"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

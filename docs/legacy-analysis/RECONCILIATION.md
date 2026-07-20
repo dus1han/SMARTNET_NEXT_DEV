@@ -107,3 +107,65 @@ test is again binary `double` (legacy) vs `decimal` (new) arithmetic.
 
 Same policy as invoices: sub-penny differences are the accepted `double`/`decimal` residue;
 anything material is a legacy data defect for **Data Exceptions**, not a silent rewrite.
+
+## Customer payments (Phase 7, slice 6)
+
+A different question from the two above. Invoices and purchase orders were reconciled on
+*arithmetic* — do the lines still add up to the header through the new `decimal` tax engine.
+Payments are reconciled on *consistency*: *does the stored `invoice_h.balance` equal the invoice
+total less everything recorded against it in `payments`?*
+
+That is the question the legacy write path could not guarantee. `CusPaymentsController.savePay`
+issued two separate statements — an `INSERT` into `payments`, then
+`UPDATE invoice_h SET balance = balance − amount` — with no transaction joining them and no
+idempotency in front of them. Every row below is a chance for those two to have drifted apart.
+
+- **Reconciled:** 2,187 invoices carrying at least one payment
+- **Exact:** 2,185/2,187 — **99.91%**
+- **Off by anything at all:** 2
+
+| Band | Count | Share |
+|---|---:|---:|
+| exact (0.00) | 2,185 | 99.91% |
+| <= 0.01 | 0 | 0.00% |
+| <= 0.50 | 0 | 0.00% |
+| <= 5.00 | 0 | 0.00% |
+| > 5.00 | 2 | 0.09% |
+
+Note the shape: unlike the invoice and PO reconciliations, there is **no sub-penny residue at all**.
+Nothing here is `double`/`decimal` rounding, because nothing here is arithmetic on lines — a balance
+either matches its payments or it does not. The distribution is therefore binary, and the two
+exceptions are not rounding but real.
+
+### The two that do not reconcile
+
+| Invoice | Total | Recorded payments | Stored balance | Total − paid | Discrepancy |
+|---|---:|---:|---:|---:|---:|
+| STI-38 | 71,000.00 | 142,000.00 | 0.00 | −71,000.00 | 71,000.00 |
+| SNI-915 | 23,600.00 | 47,200.00 | 0.00 | −23,600.00 | 23,600.00 |
+
+**These are the two known overpayments, found again from a completely different direction** — and
+that is the point of running this. The Finding 1 remediation matched duplicates on same invoice +
+same amount + *same date*; these two are dated seventeen days and three weeks apart, so they survived
+it. This reconciliation never looks at dates or at duplication: it only asks whether the balance
+agrees with the payments, and it lands on exactly the same two invoices.
+
+Each was paid twice in full. The stored balance reads 0.00 — which is why nothing downstream
+complains — while the payments recorded against them sum to double the invoice. They are **still
+overpaid today**, they are rows 4 ("Overpaid") in `MIGRATION-DATA-CHECKS.md`, and they need the same
+business decision as before: void the payment that should not be there, or leave the customer in
+credit. Both are defensible; zeroing a balance is not.
+
+### Policy
+
+Same as invoices and purchase orders, with one change of emphasis. There is no residue band to
+accept here, so **any** non-zero difference is a data defect rather than an arithmetic artefact, and
+belongs in Data Exceptions where somebody decides it on the record. The new receipt path cannot add
+to this list: an allocation is refused if it exceeds the invoice's derived outstanding, the ledger
+entry and the legacy shadow are written in one transaction, and an idempotency key stops a
+double-submit becoming a second payment.
+
+*Measured against `smartnet_invsys_dev` on 2026-07-20, after that day's data-exception work — the
+recorded payment for STI-1068 and the removal of the three payments naming no invoice. Neither
+affects the figures above: STI-1068 now reconciles exactly, and the removed rows named no invoice to
+reconcile against.*

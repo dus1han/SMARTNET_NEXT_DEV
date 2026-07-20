@@ -57,7 +57,7 @@ test("record a supplier invoice, then a partial payment settles part of the paya
 
   // Read view: Pending, 100 outstanding.
   await page.waitForURL(/\/supplier-invoices\/\d+$/);
-  await expect(page.getByText("Pending", { exact: true })).toBeVisible();
+  await expect(page.locator("span").filter({ hasText: /^Pending$/ }).first()).toBeVisible();
   await expect(page.getByText(/Outstanding/).locator("xpath=following-sibling::*").first()).toContainText(/100(\.00)?/);
 
   // Record a partial payment of 30 → 70 outstanding, still Pending.
@@ -67,7 +67,7 @@ test("record a supplier invoice, then a partial payment settles part of the paya
   await dialog.getByRole("button", { name: "Record payment" }).click();
 
   await expect(page.getByText(/Outstanding/).locator("xpath=following-sibling::*").first()).toContainText(/70(\.00)?/);
-  await expect(page.getByText("Pending", { exact: true })).toBeVisible();
+  await expect(page.locator("span").filter({ hasText: /^Pending$/ }).first()).toBeVisible();
 });
 
 test("book a job card with a serial line and close it (PENDING to CLOSED)", async ({ page }) => {
@@ -83,16 +83,18 @@ test("book a job card with a serial line and close it (PENDING to CLOSED)", asyn
 
   await page.getByRole("button", { name: "Raise job card" }).click();
 
-  await page.waitForURL(/\/job-cards\/\d+$/);
-  await expect(page.getByText("Pending", { exact: true })).toBeVisible();
+  // Creating a job card redirects into the print overlay, so the URL carries ?print=1.
+  await page.waitForURL(/\/job-cards\/\d+/);
+  await expect(page.locator("span").filter({ hasText: /^Pending$/ }).first()).toBeVisible();
 
-  // Close it — cost, sell, a reason of at least 10 characters.
+  // Close it — cost, sell and what was done.
   await page.getByRole("button", { name: "Close job" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Cost").fill("120");
   await dialog.getByLabel("Sell").fill("200");
-  await dialog.getByLabel("Reason").fill("Replaced the mainboard and tested");
+  // The close dialog asks for optional completion remarks — there is no reason field on it.
+  await dialog.getByLabel("Completion remarks").fill("Replaced the mainboard and tested");
   await dialog.getByRole("button", { name: "Close job" }).click();
 
-  await expect(page.getByText("Closed", { exact: true })).toBeVisible();
+  await expect(page.locator("span").filter({ hasText: /^Closed$/ }).first()).toBeVisible();
 });

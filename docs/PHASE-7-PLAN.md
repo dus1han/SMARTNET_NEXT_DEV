@@ -317,6 +317,35 @@ carries its own audit history, and is invisible to every other user.
 
 ## Slice 6 — The acceptance test, reconciliation & E2E · ~0.3 week
 
+> **Built and shipped — Phase 7 is complete.**
+>
+> **The acceptance test was already there.** Slice 1 delivered it
+> (`A_receipt_allocated_across_two_invoices_settles_both_and_dual_writes_the_legacy_shadow`), with idempotency
+> and over-allocation as their own tests. One part of the claim was *not* covered, and is now:
+> `A_receipt_that_fails_part_way_leaves_no_trace_of_the_allocations_that_had_succeeded` — a valid allocation
+> followed by an invalid one, asserting the first leaves no ledger entry, no legacy row and no moved balance.
+> That is the transactional half, and it is the defect the design exists to close (B2: the legacy `savePay`
+> issued an `INSERT` and an `UPDATE` with nothing joining them).
+>
+> **Reconciliation** appended to `legacy-analysis/RECONCILIATION.md`: 2,187 invoices carrying a payment,
+> **2,185 exact (99.91%)**, no sub-penny residue at all — the balance either agrees with its payments or it
+> does not. The two that fail are **STI-38 and SNI-915**, found again from a completely different direction:
+> this test never looks at dates or duplication, only at whether the balance agrees, and it lands on exactly
+> the two overpayments the same-date remediation missed.
+>
+> **`phase7.spec.ts`** covers the exit case end to end (two invoices → one receipt split 50/30 → both balances
+> fall to 68 and 88), plus a receipt visible on the invoice it settled, a cheque and an expense.
+> **`POST /api/dev/seed-payment` is deleted** and `invoice.spec.ts` now takes its payment through the real
+> receipts screen. `npm run e2e` green: **8 passed**.
+>
+> **The harness was broken before any of this, and had been since 16 July.** `E2EHost` runs `--no-build`, its
+> binary was four days stale, and it therefore built an *older migration set* — so the schema silently lagged
+> the code and every save 500'd on `Unknown column 'c.business_registration_no'`. All 8 tests failed, including
+> the 4 nobody had touched. `npm run e2e` now builds both projects first (`e2e:build`), and the trap is
+> documented at the `--no-build` call. Three assertions in the untouched specs had also drifted from the UI
+> and were only masked by the breakage: an ambiguous `Pending`, a job-card URL that now carries `?print=1`,
+> and a close-job dialog whose field is "Completion remarks", not "Reason".
+
 - **The acceptance test, automated** (slice 1's exit): a receipt across two invoices → both derived balances
   fall, legacy `payments` + `invoice_h.balance` in step, a double-submit is idempotent. Unit + integration.
 - **Reconciliation.** A sample of legacy `payments` recomputed against the invoices they settled (does the

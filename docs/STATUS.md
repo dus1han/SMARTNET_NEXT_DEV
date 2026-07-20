@@ -21,7 +21,7 @@ several documents insist cheque printing is future work when it shipped.
 | 4 · Dashboard & reports | **Done** | **10/10 reports**, plus trial balance, P&L and data exceptions. Dunning queue + `email_log` built but **sending is off** — deliberately, until the balances are corrected. |
 | 5 · Documents engine | **Done** | Tax engine on `decimal`, transactional numbering, ledger-derived balances, versioning, quote → invoice. |
 | 6 · Purchasing & service | **Done** | POs, supplier invoices, job cards, structured contacts. **GRN deferred** out of scope — no phase assigned. |
-| 7 · Money & documents | **5 of 6 slices** | Receipts, cheques, expenses, document storage, notes all shipped. **Slice 6 not started.** |
+| 7 · Money & documents | **Done** | Receipts, cheques, expenses, document storage, notes, and slice 6 (acceptance test, reconciliation, E2E). |
 | 8 · PDF templates | **Substantially done** | All six QuestPDF templates exist and **cheque printing works** — measured 7×3.5in, every print audited. Gaps: no `document_templates` configurability, and no rendering tests. |
 | 9 · Cutover | **Not started** | Only artifact is `MIGRATION-DATA-CHECKS.md`. |
 | GL (unnumbered) | **Done** | Chart of accounts, posting engine, backfill, trial balance, P&L. Never assigned a phase number. |
@@ -30,18 +30,24 @@ several documents insist cheque printing is future work when it shipped.
 
 ## What is actually pending
 
-### 1. Phase 7 slice 6 — the phase cannot close without it
-- **The acceptance case is not automated.** A receipt across two invoices settling both, idempotent
-  and transactional, is the stated exit criterion for the whole phase and rests on manual checks.
-- **`POST /api/dev/seed-payment` still ships.** `Program.cs:254-287`, Development-only but
-  **anonymous and it writes ledger rows**. Slice 6 was where it retires. `e2e/invoice.spec.ts:53`
-  still depends on it.
-- **No Phase 7 reconciliation section** in `legacy-analysis/RECONCILIATION.md`.
-- **No `phase7.spec.ts`.**
+### 1. ~~Phase 7 slice 6~~ — done, and it found the E2E harness broken
+
+Closed on 2026-07-20. `POST /api/dev/seed-payment` is deleted, `phase7.spec.ts` covers the exit case,
+and the payments reconciliation is in `legacy-analysis/RECONCILIATION.md` (2,185 of 2,187 exact; the
+two that fail are STI-38 and SNI-915, rediscovered from a different direction).
+
+**What it turned up: `npm run e2e` had been broken since 16 July and nobody knew.** `E2EHost` runs
+`--no-build`, its binary was four days stale, so it applied an *older migration set* — the schema
+silently lagged the code and every save 500'd on a missing column. All 8 tests failed, including the 4
+untouched ones. `npm run e2e` now builds both projects first. Three assertions in the older specs had
+also drifted from the UI and were masked by the breakage.
+
+**The lesson worth keeping:** slices 1–5 were all marked shipped while the end-to-end suite could not
+have passed. A green unit suite said nothing about it, because nothing ran the harness.
 
 ### 2. Test-shaped holes
 - **There is no HTTP-level test layer at all** — no `WebApplicationFactory`, no `TestServer`. Every
-  one of the 663 API tests is service-level. The middleware pipeline (auth, must-change-password,
+  one of the 664 API tests is service-level. The middleware pipeline (auth, must-change-password,
   correlation id, rate limiting, CORS, exception handling) is proven only by four browser tests.
 - **No PDF rendering tests.** `Smartnet.Tests/Pdf/` contains only `AmountInWordsTests.cs`, so six
   templates that produce customer-facing documents have no test asserting what they render.

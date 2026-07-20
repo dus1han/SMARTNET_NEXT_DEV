@@ -116,6 +116,58 @@ public sealed class CustomerReceiptTests
         await act.Should().ThrowAsync<ReceiptAllocationExceedsOutstandingException>();
     }
 
+    /// <summary>
+    /// A receipt that fails part-way writes nothing at all — the transactional half of the phase's exit
+    /// criterion (Phase 7, slice 6).
+    /// </summary>
+    /// <remarks>
+    /// This is the defect the whole design exists to close. The legacy <c>savePay</c> issued <b>two separate</b>
+    /// statements — an <c>INSERT</c> into <c>payments</c>, then <c>UPDATE invoice_h SET balance = balance −
+    /// amount</c> — with nothing joining them, so a failure between the two left a payment recorded against a
+    /// balance that never moved, or a balance moved with no payment behind it (B2). Neither is visible
+    /// afterwards: both look like ordinary rows.
+    ///
+    /// <para>The case here is the multi-allocation version of exactly that. The first allocation is valid and
+    /// the second is not, so the service gets part-way through — a ledger entry and a legacy row already
+    /// written for invoice one — before the second is refused. If the save were not one transaction, invoice
+    /// one would be quietly part-paid by a receipt that does not exist.</para>
+    /// </remarks>
+    [Fact]
+    public async Task A_receipt_that_fails_part_way_leaves_no_trace_of_the_allocations_that_had_succeeded()
+    {
+        var (companyId, customerId, code) = await SeedCompanyAndCustomer();
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
+
+        var good = await SeedInvoice(companyId, customerId, code, "INV-E1", 100m);
+        var bad = await SeedInvoice(companyId, customerId, code, "INV-E2", 20m);
+
+        await using (var db = _fixture.CreateContext(change))
+        await using (var legacy = CreateLegacy())
+        {
+            // 50 against a 100 invoice is fine; 500 against a 20 invoice is not. The order matters — the
+            // valid one is processed first, so there is something to roll back.
+            var act = () => ServiceFor(db, legacy, change).CreateAsync(new NewCustomerReceipt(
+                companyId, customerId, new DateOnly(2026, 7, 17), "CASH", "R-E", "idem-E",
+                new[] { new NewReceiptAllocation(good, 50m), new NewReceiptAllocation(bad, 500m) }));
+
+            await act.Should().ThrowAsync<ReceiptAllocationExceedsOutstandingException>();
+        }
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            // The valid allocation left nothing behind: no ledger entry, no legacy payments row, and the
+            // legacy balance untouched at its full 100.
+            (await OutstandingFor(db, good)).Should().Be(100m);
+            (await OutstandingFor(db, bad)).Should().Be(20m);
+            (await PaymentRowCount(db, "INV-E1")).Should().Be(0);
+            (await LegacyBalance(db, good)).Should().Be(100m);
+
+            // And no half-written receipt survives, soft-deleted or otherwise.
+            (await db.CustomerReceipts.IgnoreQueryFilters().CountAsync(r => r.CustomerId == customerId))
+                .Should().Be(0);
+        }
+    }
+
     [Fact]
     public async Task Voiding_a_receipt_reverses_its_allocations_and_restores_the_balance()
     {
