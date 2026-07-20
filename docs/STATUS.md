@@ -45,13 +45,25 @@ also drifted from the UI and were masked by the breakage.
 **The lesson worth keeping:** slices 1–5 were all marked shipped while the end-to-end suite could not
 have passed. A green unit suite said nothing about it, because nothing ran the harness.
 
-### 2. Test-shaped holes
-- **There is no HTTP-level test layer at all** — no `WebApplicationFactory`, no `TestServer`. Every
-  one of the 664 API tests is service-level. The middleware pipeline (auth, must-change-password,
-  correlation id, rate limiting, CORS, exception handling) is proven only by four browser tests.
-- **No PDF rendering tests.** `Smartnet.Tests/Pdf/` contains only `AmountInWordsTests.cs`, so six
-  templates that produce customer-facing documents have no test asserting what they render.
-- `Smartnet.Tests/UnitTest1.cs` is still the scaffold file.
+### 2. ~~Test-shaped holes~~ — both closed
+
+**HTTP-level layer added.** `Smartnet.Tests/Http/` runs the real pipeline over a real socket against a
+real database (`WebApplicationFactory<Program>` + Testcontainers): deny-by-default auth, the
+change-reason filter, correlation ids in header and body, error responses that leak no internals, the
+CORS allow-list, the httpOnly/SameSite auth cookie, and JSON shaped as the generated client expects.
+Two things worth knowing: config must be injected as **environment variables**, because `Program.cs`
+reads the connection string inline before `ConfigureAppConfiguration` applies; and the fixture signs in
+**once**, because a login per test trips the rate limiter — which is now pinned as its own test rather
+than worked around.
+
+**PDF rendering tests added.** All eight documents render to structurally valid PDFs, plus the edge
+cases that actually break a QuestPDF layout: a description far longer than its column, a document with
+no lines, every optional field null at once, and 120 lines paginating. The cheque's page size is
+asserted at the measured 7×3.5in — a template that renders beautifully on A4 would be useless. They do
+not claim a total lands in the right box; content streams are compressed, and that is what
+`tools/PdfPreview` and a human eye are for.
+
+696 API tests, up from 664. Still outstanding: `Smartnet.Tests/UnitTest1.cs` is the scaffold file.
 
 ### 3. Known defects, unfixed
 - **The audit log records EF's temporary key on Create rows** — `Id: -9223372036854775000` instead of
