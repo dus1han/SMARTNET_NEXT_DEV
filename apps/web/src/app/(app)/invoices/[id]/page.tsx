@@ -166,11 +166,26 @@ export default function InvoiceViewPage() {
           <Card className="p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted">Payments</h2>
             {data.payments.length === 0 ? (
-              <p className="text-sm text-muted">
-                {settled
-                  ? "Settled, with no payment recorded against it."
-                  : "No payments received yet."}
-              </p>
+              /*
+                An empty list here has three quite different meanings, and showing the same blank for
+                all of them makes the correct ones look broken. The third is a real defect the Data
+                Exceptions screen already tracks — worth saying so on the record it concerns, rather
+                than leaving somebody to wonder whether the screen failed to load.
+              */
+              data.total === 0 ? (
+                <p className="text-sm text-muted">A zero-value invoice — there was nothing to pay.</p>
+              ) : settled ? (
+                <p className="text-sm text-muted">
+                  Marked paid, but no payment is recorded against it — a known defect in the imported
+                  legacy data, not a missing screen.{" "}
+                  <Link href="/reports/data-exceptions" className="text-text underline underline-offset-2">
+                    See data exceptions
+                  </Link>
+                  .
+                </p>
+              ) : (
+                <p className="text-sm text-muted">No payments received yet.</p>
+              )
             ) : (
               <DataTable columns={paymentColumns} rows={data.payments} pageSize={50} />
             )}
