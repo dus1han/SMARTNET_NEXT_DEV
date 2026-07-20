@@ -21,10 +21,11 @@ services:
       # deploy, not produce a service that looks running.
       ConnectionStrings__Smartnet: ${ConnectionStrings__Smartnet:?set it in the server env file}
       # Production by default, and the default is the safety. Development is not a verbosity setting
-      # here — it turns on Swagger, mounts an ANONYMOUS /api/dev/seed-payment endpoint that writes
-      # real payments, drops Secure from the auth cookie (AuthCookie.Options takes isDevelopment), and
-      # skips UseForwardedHeaders so the audit log records nginx instead of the caller. A forgotten
-      # variable should not be able to do any of that; override it deliberately for a dev stack.
+      # here — it turns on Swagger, drops Secure from the auth cookie (AuthCookie.Options takes
+      # isDevelopment), and skips UseForwardedHeaders so the audit log records nginx instead of the
+      # caller. A forgotten variable should not be able to do any of that; override it deliberately
+      # for a dev stack. (It used to also mount an anonymous /api/dev/seed-payment endpoint that wrote
+      # real payments; that was deleted in Phase 7 slice 6, once the E2E had a real screen to drive.)
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       ASPNETCORE_URLS: http://+:5080
       # Largely vestigial now: the browser calls /api relatively through nginx, so requests are
@@ -48,6 +49,15 @@ services:
       # would lose every document uploaded since the last release — silently, because uploading
       # would keep working right up until the redeploy.
       DocumentStorage__RootPath: /var/lib/smartnet/documents
+
+    # MariaDB runs on the HOST, not in this compose stack (see the note at the top of this file), so
+    # the container needs a route to it. `host.docker.internal` resolves to the host's gateway address
+    # from inside the container; on Linux that mapping does not exist by default and has to be declared
+    # here, which is what host-gateway does. Without it the connection string's host does not resolve
+    # and the API starts, then fails its first query — the failure looks like a database problem and is
+    # actually a networking one.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
     # The document store. Same convention as the certs: a host directory that outlives the container.
     # Create it before the first deploy — `mkdir -p /var/www/sys-documents` — and back it up, because
