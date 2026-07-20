@@ -13,7 +13,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, Download, Mail, Pencil, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Mail, Pencil, Printer, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { deleteInvoice, emailInvoice, getInvoice, invoiceRecipients } from "@/lib/invoices";
 import { me } from "@/lib/auth";
@@ -173,7 +173,19 @@ export default function InvoiceViewPage() {
                 than leaving somebody to wonder whether the screen failed to load.
               */
               data.total === 0 ? (
-                <p className="text-sm text-muted">A zero-value invoice — there was nothing to pay.</p>
+                /*
+                  Shown as a record rather than as an absence. A zero-value invoice is settled and
+                  correct, so the section should state that outright — an empty panel next to a "Paid"
+                  badge reads as a screen that failed to load, which is exactly how it was reported.
+                  It is deliberately NOT a row in the payments table: nothing was received, and a
+                  0.00 line among real payments would be a payment that never happened.
+                */
+                <div className="flex items-center gap-3 rounded-lg border border-subtle bg-surface-sunken px-4 py-3">
+                  <CheckCircle2 className="size-4 shrink-0 text-muted" aria-hidden />
+                  <p className="text-sm text-text">
+                    No payment required — the invoice value is {formatMoney(0)}.
+                  </p>
+                </div>
               ) : settled ? (
                 <p className="text-sm text-muted">
                   Marked paid, but no payment is recorded against it — a known defect in the imported
