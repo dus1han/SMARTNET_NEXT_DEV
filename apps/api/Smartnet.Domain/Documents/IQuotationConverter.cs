@@ -10,11 +10,18 @@ namespace Smartnet.Domain.Documents;
 /// invoice <see cref="Date"/> (the invoice is taxed at its own date, not the quote's), and optionally a
 /// PO number and contact for the invoice.
 /// </remarks>
+/// <param name="DocumentCost">
+/// The cost basis, entered at conversion. <b>Required for a service quotation and ignored for an item
+/// one</b> — an item quotation already knows its cost from the item master, a service quotation cannot
+/// know it until the work is committed to. Enforced in the converter, where the quotation is loaded and
+/// its kind is known; a validator on the request could not tell.
+/// </param>
 public sealed record ConvertQuotation(
     InvoiceType Type,
     DateOnly Date,
     string? PurchaseOrderNo,
-    string? ContactPerson);
+    string? ContactPerson,
+    decimal? DocumentCost = null);
 
 /// <summary>
 /// Converts a quotation into an invoice — correctly, unlike the legacy copy-paste (Phase 5, slice 3).

@@ -94,8 +94,19 @@ public sealed class QuotationConverter : IQuotationConverter
             throw new InvalidOperationException($"Quotation {quotation.Id} has no company and cannot be converted.");
         }
 
-        // Item quotes derive their cost from the line costs on conversion; a service quote carries the
-        // document-level cost the user entered on it (no re-entry — the legacy convert-time cost box is gone).
+        // An item quote derives its cost from the line costs carried off the item master. A service quote
+        // has no such source, so the cost is entered at conversion and required there — see
+        // ServiceCostRequired.
+        //
+        // "Service" here means NO line resolves to an item, not "the user picked the service tab". A
+        // document may legitimately hold both kinds (parts plus labour — Phase 5 decision B), and a document
+        // with any item line can derive a cost, so it is not asked for one.
+        //
+        // Known limit, deliberately left: on a MIXED quote the derived figure covers only the item lines, so
+        // the labour side of the cost is not captured. That is the pre-existing behaviour and it understates
+        // cost rather than inventing one. Capturing both would mean asking for a service cost on a mixed
+        // conversion and adding it to the derived total — a bigger change than this one, and a decision the
+        // business has not been asked for.
         var hasItem = quotation.Lines.Any(l => l.ItemId is not null);
 
         return new NewInvoice(
@@ -108,8 +119,21 @@ public sealed class QuotationConverter : IQuotationConverter
             [.. quotation.Lines.Select(l => new NewInvoiceLine(
                 l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
             quotation.DiscountPercent,
-            DocumentCost: hasItem ? null : quotation.Cost);
+            DocumentCost: hasItem ? null : ServiceCostRequired(quotation, request));
     }
+
+    /// <summary>
+    /// The cost for a service conversion: what the caller entered, and it must be something.
+    /// </summary>
+    /// <remarks>
+    /// Falling back to the quotation's stored <c>Cost</c> would defeat the requirement, because that column
+    /// is <c>NOT NULL DEFAULT 0</c> — every service quote has a cost of zero until told otherwise, so a
+    /// fallback would silently produce the 100%-margin invoice this exists to prevent. Zero is accepted when
+    /// it is <i>typed</i>: a service genuinely costing nothing is a claim someone can make, but it has to be
+    /// made rather than defaulted into.
+    /// </remarks>
+    private static decimal ServiceCostRequired(Quotation quotation, ConvertQuotation request) =>
+        request.DocumentCost ?? throw new ServiceCostRequiredException(quotation.Number);
 
     /// <summary>
     /// Builds the invoice draft from a legacy quotation's stored <c>varchar</c> data, parsed defensively.
@@ -178,8 +202,17 @@ public sealed class QuotationConverter : IQuotationConverter
                 matched ? items[l.Itemcode!].Cost : null);
         }).ToList();
 
-        // As for a new quote: item lines derive cost from the item master; an all-service legacy quote
-        // carries its stored document-level quotecost.
+        // As for a new quote: item lines derive cost from the item master; an all-service one takes the cost
+        // entered at conversion, and requires it.
+        //
+        // This branch is not the edge case it looks like. Every quotation on live is `legacy` — the new app
+        // has raised none — so for the foreseeable future this is the ONLY path a conversion takes, and a
+        // change made to BuildFromNew alone would pass its tests and do nothing in production.
+        //
+        // Note what "service" means for a legacy quote: not what the old `it` column claimed, but whether
+        // any line's itemcode still resolves in the item master. A quote whose items have all been deleted
+        // converts as a service quote and will ask for a cost — which is the right answer, because there is
+        // no longer anywhere to derive one from.
         var hasItem = lines.Any(l => l.ItemId is not null);
 
         return new NewInvoice(
@@ -191,6 +224,6 @@ public sealed class QuotationConverter : IQuotationConverter
             request.ContactPerson ?? h.Contactperson,
             lines,
             LegacyValue.Money(h.Discountper),
-            DocumentCost: hasItem ? null : LegacyValue.Money(h.Quotecost));
+            DocumentCost: hasItem ? null : ServiceCostRequired(quotation, request));
     }
 }

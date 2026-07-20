@@ -139,6 +139,17 @@ export function useDraftTotals(lines: DraftLine[], ratePercent: number, docPerce
   }, [lines, ratePercent, docPercent]);
 }
 
+/**
+ * The document's cost basis — Σ (unit cost × quantity), mirroring `DocumentCostBasis` on the server so the
+ * figure shown on the screen is the figure the save records.
+ *
+ * `DraftLine.cost` is a UNIT cost (it comes off the item master, which prices one of a thing) and quantity
+ * is in thousandths, hence the QUANTITY_SCALE. A line with no cost contributes nothing — which is why an
+ * item master with no costs in it produces a cost basis of zero rather than an error.
+ */
+export const draftCostBasis = (lines: DraftLine[]): Minor =>
+  sum(lines.map((l) => (l.cost === null ? 0 : roundHalf((l.cost * l.quantity) / QUANTITY_SCALE))));
+
 /** True when every line is complete enough to post: a positive quantity and an item or a description. */
 export const linesArePostable = (lines: DraftLine[]) =>
   lines.length > 0 &&

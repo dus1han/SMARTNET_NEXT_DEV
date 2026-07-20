@@ -111,7 +111,7 @@ public sealed class InvoiceCreator : IInvoiceCreator
 
         // Cost basis: for a service invoice the user enters one document-level figure (item lines carry no
         // cost); for an item invoice it is the sum of the per-line costs carried from the item master.
-        var cost = request.DocumentCost ?? request.Lines.Sum(l => l.Cost ?? 0m);
+        var cost = request.DocumentCost ?? DocumentCostBasis.Of(request.Lines.Select(l => (l.Cost, l.Quantity)));
         var preparedByName = await PreparedByNameAsync(cancellationToken).ConfigureAwait(false);
 
         var invoice = new Invoice

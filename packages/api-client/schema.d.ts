@@ -6673,6 +6673,8 @@ export interface components {
             date: string;
             purchaseOrderNo?: string | null;
             contactPerson?: string | null;
+            /** Format: double */
+            documentCost?: number | null;
         };
         CreateChequeRequest: {
             /** Format: int64 */

@@ -24,6 +24,7 @@ import { formatReportDate } from "@/components/reports";
 import { Button, Card, ErrorBanner, FadeIn, Input, Select, Skeleton, toast } from "@/components/ui";
 import {
   customerContactNames,
+  draftCostBasis,
   LineDraftEditor,
   linesArePostable,
   toMinor,
@@ -109,8 +110,6 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
   const [documentDiscount, setDocumentDiscount] = useState(
     quotation.documentDiscountPercent > 0 ? String(quotation.documentDiscountPercent) : "",
   );
-  // A service quotation's document-level cost, seeded from the loaded quote so an edit does not wipe it.
-  const [serviceCost, setServiceCost] = useState(quotation.cost > 0 ? String(quotation.cost) : "");
   const [reason, setReason] = useState("");
   const [lines, setLines] = useState<DraftLine[]>(() => seedLines(quotation));
   const [submitting, setSubmitting] = useState(false);
@@ -123,6 +122,8 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
   }, [documentDiscount]);
 
   const totals = useDraftTotals(lines, ratePercent, docPercent);
+  // Σ (unit cost × quantity) — the same arithmetic the server applies, so what is shown is what is stored.
+  const costBasis = draftCostBasis(lines);
   const canSubmit = linesArePostable(lines) && reason.trim().length >= 10;
 
   async function submit() {
@@ -138,8 +139,15 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
           contactPerson: contact || null,
           validity: validity || null,
           documentDiscountPercent: docPercent,
-          // Service quotations carry a document-level cost; item quotations derive it from the line item costs.
-          documentCost: kind === "service" && serviceCost !== "" ? Number(serviceCost) : null,
+          // No documentCost from this screen — see the create screen. An item quotation's cost is derived
+          // from its lines; a service quotation's is entered at conversion, not here.
+          //
+          // Be aware of what this DOES do to an older service quote that already carries a cost: the server
+          // computes `DocumentCost ?? Σ(line costs)`, so a null here re-derives it, and for an all-service
+          // quote that is zero. Editing such a quote therefore clears its stored cost. That is the intended
+          // direction of travel — the figure is re-asked for at conversion, where it is required — and it
+          // costs nothing on live, where no unconverted quotation carries a non-zero cost (checked
+          // 2026-07-20). It would matter if that ever stopped being true.
           lines: lines.map((l) => ({
             id: idFromKey(l.key),
             itemId: l.itemId,
@@ -237,21 +245,12 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
             <Row label="Total" value={formatAmount(totals.total)} strong />
           </div>
 
-          {/* A service quotation's cost (item quotations derive it from the item master) — the margin basis. */}
-          {kind === "service" && (
+          {/* Item: derived from the item master, shown read-only. Service: nothing, because the cost is not
+              known while quoting and is asked for at conversion. Mirrors the create screen exactly. */}
+          {kind === "item" && (
             <div className="flex items-center justify-between gap-3 border-t border-subtle pt-2">
-              <label htmlFor="service-cost" className="text-muted">Cost</label>
-              <input
-                id="service-cost"
-                inputMode="decimal"
-                value={serviceCost}
-                onChange={(e) => setServiceCost(e.target.value)}
-                placeholder="0"
-                className={cn(
-                  "w-28 rounded border border-subtle bg-surface px-2 py-1 text-right tabular text-text",
-                  "focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/25",
-                )}
-              />
+              <span className="text-muted">Cost</span>
+              <span className="tabular text-text">{formatAmount(costBasis)}</span>
             </div>
           )}
 

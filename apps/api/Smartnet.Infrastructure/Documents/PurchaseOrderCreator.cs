@@ -83,7 +83,7 @@ public sealed class PurchaseOrderCreator : IPurchaseOrderCreator
             .AllocateAsync(request.CompanyId, DocumentTypes.PurchaseOrder, request.Date, cancellationToken)
             .ConfigureAwait(false);
 
-        var lineCost = request.Lines.Sum(l => l.Cost ?? 0m);
+        var lineCost = DocumentCostBasis.Of(request.Lines.Select(l => (l.Cost, l.Quantity)));
         var preparedByName = await PreparedByNameAsync(cancellationToken).ConfigureAwait(false);
 
         var order = new PurchaseOrder

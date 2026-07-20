@@ -188,6 +188,11 @@ export default function QuotationViewPage() {
             open={converting}
             onOpenChange={setConverting}
             quotationNumber={data.number}
+            // The server decides this on whether any line still resolves to an item — the same rule the
+            // conversion itself applies, so the dialog cannot ask for a cost the conversion ignores, nor
+            // omit one it will demand.
+            isService={data.kind !== "Item"}
+            storedCost={data.cost}
             defaultContact={data.contactPerson}
             onConverted={(invoiceId) => {
               // The quote is now spent; refresh it so a re-open shows the converted banner.
@@ -290,19 +295,38 @@ function VoidDialog({ open, onOpenChange, quotationNumber, onVoided, voidQuotati
   );
 }
 
-function ConvertDialog({ open, onOpenChange, quotationNumber, defaultContact, onConverted, convert }: {
+/**
+ * The terms that turn a quotation into an invoice — plus, for a SERVICE quotation, its cost.
+ *
+ * An item quotation already knows its cost basis: every line references an item, and the item master
+ * carries that item's cost. A service quotation has no such source, so the figure is asked for here, at the
+ * point the work is actually committed to and the cost is real. The server enforces the same rule and
+ * refuses the conversion without it (400) — this field is the convenience, not the guarantee.
+ */
+function ConvertDialog({ open, onOpenChange, quotationNumber, isService, storedCost, defaultContact, onConverted, convert }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   quotationNumber: string;
+  /** Item vs service, decided by the server on whether any line resolves to an item — not by a stored flag. */
+  isService: boolean;
+  /** Any cost already recorded on the quote, used to seed the field so nothing captured earlier is retyped. */
+  storedCost: number;
   defaultContact: string | null | undefined;
   onConverted: (invoiceId: number) => void;
-  convert: (request: { type: string; date: string; purchaseOrderNo: string | null; contactPerson: string | null }) => Promise<{ id: number; number: string; total: number }>;
+  convert: (request: { type: string; date: string; purchaseOrderNo: string | null; contactPerson: string | null; documentCost: number | null }) => Promise<{ id: number; number: string; total: number }>;
 }) {
   const [type, setType] = useState("Credit");
   const [date, setDate] = useState(today);
   const [po, setPo] = useState("");
+  const [cost, setCost] = useState(storedCost > 0 ? String(storedCost) : "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+
+  // Zero is a valid answer; blank is not. A service that genuinely cost nothing is a claim someone can make,
+  // but it has to be made — defaulting a blank box to zero is exactly how an invoice comes to report 100%
+  // margin with nobody having said so.
+  const costEntered = cost.trim() !== "" && Number.isFinite(Number(cost)) && Number(cost) >= 0;
+  const canConvert = !isService || costEntered;
 
   async function submit() {
     setSubmitting(true);
@@ -313,6 +337,9 @@ function ConvertDialog({ open, onOpenChange, quotationNumber, defaultContact, on
         date,
         purchaseOrderNo: po || null,
         contactPerson: defaultContact || null,
+        // Only a service quotation sends one; the server derives an item quotation's from its lines and
+        // ignores anything sent here.
+        documentCost: isService ? Number(cost) : null,
       });
       toast.success(`Invoice ${invoice.number} raised from ${quotationNumber}.`);
       onOpenChange(false);
@@ -336,7 +363,7 @@ function ConvertDialog({ open, onOpenChange, quotationNumber, defaultContact, on
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={submit} pending={submitting}>
+          <Button onClick={submit} pending={submitting} disabled={!canConvert}>
             Convert
           </Button>
         </>
@@ -352,6 +379,17 @@ function ConvertDialog({ open, onOpenChange, quotationNumber, defaultContact, on
 
         <Input label="Invoice date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <Input label="PO number" value={po} onChange={(e) => setPo(e.target.value)} />
+
+        {isService && (
+          <Input
+            label="Cost"
+            inputMode="decimal"
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+            placeholder="0"
+            hint="What this work costs you. Required — it is the basis for the invoice's profit, and an invoice with no cost reports as pure profit."
+          />
+        )}
       </div>
     </Dialog>
   );

@@ -57,7 +57,13 @@ public sealed class PurchaseOrderTests
             order.TaxAmount.Should().Be(41.40m);
             order.Total.Should().Be(271.40m);
             order.TaxRatePercentage.Should().Be(18m);
-            order.Cost.Should().Be(120m); // only the item line carries a cost
+            // 240: the item line's UNIT cost of 120, times its quantity of 2. The service line carries no
+            // cost and contributes nothing.
+            //
+            // This asserted 120 until 2026-07-20 — the quantity was missing from the cost basis in all seven
+            // places that computed it (see DocumentCostBasis), so every document understated its cost by a
+            // factor of the quantity and overstated its margin to match.
+            order.Cost.Should().Be(240m);
             order.Lines.Should().HaveCount(2);
 
             // The item line carries its item linkage (so the future GRN can receive against it); the

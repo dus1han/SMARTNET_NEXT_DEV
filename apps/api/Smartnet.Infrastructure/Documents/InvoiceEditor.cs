@@ -177,7 +177,7 @@ public sealed class InvoiceEditor : IInvoiceEditor
         invoice.NetTotal = calc.Totals.Net;
         invoice.TaxAmount = calc.Totals.Tax;
         invoice.Total = calc.Totals.Total;
-        invoice.Cost = request.DocumentCost ?? request.Lines.Sum(l => l.Cost ?? 0m);
+        invoice.Cost = request.DocumentCost ?? DocumentCostBasis.Of(request.Lines.Select(l => (l.Cost, l.Quantity)));
 
         UpdateLegacyShadow(invoice);
 

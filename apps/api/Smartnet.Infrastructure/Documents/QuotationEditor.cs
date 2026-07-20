@@ -120,7 +120,7 @@ public sealed class QuotationEditor : IQuotationEditor
         quotation.NetTotal = calc.Totals.Net;
         quotation.TaxAmount = calc.Totals.Tax;
         quotation.Total = calc.Totals.Total;
-        quotation.Cost = request.DocumentCost ?? request.Lines.Sum(l => l.Cost ?? 0m);
+        quotation.Cost = request.DocumentCost ?? DocumentCostBasis.Of(request.Lines.Select(l => (l.Cost, l.Quantity)));
 
         UpdateLegacyShadow(quotation);
 

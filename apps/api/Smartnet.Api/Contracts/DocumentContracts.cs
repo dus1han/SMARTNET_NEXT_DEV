@@ -243,11 +243,24 @@ public sealed record QuotationCreatedResponse(long Id, string Number, decimal To
 /// The terms that turn a quotation into an invoice — everything else comes from the quote. The invoice
 /// is taxed at its own <see cref="Date"/> (not the quote's) through the same save pipeline.
 /// </summary>
+/// <param name="DocumentCost">
+/// The cost basis, entered at conversion — <b>required for a service quotation, ignored for an item
+/// one.</b> An item quotation knows its cost the moment it is raised, because every line references an
+/// item whose cost the master carries; a service quotation does not, because what the work will cost is
+/// not settled until it is committed to. So the figure is asked for here, at the point it becomes real.
+/// <para>
+/// This reinstates the legacy convert-time cost box, removed on 2026-07-16 on the reasoning that the
+/// cost captured on the quote could simply carry through. That holds only if a cost was captured, and
+/// for a service quote nothing ever required one — which is how an invoice reaches the sales report with
+/// <c>Cost = 0</c> and therefore <c>Profit == Total</c>. Requiring it here is what closes that.
+/// </para>
+/// </param>
 public sealed record ConvertQuotationRequest(
     string Type,
     DateOnly Date,
     string? PurchaseOrderNo,
-    string? ContactPerson);
+    string? ContactPerson,
+    decimal? DocumentCost = null);
 
 /// <summary>One row of the quotation list. <see cref="ConvertedInvoiceId"/> is set once it is converted.</summary>
 /// <param name="Origin"><c>new</c> for one this app raised; <c>legacy</c> for one adopted from the old system.</param>
@@ -303,6 +316,20 @@ public sealed record EditQuotationRequest(
     DateOnly? Date = null);
 
 public sealed record QuotationEditedResponse(long Id, string Number, decimal Total, int VersionNo);
+
+// A NOTE ON MIXED DOCUMENTS, because it is tempting to "fix" this and it would be a regression.
+//
+// A document may hold item lines and service lines at once, and that is deliberate — Phase 5 design
+// decision B: "there is no item invoice and service invoice; there is an invoice whose lines each either
+// reference an Item or are free-text". Parts plus labour on one repair is the ordinary case here, and every
+// acceptance test in this suite is written that shape. Confirmed with the business, 2026-07-20.
+//
+// The line editor clears the draft when the item/service toggle is switched, which is a convenience against
+// mixing the two by accident. It is NOT a rule, and there is deliberately no validator behind it: a rule
+// here would refuse an invoice for a repair that used a part.
+//
+// What "service quotation" means for conversion is therefore narrower than it sounds — it is "no line
+// resolves to an item", i.e. nothing to derive a cost from. See QuotationConverter.
 
 /// <summary>Server-side validation — the authority, not the hopeful frontend.</summary>
 public sealed class CreateInvoiceRequestValidator : AbstractValidator<CreateInvoiceRequest>
@@ -402,6 +429,13 @@ public sealed class CreateQuotationRequestValidator : AbstractValidator<CreateQu
 }
 
 /// <summary>Validation for a conversion — only the sale terms the quote does not itself carry.</summary>
+/// <remarks>
+/// <b><see cref="ConvertQuotationRequest.DocumentCost"/> being <i>required</i> is not checked here</b>, and
+/// cannot be: whether it is required depends on whether the quotation is a service one, which is a fact
+/// about the stored document, not about this request. A validator that guessed would either demand a cost
+/// for item quotations or let a service one through. The requirement is enforced in
+/// <c>QuotationConverter</c>, where the quotation is loaded and its kind is known.
+/// </remarks>
 public sealed class ConvertQuotationRequestValidator : AbstractValidator<ConvertQuotationRequest>
 {
     public ConvertQuotationRequestValidator()
@@ -409,6 +443,12 @@ public sealed class ConvertQuotationRequestValidator : AbstractValidator<Convert
         RuleFor(r => r.Type)
             .Must(t => t is "Cash" or "Credit")
             .WithMessage("Type must be 'Cash' or 'Credit'.");
+
+        // Shape only. A negative cost is nonsense whatever the document kind.
+        RuleFor(r => r.DocumentCost)
+            .GreaterThanOrEqualTo(0m)
+            .When(r => r.DocumentCost is not null)
+            .WithMessage("Cost cannot be negative.");
     }
 }
 
@@ -683,8 +723,10 @@ public sealed record PurchaseOrderEditedResponse(long Id, string Number, decimal
 /// <summary>Server-side validation for a purchase-order edit — at least one line.</summary>
 public sealed class EditPurchaseOrderRequestValidator : AbstractValidator<EditPurchaseOrderRequest>
 {
-    public EditPurchaseOrderRequestValidator() =>
+    public EditPurchaseOrderRequestValidator()
+    {
         RuleFor(r => r.Lines).NotEmpty().WithMessage("A purchase order needs at least one line.");
+    }
 }
 
 /// <summary>Who a credit note can go to, and the message that would be sent.</summary>

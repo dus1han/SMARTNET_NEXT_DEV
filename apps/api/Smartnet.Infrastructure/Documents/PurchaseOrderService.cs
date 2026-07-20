@@ -122,7 +122,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderEditor, IPurchaseOrderD
         order.NetTotal = calc.Totals.Net;
         order.TaxAmount = calc.Totals.Tax;
         order.Total = calc.Totals.Total;
-        order.Cost = request.DocumentCost ?? request.Lines.Sum(l => l.Cost ?? 0m);
+        order.Cost = request.DocumentCost ?? DocumentCostBasis.Of(request.Lines.Select(l => (l.Cost, l.Quantity)));
 
         UpdateLegacyShadow(order);
 

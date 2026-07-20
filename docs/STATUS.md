@@ -63,9 +63,51 @@ asserted at the measured 7×3.5in — a template that renders beautifully on A4 
 not claim a total lands in the right box; content streams are compressed, and that is what
 `tools/PdfPreview` and a human eye are for.
 
-696 API tests, up from 664. Still outstanding: `Smartnet.Tests/UnitTest1.cs` is the scaffold file.
+710 API tests, up from 664. Still outstanding: `Smartnet.Tests/UnitTest1.cs` is the scaffold file.
+
+### 2b. Where a document's cost comes from (changed 2026-07-20)
+
+**Item documents derive it; service documents are asked for it.** An item line references an item and the
+item master carries that item's cost, so the basis is computed. A service line has no such source.
+
+- **Item quotations** show the derived cost **read-only** on create and edit — visible while quoting, not
+  typeable, because the master is the authority.
+- **Service quotations** show no cost at all when raised. The figure is entered **when the quote is
+  converted to an invoice**, and the conversion is **refused without it** (400). That reverses the
+  2026-07-16 "no re-entry" decision, whose premise was that the cost captured up front would carry
+  through — true only if one was captured, and nothing ever required one. `cost_amount` is
+  `NOT NULL DEFAULT 0`, so "carried through" meant carrying a zero, and an invoice with no cost does not
+  report as incomplete: it reports as 100% margin.
+- A typed **zero is accepted**; a blank is not. "This cost nothing" is a claim someone may make, but it
+  has to be made.
+- **Mixed documents remain legal** — parts plus labour on one repair, per Phase 5 decision B, confirmed
+  with the business 2026-07-20. The item/service toggle clears the line draft, which guards against
+  mixing by accident; there is deliberately **no** validator behind it, because a rule there would refuse
+  an invoice for a repair that used a part.
+
+Two consequences worth knowing before this reaches anyone:
+
+- **Nearly every conversion on live will now demand a cost.** 2,111 of 2,113 unconverted quotations
+  resolve as service.
+- **The derived figure will read 0.00 until the catalogue is priced.** 0 of 500 `item_m` rows carry a
+  cost — see "Price the ~500 items" in §8. The mechanism is right; the data is not there yet.
 
 ### 3. Known defects, unfixed
+- **~~The cost basis ignored quantity~~ — fixed 2026-07-20.** All seven creators and editors (invoice,
+  quotation, credit note, purchase order; create and edit) summed the bare per-line costs, so ten pumps
+  costing 500 each recorded a basis of 500 rather than 5,000 — margin overstated by a factor of the
+  quantity, everywhere margin is shown. Nothing surfaced it: cost is never posted to the ledger and never
+  reconciled. Now one implementation, `DocumentCostBasis`. Two tests asserted the wrong figure and were
+  pinning the bug; both now assert the right one.
+- **~~A legacy quotation's `Kind` disagreed with the converter~~ — fixed 2026-07-20.** The detail endpoint
+  read the legacy `it` column while the converter decides on whether line item codes still resolve in the
+  item master. On live **2 unconverted quotations** say `it='ITEM'` and resolve to service — they would
+  have shown no cost box and then failed conversion with a 400 nobody could clear. Both now use the
+  resolve-the-code rule.
+- **A mixed quotation's service cost is still not captured.** Conversion derives the basis from the item
+  lines only, so the labour side of a parts-plus-labour quote contributes nothing. Pre-existing; it
+  understates cost rather than inventing one. Fixing it means asking for a service cost on a mixed
+  conversion and adding it to the derived total — not yet a decision the business has been asked for.
 - **The audit log records EF's temporary key on Create rows** — `Id: -9223372036854775000` instead of
   the real id. Affects every entity (visible on `CustomerContact` and `UserNote`). `entity_id` is
   correct so records stay findable; only the `changes` JSON is wrong.

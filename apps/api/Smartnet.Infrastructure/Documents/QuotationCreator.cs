@@ -84,7 +84,7 @@ public sealed class QuotationCreator : IQuotationCreator
 
         // Cost basis: a service quotation carries one document-level figure the user entered (item lines
         // have no cost); an item quotation sums the per-line costs from the item master.
-        var lineCost = request.DocumentCost ?? request.Lines.Sum(l => l.Cost ?? 0m);
+        var lineCost = request.DocumentCost ?? DocumentCostBasis.Of(request.Lines.Select(l => (l.Cost, l.Quantity)));
         var preparedByName = await PreparedByNameAsync(cancellationToken).ConfigureAwait(false);
 
         var quotation = new Quotation

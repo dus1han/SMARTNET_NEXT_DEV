@@ -408,7 +408,18 @@ public sealed class QuotationsController : ControllerBase
         var subtotal = LegacyValue.Money(h.Beforedisctot);
         var net = LegacyValue.Money(h.Novattotal);
         var total = LegacyValue.Money(h.Totamount);
-        var kind = string.Equals(h.It, "ITEM", StringComparison.OrdinalIgnoreCase) ? "Item" : "Service";
+        // Whether any line still RESOLVES to an item — deliberately not the legacy `it` column.
+        //
+        // The two disagree, and the disagreement is load-bearing now that a service conversion demands a
+        // cost. QuotationConverter decides item-vs-service by whether a line's itemcode is still in the item
+        // master, because that is what determines whether a cost can be derived at all. If this said "Item"
+        // on the strength of `it` while the converter saw no resolvable items, the convert dialog would hide
+        // the cost box and the conversion would then refuse for want of a cost — a dead end reachable only
+        // through the UI, on a legacy quote whose items have since been deleted.
+        //
+        // `it` also cannot be trusted on its own terms: it is a legacy varchar, and nothing ever enforced
+        // that it agreed with the lines beneath it.
+        var kind = lines.Any(l => ItemIdFor(l.Itemcode) is not null) ? "Item" : "Service";
 
         // A legacy quote can be converted through the new app, which records the invoice here.
         string? convertedInvoiceNumber = null;
@@ -565,8 +576,15 @@ public sealed class QuotationsController : ControllerBase
         {
             created = await _converter.ConvertAsync(
                 id,
-                new ConvertQuotation(type, request.Date, request.PurchaseOrderNo, request.ContactPerson),
+                new ConvertQuotation(
+                    type, request.Date, request.PurchaseOrderNo, request.ContactPerson, request.DocumentCost),
                 cancellationToken).ConfigureAwait(false);
+        }
+        catch (ServiceCostRequiredException missingCost)
+        {
+            // 400, not 409: nothing about the stored document conflicts, the request is simply incomplete.
+            // The client's job is to ask for the cost and post again, which is what the convert dialog does.
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: missingCost.Message);
         }
         catch (QuotationAlreadyConvertedException already)
         {

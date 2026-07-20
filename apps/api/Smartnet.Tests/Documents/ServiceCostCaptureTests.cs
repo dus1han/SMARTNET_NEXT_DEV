@@ -14,11 +14,24 @@ using Smartnet.Tests.Auditing;
 namespace Smartnet.Tests.Documents;
 
 /// <summary>
-/// Service-cost capture (2026-07-16): the legacy app captured a document-level cost for service invoices
-/// and service-quote conversions (item cost is derived from the item master). The new per-line model lost
-/// it for the service flow; this restores it as a document-level <c>Cost</c> — entered on a service
-/// document, summed from the item lines otherwise, and carried through conversion (no re-entry).
+/// Where a document's cost basis comes from, per kind.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Item</b> documents derive it: Σ (unit cost × quantity) over the lines, the unit cost coming off the
+/// item master. <b>Service</b> documents cannot derive it, so it is entered — on a service invoice when the
+/// invoice is raised, and on a service quotation <b>when it is converted</b>, not when it is quoted.
+/// </para>
+/// <para>
+/// <b>This reverses the 2026-07-16 decision</b> recorded in the previous version of this file, which held
+/// that a service quote's cost was captured up front and carried through with "no re-entry — the legacy
+/// convert box is gone". The reasoning was sound but the premise was not: nothing ever <i>required</i> the
+/// up-front figure, and <c>quotation_h.cost_amount</c> is <c>NOT NULL DEFAULT 0</c>, so "carried through"
+/// in practice meant carrying a zero. An invoice with no cost does not report as incomplete, it reports as
+/// 100% margin. The cost is now asked for at conversion and required there, which is both the point at
+/// which it is knowable and the point at which refusing to proceed is cheap.
+/// </para>
+/// </remarks>
 [Collection(nameof(AuditCollection))]
 public sealed class ServiceCostCaptureTests
 {
@@ -56,7 +69,7 @@ public sealed class ServiceCostCaptureTests
     }
 
     [Fact]
-    public async Task An_item_invoice_still_sums_its_line_costs_when_no_document_cost_is_given()
+    public async Task An_item_invoice_multiplies_each_line_cost_by_its_quantity()
     {
         var (companyId, customerId, itemId) = await Seed();
         var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
@@ -64,6 +77,7 @@ public sealed class ServiceCostCaptureTests
         InvoiceCreated created;
         await using (var db = _fixture.CreateContext(change))
         {
+            // Two widgets, each costing 60.
             created = await InvoiceCreatorFor(db, change).CreateAsync(new NewInvoice(
                 companyId, customerId, InvoiceType.Credit, new DateOnly(2026, 7, 16), null, null,
                 [new NewInvoiceLine(itemId, "I-1", "Widget", 2m, 100m, 0m, Cost: 60m)]));
@@ -71,15 +85,95 @@ public sealed class ServiceCostCaptureTests
 
         await using (var db = _fixture.CreateContext(change))
         {
-            // No DocumentCost → the item flow is unchanged: cost = Σ line costs.
-            (await db.Invoices.FirstAsync(i => i.Id == created.Id)).Cost.Should().Be(60m);
+            // 120, not 60. Line Cost is a UNIT cost; the basis is Σ (unit cost × quantity).
+            //
+            // This asserted 60 until 2026-07-20, which is the bug it now guards: every creator and editor
+            // summed the bare unit costs, so the recorded cost was short by a factor of the quantity and
+            // margin read too generous everywhere it is shown. Nothing caught it because cost is never
+            // posted to the ledger and never reconciled against anything.
+            (await db.Invoices.FirstAsync(i => i.Id == created.Id)).Cost.Should().Be(120m);
         }
     }
 
     [Fact]
-    public async Task Converting_a_service_quotation_carries_its_document_cost_to_the_invoice()
+    public async Task Converting_a_service_quotation_without_a_cost_is_refused()
     {
         var (companyId, customerId, _) = await Seed();
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
+
+        var quotationId = await ServiceQuotation(companyId, customerId, change);
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            // No DocumentCost. The old behaviour was to fall back to the quote's stored figure — which for
+            // a service quote is a NOT NULL DEFAULT 0 column, so the invoice would have been raised
+            // reporting 100% margin, silently.
+            var convert = async () => await ConverterFor(db, change).ConvertAsync(
+                quotationId, new ConvertQuotation(InvoiceType.Credit, new DateOnly(2026, 8, 1), null, null));
+
+            await convert.Should().ThrowAsync<ServiceCostRequiredException>();
+        }
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            // And the refusal is total: no invoice, and the quote is still unspent. The conversion runs in
+            // one transaction, so a failure part-way cannot leave a quote marked converted with nothing to
+            // show for it.
+            var quotation = await db.Quotations.IgnoreQueryFilters().FirstAsync(q => q.Id == quotationId);
+            quotation.ConvertedToInvoiceId.Should().BeNull();
+        }
+    }
+
+    [Fact]
+    public async Task Converting_a_service_quotation_uses_the_cost_entered_at_conversion()
+    {
+        var (companyId, customerId, _) = await Seed();
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
+
+        var quotationId = await ServiceQuotation(companyId, customerId, change);
+
+        InvoiceCreated invoice;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            invoice = await ConverterFor(db, change).ConvertAsync(
+                quotationId,
+                new ConvertQuotation(InvoiceType.Credit, new DateOnly(2026, 8, 1), null, null, DocumentCost: 55m));
+        }
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            (await db.Invoices.FirstAsync(i => i.Id == invoice.Id)).Cost.Should().Be(55m);
+        }
+    }
+
+    [Fact]
+    public async Task A_typed_zero_is_accepted_where_a_blank_is_not()
+    {
+        var (companyId, customerId, _) = await Seed();
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
+
+        var quotationId = await ServiceQuotation(companyId, customerId, change);
+
+        InvoiceCreated invoice;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            // Zero and null are the same number to a database and entirely different claims to a person: one
+            // says "this cost nothing", the other says "nobody said". Only the first may pass.
+            invoice = await ConverterFor(db, change).ConvertAsync(
+                quotationId,
+                new ConvertQuotation(InvoiceType.Credit, new DateOnly(2026, 8, 1), null, null, DocumentCost: 0m));
+        }
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            (await db.Invoices.FirstAsync(i => i.Id == invoice.Id)).Cost.Should().Be(0m);
+        }
+    }
+
+    [Fact]
+    public async Task Converting_an_item_quotation_needs_no_cost_and_derives_it_from_the_lines()
+    {
+        var (companyId, customerId, itemId) = await Seed();
         var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
 
         long quotationId;
@@ -87,23 +181,33 @@ public sealed class ServiceCostCaptureTests
         {
             var quote = await QuotationCreatorFor(db, change).CreateAsync(new NewQuotation(
                 companyId, customerId, new DateOnly(2026, 7, 15), null, "30 Days",
-                [new NewQuotationLine(null, null, "Consulting", 1m, 100m, 0m, Cost: null)],
-                DocumentCost: 40m));
+                [new NewQuotationLine(itemId, "I-1", "Widget", 3m, 100m, 0m, Cost: 60m)]));
             quotationId = quote.Id;
         }
 
         InvoiceCreated invoice;
         await using (var db = _fixture.CreateContext(change))
         {
+            // No DocumentCost, and none needed: the item master is the source.
             invoice = await ConverterFor(db, change).ConvertAsync(
                 quotationId, new ConvertQuotation(InvoiceType.Credit, new DateOnly(2026, 8, 1), null, null));
         }
 
         await using (var db = _fixture.CreateContext(change))
         {
-            // The service cost carried through — no convert-time re-entry (the legacy convert box is gone).
-            (await db.Invoices.FirstAsync(i => i.Id == invoice.Id)).Cost.Should().Be(40m);
+            // 3 × 60.
+            (await db.Invoices.FirstAsync(i => i.Id == invoice.Id)).Cost.Should().Be(180m);
         }
+    }
+
+    /// <summary>An all-service quotation, raised with no cost — which is now the only way to raise one.</summary>
+    private async Task<long> ServiceQuotation(long companyId, long customerId, FakeChangeContext change)
+    {
+        await using var db = _fixture.CreateContext(change);
+        var quote = await QuotationCreatorFor(db, change).CreateAsync(new NewQuotation(
+            companyId, customerId, new DateOnly(2026, 7, 15), null, "30 Days",
+            [new NewQuotationLine(null, null, "Consulting", 1m, 100m, 0m, Cost: null)]));
+        return quote.Id;
     }
 
     // --- Seeding ---------------------------------------------------------------------------------

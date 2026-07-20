@@ -52,7 +52,14 @@ public class PurchaseOrderLine : IAuditable
     /// <summary>The line's taxable amount — gross less its discount.</summary>
     public decimal Net { get; set; }
 
-    /// <summary>The cost basis for this line — item lines only; null for a service line. A new column.</summary>
+    /// <summary>
+    /// The <b>unit</b> cost for this line — item lines only; null for a service line. A new column.
+    /// </summary>
+    /// <remarks>
+    /// Per unit, not per line: it is copied from the item master, which prices one of a thing. The document's
+    /// cost basis multiplies it by the quantity — see <see cref="DocumentCostBasis"/>, the one place that
+    /// arithmetic lives, and which the quantity was missing from until 2026-07-20.
+    /// </remarks>
     public decimal? Cost { get; set; }
 
     public PurchaseOrder PurchaseOrder { get; set; } = null!;

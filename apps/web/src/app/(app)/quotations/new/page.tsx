@@ -27,6 +27,7 @@ import { Button, Card, ErrorBanner, FadeIn, Input, Select, toast } from "@/compo
 import {
   CustomerCombobox,
   customerContactNames,
+  draftCostBasis,
   LineDraftEditor,
   linesArePostable,
   useDraftTotals,
@@ -47,8 +48,6 @@ export default function NewQuotationPage() {
   const [validity, setValidity] = useState("30 Days");
   const [contact, setContact] = useState("");
   const [documentDiscount, setDocumentDiscount] = useState("");
-  // A service quotation's cost is entered at the document level (item lines derive it from the item master).
-  const [serviceCost, setServiceCost] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
@@ -70,6 +69,9 @@ export default function NewQuotationPage() {
   const contactOptions = customerContactNames(selectedCustomer);
 
   const totals = useDraftTotals(lines, ratePercent, docPercent);
+  // Σ (unit cost × quantity), the same arithmetic the server will apply — so the read-only figure below is
+  // the one that gets stored, not an approximation of it.
+  const costBasis = draftCostBasis(lines);
   const canSubmit = companyId !== "" && customerId !== "" && linesArePostable(lines);
 
   async function submit() {
@@ -83,8 +85,9 @@ export default function NewQuotationPage() {
         contactPerson: contact || null,
         validity: validity || null,
         documentDiscountPercent: docPercent,
-        // Service quotations carry a document-level cost; item quotations derive it from the line item costs.
-        documentCost: kind === "service" && serviceCost !== "" ? Number(serviceCost) : null,
+        // No documentCost from this screen, for either kind. An item quotation's cost is derived from its
+        // line costs by the server; a SERVICE quotation's is not known yet — it is entered when the quote is
+        // converted to an invoice, which is the point at which the work is committed to and the cost is real.
         lines: lines.map((l) => ({
           itemId: l.itemId,
           itemCode: l.itemCode,
@@ -209,22 +212,17 @@ export default function NewQuotationPage() {
             <Row label="Total" value={formatAmount(totals.total)} strong />
           </div>
 
-          {/* A service quotation's cost is entered here (item quotations derive it from the item master);
-              it is the margin basis and is carried to the invoice on conversion. */}
-          {kind === "service" && (
+          {/* An ITEM quotation's cost is derived, not entered: every line references an item, and the item
+              master carries its cost. Shown read-only so the margin is visible while quoting, but not
+              typeable — the master is the authority, and a figure typed over it would be a second, private
+              cost basis that nothing else in the system knows about.
+
+              A SERVICE quotation shows nothing here. Its cost cannot be derived, is not known while quoting,
+              and is asked for at conversion instead. */}
+          {kind === "item" && (
             <div className="flex items-center justify-between gap-3 border-t border-subtle pt-2">
-              <label htmlFor="service-cost" className="text-muted">Cost</label>
-              <input
-                id="service-cost"
-                inputMode="decimal"
-                value={serviceCost}
-                onChange={(e) => setServiceCost(e.target.value)}
-                placeholder="0"
-                className={cn(
-                  "w-28 rounded border border-subtle bg-surface px-2 py-1 text-right tabular text-text",
-                  "focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/25",
-                )}
-              />
+              <span className="text-muted">Cost</span>
+              <span className="tabular text-text">{formatAmount(costBasis)}</span>
             </div>
           )}
 
