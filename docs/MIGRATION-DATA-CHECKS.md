@@ -170,32 +170,87 @@ The legacy `docstore` keeps each file as a `LONGBLOB` in the row (Finding C4). P
 those bytes onto the filesystem; **on `smartnet_invsys_dev` all 18 are already migrated and verified.**
 Live still has to be done, and it is a cutover step because the last part is irreversible.
 
+> **Done on live on 2026-07-20** — steps 1–7. All 18 materialised and verified 18/18; the store is
+> owned by `1654:1654`; `docstore.pdfdoc` is untouched, so it remains reversible. **Step 8 (dropping
+> the column) has NOT been done** and is still a deliberate cutover decision. What follows is the
+> record of how, and what to repeat if it is ever redone.
+
+**This is why the Documents page was blank on live.** Live's `documents` table starts empty — it is a
+new table, and the restore brought the *legacy* documents across as `docstore` BLOBs, not as rows in
+it. Nothing was broken in the app; the library genuinely had nothing in it until this ran. The screen
+looking empty rather than erroring is what makes it easy to read as a bug.
+
+**The company is a label, not a wall.** All 18 went in as `company_id = 1`. That is not a judgement
+about which entity owns them: `ICompanyAccessService` grants **every user every company** ("two trading
+entities, not two tenants", confirmed 2026-07-14), so the column decides which entity a document is
+*filed under*, never who can see it. Anyone with `docstorage` sees all 18 regardless. If the business
+later wants them split for tidiness, move them on the documents screen — it changes nothing about
+visibility.
+
+**Getting the tool onto the server.** There is no repository checkout on the VPS, and `dotnet` there is
+the **runtime only, version 8** — no SDK, while this tool targets net10. So it cannot be built or
+`dotnet run` on the server. Publish a self-contained binary from a development machine and copy that:
+
+```bash
+dotnet publish tools/DocstoreMigrate/DocstoreMigrate.csproj \
+  -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o ./dsm-linux
+scp ./dsm-linux/DocstoreMigrate deploy@<host>:~/         # ~75 MB, delete it afterwards
+```
+
+The connection string is in the API container's environment, not in a file the `deploy` user can read
+— `docker inspect sys-api-1` has it, and `deploy` is in the `docker` group. It reads
+`Host=host.docker.internal`, which resolves only *inside* the container; MariaDB is on the host, so
+substitute `Host=127.0.0.1` when running the tool from a shell.
+
+**Run it on the server, with both live flags.** `DocstoreMigrate` carried the same unconditional
+production refusal `Program.cs` used to, and it inverts at cutover for the same reason: materialising
+those files onto live *is* the tool's job. It now refuses only the accident. Two flags are required
+together against `smartnet_invsys`:
+
+- `--production` — the acknowledgement. Nobody types it by mistake, which is the whole guard.
+- `--root /var/www/sys-documents` — the **host** path behind the API's bind mount, not the
+  `/var/lib/smartnet/documents` path the container sees. This tool writes to the filesystem directly;
+  it does not run in the container. Without it `--root` defaults to the *developer's* `App_Data`, so
+  the rows land in live and the files land on whatever laptop ran the command — every document then
+  lists on live and 410s when opened. That is why it is required rather than defaulted.
+
 The order matters, and none of it is automatic:
 
 1. **`mkdir -p /var/www/sys-documents` on the server** before deploying, and confirm the API container
    mounts it. Without the mount the store is inside the container and a redeploy discards every upload —
    silently, because uploading keeps working right up until the redeploy.
-2. **Dry run against live**: `dotnet run -- --company <id>`. It writes nothing and lists what it would do.
-3. **Decide the company.** `docstore` has no company column and the titles span both entities — there is
+2. **Give it to the container's user**: `chown -R 1654:1654 /var/www/sys-documents`. The API image ends
+   on `USER $APP_UID` (1654), so it is **not** root inside the container, and a bind mount keeps the
+   host's ownership. A root-owned store is world-readable, so downloads work and nothing looks wrong —
+   but every *upload* fails on permission denied.
+3. **Dry run against live**: `dotnet run -- --company <id> --production --root /var/www/sys-documents`.
+   It writes nothing and lists what it would do.
+4. **Decide the company.** `docstore` has no company column and the titles span both entities — there is
    a "VAT CERTIFICATE SMART NET" and a "SMART BRC" in the same table. The tool *requires* `--company`
    rather than inferring one. If the 18 genuinely split across both, run it per company against a
    filtered set, or move the misfiled ones afterwards on the documents screen.
-4. **Apply**: `--company <id> --apply`. Re-runnable — `documents.legacy_docstore_id` is uniquely indexed,
-   so an already-materialised row is skipped and a concurrent second run is refused by the database.
-5. **Verify**: `--verify`. Re-reads every file and re-hashes it against the recorded SHA-256. It exits
-   non-zero and says *"NOT SAFE to drop docstore.pdfdoc"* if anything is missing or altered.
-6. **Only then drop the column** — `ALTER TABLE docstore DROP COLUMN pdfdoc` — and take a database
+5. **Apply**: add `--apply` to the same command. Re-runnable — `documents.legacy_docstore_id` is
+   uniquely indexed, so an already-materialised row is skipped and a concurrent second run is refused
+   by the database.
+6. **Re-run the `chown` from step 2.** The migration runs as root and leaves every fan-out directory it
+   created owned by root, which reintroduces exactly the fault step 2 fixed — on whichever 2-char
+   directories the GUIDs happened to land in. Uploads would then fail for some documents and not
+   others, which is a far worse bug to chase than "uploads are broken".
+7. **Verify**: `--verify --production --root /var/www/sys-documents`. Re-reads every file and re-hashes
+   it against the recorded SHA-256. It exits non-zero and says *"NOT SAFE to drop docstore.pdfdoc"* if
+   anything is missing or altered.
+8. **Only then drop the column** — `ALTER TABLE docstore DROP COLUMN pdfdoc` — and take a database
    backup first. The `docstore` metadata rows stay (read-only, Legacy Archive); only the in-DB copy of
    the bytes goes.
 
-**Until step 6 the whole thing is reversible**: the BLOBs are still in the database, so deleting the
-`documents` rows and their files loses nothing. After step 6 the filesystem is the only copy, which is
+**Until step 8 the whole thing is reversible**: the BLOBs are still in the database, so deleting the
+`documents` rows and their files loses nothing. After step 8 the filesystem is the only copy, which is
 why `/var/www/sys-documents` needs to be in the backup set *before* the column goes, not after.
 
 One caveat on the stated benefit: the plan describes this as reclaiming C4 bloat. Measured on the dev
 copy, `docstore.pdfdoc` is **9.8 MB across 18 rows** (largest 1.98 MB). The security fix is real — files
 leave the web root and sit behind a permission check — but the space is not the reason to do it, and it
-is not a reason to hurry step 6.
+is not a reason to hurry step 8.
 
 ### The legacy `notes` table keeps its name — the new one is `entity_notes`
 

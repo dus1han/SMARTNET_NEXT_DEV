@@ -85,6 +85,22 @@ not claim a total lands in the right box; content streams are compressed, and th
   available to us has `GRANT OPTION` there. Run the same script on that host with an admin account.
 - **`/api/dashboard/analytics` and `/api/reports/companies` return 500 on dev**, apparently from
   remote-DB timeouts rather than logic.
+- **~~The Documents page is blank on live~~ — fixed on live (2026-07-20).** Not a code fault:
+  `documents` is a new table and the restore brought the legacy files across as `docstore` BLOBs, so
+  live's library was genuinely empty. It could not be filled, because `tools/DocstoreMigrate` carried
+  the same unconditional "refuse `smartnet_invsys`" guard `Program.cs` had, which inverts at cutover
+  for the same reason. Now scoped — `--production` plus an explicit `--root` are required together.
+
+  **All 18 materialised onto `/var/www/sys-documents` and verified**: 18 of 18 re-read and re-hashed
+  against their recorded SHA-256, and the API container reads them at its configured root. Stamped
+  `company_id = 1`; that is a label for which entity issued it, **not** a visibility boundary — see
+  `ICompanyAccessService`, every user is granted every company. `docstore.pdfdoc` is untouched, so
+  this is still reversible.
+- **~~Uploads were silently broken on live~~ — fixed on live (2026-07-20).** Found while doing the
+  above. `/var/www/sys-documents` was `root:root 755`, and the API runs as uid 1654 (`USER $APP_UID`);
+  a bind mount keeps the host's ownership. Root-owned it stays world-*readable*, so nothing looked
+  wrong — and every upload would have failed on permission denied. `chown -R 1654:1654` fixed it, and
+  the compose file now says so. Re-apply the chown after any root-run tooling touches that directory.
 
 ### 4. Legacy data — decisions, not code
 
@@ -133,7 +149,8 @@ dated weeks apart, survived it, and are the two still on the list. Check the Ove
 
 ### 7. Phase 9 — all of it
 Drop the plaintext password column · `varchar → DECIMAL/DATE` retype · drop `docstore.pdfdoc`
-(bytes are already on disk; C4's bloat reclamation is blocked on this) · remove the Crystal and
+(bytes are on disk **on dev only** — live must be materialised first; C4's bloat reclamation is
+blocked on this) · remove the Crystal and
 legacy dual-writes · delete `DBConnect` · archive the legacy app · numbering initialisation ·
 work `MIGRATION-DATA-CHECKS.md` to zero.
 

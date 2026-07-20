@@ -14,9 +14,15 @@
 //   dotnet run -- --company 1 --apply             # does it
 //   dotnet run -- --company 1 --apply --root PATH # explicit storage root
 //   dotnet run -- --verify                        # re-checks every migrated file against its hash
+//
+// Against LIVE, on the server, --production and an explicit --root are both required — see the guard
+// below for why each one is:
+//
+//   dotnet run -- --company 1 --production --root /var/www/sys-documents --apply
 
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using MySqlConnector;
 
 var apply = args.Contains("--apply", StringComparer.Ordinal);
@@ -37,12 +43,54 @@ if (connectionString is null)
     return 1;
 }
 
-// The production guard the API carries, repeated here: this tool writes rows and files, and pointing it
-// at production by accident is exactly the mistake worth making impossible rather than unlikely.
-if (connectionString.Contains("Database=smartnet_invsys;", StringComparison.OrdinalIgnoreCase)
-    || connectionString.TrimEnd().EndsWith("Database=smartnet_invsys", StringComparison.OrdinalIgnoreCase))
+// The production guard the API carries, repeated here — and scoped the same way, for the same reason.
+//
+// It used to refuse unconditionally. That was right while production still belonged to the legacy app
+// and the docstore BLOBs were its documents, not ours. At cutover it inverts: live's `documents` table
+// starts empty, the only copy of those 18 files is `docstore.pdfdoc` in the production database, and
+// materialising them there is precisely this tool's job. An unconditional refusal does not protect
+// production — it leaves the Documents page blank on the real system, which is how this was found.
+//
+// What the guard actually protects against is the *accident*: a developer running this with a
+// copy-pasted connection string. So production now requires saying so, in as many words. Nobody types
+// --production by mistake.
+var namesProduction = Regex.IsMatch(
+    connectionString, @"Database\s*=\s*smartnet_invsys\s*(;|$)", RegexOptions.IgnoreCase);
+
+if (namesProduction && !args.Contains("--production", StringComparer.Ordinal))
 {
-    Console.Error.WriteLine("Refusing to run against the PRODUCTION database (smartnet_invsys).");
+    Console.Error.WriteLine(
+        """
+        Refusing to run against the PRODUCTION database (smartnet_invsys).
+
+        If that is genuinely what you mean — this is the cutover run that materialises the legacy
+        docstore onto live's document store — pass --production as well. It must be run ON THE SERVER
+        and it will then also require an explicit --root. Read docs/MIGRATION-DATA-CHECKS.md
+        (§ Documents) before you do: the ownership steps either side of it are not optional.
+        """);
+    return 1;
+}
+
+// The other half, and the one that actually bites. --root defaults to the API's *development*
+// App_Data path, so a run that names live without naming a root inserts rows into the production
+// database and writes the files onto whatever machine the command was typed on. Every document then
+// lists on live and 410s when opened — the exact "row with no file" failure the write ordering below
+// exists to avoid, except across a whole library rather than one row.
+//
+// On the server the root is the host side of the compose bind mount (/var/www/sys-documents), NOT the
+// container path the API sees. This tool writes to the filesystem directly; it is not in the container.
+if (namesProduction && ArgValue("--root") is null)
+{
+    Console.Error.WriteLine(
+        """
+        --root is required with --production.
+
+        Without it this writes the files to the development store while inserting the rows into live,
+        and every document on live lists and then 410s. Run this ON THE SERVER, with the host path
+        that backs the API's document volume:
+
+          dotnet run -- --company 1 --production --root /var/www/sys-documents --apply
+        """);
     return 1;
 }
 

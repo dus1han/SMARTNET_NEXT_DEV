@@ -74,6 +74,13 @@ services:
     # The document store. Same convention as the certs: a host directory that outlives the container.
     # Create it before the first deploy — `mkdir -p /var/www/sys-documents` — and back it up, because
     # from here on it holds files that exist nowhere else, the database no longer being a copy.
+    #
+    # And give it to the container's user: `chown -R 1654:1654 /var/www/sys-documents`. The image ends
+    # on `USER $APP_UID` (1654), so the API is not root inside the container, and a bind mount keeps the
+    # host's ownership rather than the image's. Left owned by root the directory is still world-readable,
+    # so downloads work and the store looks fine — and every upload fails on permission denied. Same
+    # applies after running tools/DocstoreMigrate as root: re-chown, or the fan-out directories it
+    # created are root-owned and uploads fail for some documents but not others.
     volumes:
       - /var/www/sys-documents:/var/lib/smartnet/documents
     # NOT published. nginx reaches this over the compose network as `api:5080` — see the upstream in
