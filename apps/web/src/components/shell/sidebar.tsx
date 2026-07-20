@@ -36,12 +36,55 @@ export function Sidebar({ permissions, onNavigate }: {
       aria-label="Main"
       className="flex h-full w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar"
     >
-      <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-5">
-        <BrandMark className="size-8 rounded-lg" />
+      {/*
+        The brand block, and it is a link home — a logo in an app shell that does nothing is a
+        missed affordance, and every user already expects it to go to the dashboard.
+
+        MOTION, DELIBERATELY UNLIKE THE SIGN-IN SCREEN. The login mark floats, haloes and ripples
+        forever, which is right for a panel looked at for four seconds. This one is on screen all
+        day beside people typing invoices, and the house rule past that door is that motion is
+        "functional and short". So: it arrives once on mount, and it responds when pointed at.
+        Nothing loops. A logo breathing in the corner of the eye for eight hours is not charm, it
+        is a thing people learn to resent — and `prefers-reduced-motion` removes even this, by the
+        global rule in globals.css.
+      */}
+      <Link
+        href="/"
+        onClick={onNavigate}
+        aria-label={`${BRAND_NAME} — go to the dashboard`}
+        className={cn(
+          "group/brand flex h-16 items-center gap-2.5 border-b border-sidebar-border px-5",
+          "transition-colors duration-200 ease-out hover:bg-sidebar-active/40",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50",
+        )}
+      >
+        <span className="relative overflow-hidden rounded-lg animate-in fade-in-0 zoom-in-90 duration-500 ease-out">
+          <BrandMark
+            className="size-8 rounded-lg transition-transform duration-200 ease-out group-hover/brand:scale-105"
+          />
+          {/* The sheen sweeps across the mark on hover only — the same gesture the sign-in button
+              uses, so the two surfaces share a vocabulary without sharing a loop. */}
+          <span
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent",
+              "-translate-x-[120%] skew-x-[-12deg] opacity-0",
+              "group-hover/brand:opacity-100 group-hover/brand:animate-sheen",
+            )}
+          />
+        </span>
+
         {/* Name only. The tagline belongs on the sign-in screen, which is selling the product; by
             the time somebody is looking at this header they are using it. */}
-        <p className="text-sm font-semibold text-sidebar-text-active">{BRAND_NAME}</p>
-      </div>
+        <p
+          className={cn(
+            "text-sm font-semibold text-sidebar-text-active",
+            "animate-in fade-in-0 slide-in-from-left-2 fill-mode-backwards duration-500 ease-out [animation-delay:90ms]",
+          )}
+        >
+          {BRAND_NAME}
+        </p>
+      </Link>
 
       <div className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
         {sections.map((section) => (

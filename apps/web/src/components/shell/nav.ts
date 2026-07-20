@@ -5,7 +5,6 @@ import {
   FileMinus,
   FileStack,
   FileText,
-  FlaskConical,
   HandCoins,
   LayoutDashboard,
   Package,
@@ -125,16 +124,6 @@ export const NAVIGATION: NavSection[] = [
       { href: "/users", label: "Users", icon: Users, permission: "users" },
       { href: "/audit", label: "Audit log", icon: ShieldCheck, permission: "audit.view" },
       { href: "/settings", label: "Settings", icon: Settings, permission: "settings.manage" },
-    ],
-  },
-  {
-    // Not a feature, and deliberately visible to everyone: the whole purpose of the line-item
-    // editor prototype is that the people who type invoices all day can reach it and tell us it is
-    // wrong before Phase 5 is built on top of it. It carries no permission because it touches no
-    // data — there is no endpoint behind it at all.
-    title: "Prototypes",
-    items: [
-      { href: "/prototypes/line-items", label: "Line-item editor", icon: FlaskConical },
     ],
   },
 ];

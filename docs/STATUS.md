@@ -16,7 +16,7 @@ several documents insist cheque printing is future work when it shipped.
 |---|---|---|
 | 0 · Foundations | **Done** | Monorepo, CI, compose, EF scaffold. Deviation: nginx no longer falls back to the legacy app — this host has no legacy app. |
 | 1 · Auth, users & settings | **Done**, one gap | Argon2id + hash-on-login, JWT cookie, 35 permissions → policies, user admin, settings. **`document_templates` was never built** — see Phase 8. |
-| 2 · Design system & shell | **Done** | Generated client, DataTable/form abstractions, History tab, company switcher. One leftover: the line-item prototype route, which its own header says to delete. |
+| 2 · Design system & shell | **Done** | Generated client, DataTable/form abstractions, History tab, company switcher. The line-item prototype route has been removed now that Phase 5 shipped the real editor, as its own header said it should be. |
 | 3 · Master data | **Done** | Customers, suppliers, items, stock, Excel export. |
 | 4 · Dashboard & reports | **Done** | **10/10 reports**, plus trial balance, P&L and data exceptions. Dunning queue + `email_log` built but **sending is off** — deliberately, until the balances are corrected. |
 | 5 · Documents engine | **Done** | Tax engine on `decimal`, transactional numbering, ledger-derived balances, versioning, quote → invoice. |
