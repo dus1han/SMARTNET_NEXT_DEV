@@ -45,10 +45,14 @@ public sealed class FtpBackupStorage : IBackupStorage
             .GetListing(destination.RemotePath, cancellationToken)
             .ConfigureAwait(false);
 
+        // Newest first, on the stamp in the name rather than the name itself — sorting on the whole name
+        // sorts by kind first, which put a morning's manual backup above the afternoon's hourly ones.
+        // See BackupNaming.
         return [.. listing
             .Where(item => item.Type == FtpObjectType.File && BackupNaming.IsBackupName(item.Name))
             .Select(item => new BackupFile(item.Name, item.Size, item.Modified.ToUniversalTime()))
-            .OrderByDescending(file => file.Name, StringComparer.Ordinal)];
+            .OrderByDescending(file => BackupNaming.TakenAtUtc(file.Name) ?? file.ModifiedUtc)
+            .ThenByDescending(file => file.Name, StringComparer.Ordinal)];
     }
 
     public async Task UploadAsync(

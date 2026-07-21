@@ -1,3 +1,4 @@
+using System.Globalization;
 using FluentAssertions;
 using Smartnet.Domain.Backups;
 
@@ -104,6 +105,35 @@ public sealed class BackupRetentionTests
     }
 
     [Fact]
+    public void An_older_manual_backup_does_not_outrank_a_newer_hourly_one()
+    {
+        // The reported bug, at the size that makes it dangerous. Fifteen manual backups from the morning
+        // and one hourly backup from the afternoon: ordering by name put every manual above every auto,
+        // filling the rotation, so the hourly backup was deleted moments after it was uploaded.
+        var manuals = Enumerable.Range(0, 15)
+            .Select(hour => File($"smartnet-manual-20260721-{hour:D2}0000.sql.gz"))
+            .ToList();
+
+        var newest = Auto(23);
+
+        var pruned = BackupRetention.ToPrune([.. manuals, newest], keep: 15);
+
+        pruned.Should().ContainSingle().Which.Name.Should().Be("smartnet-manual-20260721-000000.sql.gz");
+        pruned.Should().NotContain(f => f.Name == newest.Name, "the newest backup is never the one deleted");
+    }
+
+    [Fact]
+    public void A_name_without_a_readable_stamp_is_never_deleted()
+    {
+        // It passes IsBackupName, so it is not obviously foreign — but nothing here can say how old it is,
+        // and "unknown age" must not sort as "oldest" in the code that deletes things.
+        var undateable = File("smartnet-auto-something-else.sql.gz");
+        var files = Enumerable.Range(0, 20).Select(Auto).Append(undateable).ToList();
+
+        BackupRetention.ToPrune(files, keep: 5).Should().NotContain(f => f.Name == undateable.Name);
+    }
+
+    [Fact]
     public void A_negative_retention_is_a_bug_and_says_so()
     {
         var act = () => BackupRetention.ToPrune([], keep: -1);
@@ -124,14 +154,36 @@ public sealed class BackupNamingTests
     }
 
     [Fact]
-    public void Sorting_names_orders_them_by_time()
+    public void Sorting_names_does_NOT_order_them_by_time()
     {
-        // The property the rotation depends on: newest-first by ordinal name is newest-first by clock.
-        var earlier = BackupNaming.For(BackupKind.Scheduled, new DateTime(2026, 7, 21, 9, 0, 0, DateTimeKind.Utc));
+        // This used to assert the opposite, and passed, because both names it compared were the same
+        // kind. Across kinds the property is simply false — the kind sits in front of the stamp — and
+        // the rotation was built on it. Pinned as a falsehood so nobody reintroduces the assumption.
         var later = BackupNaming.For(BackupKind.Scheduled, new DateTime(2026, 7, 21, 10, 0, 0, DateTimeKind.Utc));
+        var earlier = BackupNaming.For(BackupKind.Manual, new DateTime(2026, 7, 21, 9, 0, 0, DateTimeKind.Utc));
 
-        string.CompareOrdinal(earlier, later).Should().BeNegative();
+        string.CompareOrdinal(earlier, later).Should().BePositive("'manual' sorts above 'auto'");
+
+        BackupNaming.TakenAtUtc(earlier).Should().BeBefore(BackupNaming.TakenAtUtc(later)!.Value);
     }
+
+    [Theory]
+    [InlineData("smartnet-auto-20260721-140509.sql.gz", "2026-07-21T14:05:09Z")]
+    [InlineData("smartnet-prerestore-20261231-235959.sql.gz", "2026-12-31T23:59:59Z")]
+    public void The_stamp_is_read_back_as_the_utc_it_was_written_in(string name, string expected)
+    {
+        var taken = BackupNaming.TakenAtUtc(name);
+
+        taken.Should().Be(DateTime.Parse(expected, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal));
+        taken!.Value.Kind.Should().Be(DateTimeKind.Utc, "a stamp read as local time drifts by the offset");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("smartnet-auto.sql.gz")]
+    [InlineData("smartnet-auto-20261332-140509.sql.gz")] // month 13, day 32
+    public void An_unreadable_stamp_is_null_rather_than_a_guess(string? name) =>
+        BackupNaming.TakenAtUtc(name).Should().BeNull();
 
     [Theory]
     [InlineData("smartnet-auto-20260721-140509.sql.gz")]
