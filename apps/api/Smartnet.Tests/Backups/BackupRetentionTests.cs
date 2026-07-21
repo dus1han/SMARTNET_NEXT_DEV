@@ -206,3 +206,43 @@ public sealed class BackupNamingTests
         // restore and delete all take a name from the caller, so this is the guard on all three.
         BackupNaming.IsBackupName(name).Should().BeFalse();
 }
+
+/// <summary>
+/// When the hourly job actually takes a backup.
+/// </summary>
+/// <remarks>
+/// The timer is anchored to process start, so on its own it takes a backup two minutes after every
+/// redeploy and never reaches the hourly tick. This is the part that makes the schedule depend on the
+/// store's contents instead of on the process's age.
+/// </remarks>
+public sealed class BackupScheduleTests
+{
+    private static readonly DateTime Now = new(2026, 7, 21, 12, 0, 0, DateTimeKind.Utc);
+    private static readonly TimeSpan Hourly = TimeSpan.FromHours(1);
+
+    [Fact]
+    public void An_empty_store_is_always_due() =>
+        BackupSchedule.IsDue(null, Now, Hourly).Should().BeTrue();
+
+    [Fact]
+    public void A_backup_from_the_last_few_minutes_is_not_due() =>
+        // The redeploy case, which is the whole reason this exists: three deploys in half an hour used
+        // to produce three backups and evict three hours of real history.
+        BackupSchedule.IsDue(Now.AddMinutes(-2), Now, Hourly).Should().BeFalse();
+
+    [Fact]
+    public void A_backup_from_an_hour_ago_is_due() =>
+        BackupSchedule.IsDue(Now.AddHours(-1), Now, Hourly).Should().BeTrue();
+
+    [Fact]
+    public void A_tick_arriving_slightly_early_still_counts() =>
+        // PeriodicTimer does not promise the exact second. Skipping a whole hour over a few seconds of
+        // drift would halve the backup rate, which is a worse failure than one taken a minute early.
+        BackupSchedule.IsDue(Now.AddMinutes(-57), Now, Hourly).Should().BeTrue();
+
+    [Fact]
+    public void A_backup_stamped_in_the_future_does_not_suspend_the_schedule() =>
+        // Somebody's clock is wrong. Taking a backup is the safe reading of that; the other way round, a
+        // single bad stamp stops backups until someone notices, which is exactly when nobody does.
+        BackupSchedule.IsDue(Now.AddHours(3), Now, Hourly).Should().BeTrue();
+}

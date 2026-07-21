@@ -47,15 +47,16 @@ public sealed partial class BackupBackgroundService : BackgroundService
     {
         var interval = TimeSpan.FromHours(_options.IntervalHours);
 
-        // A first backup shortly after start rather than immediately: a restart storm should not each
-        // time dump the database, and the API has better things to do in its first seconds.
+        // Settling time, not throttling. This used to claim it stopped a restart storm from dumping the
+        // database each time, which it never did — it only delayed each dump by two minutes. What
+        // actually stops it is asking the store how old the newest backup is; see BackupSchedule.
         using var timer = new PeriodicTimer(interval, _time);
 
         await Task.Delay(TimeSpan.FromMinutes(2), _time, stoppingToken).ConfigureAwait(false);
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            await RunOnceAsync(stoppingToken).ConfigureAwait(false);
+            await RunOnceAsync(interval, stoppingToken).ConfigureAwait(false);
 
             if (!await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
@@ -64,7 +65,7 @@ public sealed partial class BackupBackgroundService : BackgroundService
         }
     }
 
-    private async Task RunOnceAsync(CancellationToken stoppingToken)
+    private async Task RunOnceAsync(TimeSpan interval, CancellationToken stoppingToken)
     {
         try
         {
@@ -79,6 +80,16 @@ public sealed partial class BackupBackgroundService : BackgroundService
             }
 
             var backups = scope.ServiceProvider.GetRequiredService<IBackupService>();
+
+            if (!BackupSchedule.IsDue(
+                await NewestTakenUtcAsync(backups, stoppingToken).ConfigureAwait(false),
+                _time.GetUtcNow().UtcDateTime,
+                interval))
+            {
+                LogSkippedAsRecent(_logger);
+                return;
+            }
+
             await backups.BackupAsync(BackupKind.Scheduled, stoppingToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -91,9 +102,42 @@ public sealed partial class BackupBackgroundService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// The age of the newest backup on the store, or null when it cannot be established.
+    /// </summary>
+    /// <remarks>
+    /// A store that will not answer must not be able to suspend the schedule. Null means "take one", so a
+    /// listing failure costs a backup that may be redundant rather than the backup that mattered.
+    /// </remarks>
+    private static async Task<DateTime?> NewestTakenUtcAsync(
+        IBackupService backups,
+        CancellationToken stoppingToken)
+    {
+        try
+        {
+            var existing = await backups.ListAsync(stoppingToken).ConfigureAwait(false);
+
+            return existing
+                .Select(file => BackupNaming.TakenAtUtc(file.Name))
+                .Where(taken => taken is not null)
+                .DefaultIfEmpty(null)
+                .Max();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
     [LoggerMessage(
         EventId = 1,
         Level = LogLevel.Error,
         Message = "The scheduled backup failed. The next one will be attempted on the usual interval.")]
     private static partial void LogScheduledBackupFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        EventId = 2,
+        Level = LogLevel.Information,
+        Message = "Scheduled backup skipped: a recent one already exists. This is the restart case.")]
+    private static partial void LogSkippedAsRecent(ILogger logger);
 }
