@@ -18,6 +18,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
+import { instantFromApi } from "@/lib/time";
 import { AUDIT_ACTIONS, getAuditFacets, getAuditLog, type AuditEntry } from "@/lib/audit";
 import { parseChanges } from "@/lib/history";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -262,7 +263,8 @@ function tone(action: string): "neutral" | "success" | "warning" | "danger" {
  * value is one hover away, and the ISO string sorts correctly as the column's accessor.
  */
 function Timestamp({ at }: { at: string }) {
-  const instant = new Date(at.endsWith("Z") ? at : `${at}Z`);
+  // Shared, because the same instant used to render differently depending on which screen you were on.
+  const instant = instantFromApi(at) ?? new Date(0);
 
   return (
     <time

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { MINIMUM_REASON_LENGTH } from "@/lib/admin";
+import { instantFromApi } from "@/lib/time";
 import { me } from "@/lib/auth";
 import {
   backupDownloadUrl,
@@ -187,7 +188,9 @@ function BackupList({ backups, pending, canRestore, onRestore }: {
               <tr key={backup.name}>
                 <td className="py-2.5 text-text">{backup.name}</td>
                 <td className="py-2.5 text-right tabular text-muted">{megabytes(backup.sizeBytes)}</td>
-                <td className="py-2.5 tabular text-muted">{backup.modifiedUtc.replace("T", " ").slice(0, 16)}</td>
+                <td className="py-2.5 tabular text-muted">
+                  <TakenAt backup={backup} />
+                </td>
                 <td className="py-2.5 text-right">
                   <div className="flex justify-end gap-1">
                     <a href={backupDownloadUrl(backup.name)} download>
@@ -503,6 +506,46 @@ function UploadRestoreDialog({ onCancel, onConfirm }: {
       </div>
     </Dialog>
   );
+}
+
+/**
+ * When the backup was taken, in the reader's own time zone.
+ *
+ * Everything server-side is UTC, deliberately, and this is the point where that has to stop being the
+ * reader's problem: 06:53 UTC is 12:23 in Colombo, and a list of backup times that is six hours off is
+ * worse than no times at all — it is the wrong answer to "did the midday backup run?".
+ *
+ * The instant is taken from the <b>name</b> rather than the modified time the FTP server reports. The
+ * name carries a fixed-width UTC stamp we wrote ourselves; FTP timestamps are server-local on some
+ * daemons, minute-granular on others, and occasionally the upload time rather than the file's. The
+ * rotation already trusts the name for exactly this reason. The reported time is the fallback, for a
+ * file whose name somehow does not parse.
+ */
+function TakenAt({ backup }: { backup: BackupSummary }) {
+  const instant = instantOf(backup);
+
+  if (instant === null) {
+    return <>—</>;
+  }
+
+  return (
+    <time dateTime={instant.toISOString()} title={`${instant.toUTCString()} (stored as UTC)`}>
+      {instant.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+    </time>
+  );
+}
+
+/** smartnet-auto-20260721-065300.sql.gz → the instant it names, as UTC. */
+function instantOf(backup: BackupSummary): Date | null {
+  const stamp = /-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})\.sql\.gz$/.exec(backup.name);
+
+  if (stamp) {
+    const [, y, mo, d, h, mi, s] = stamp;
+    return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s));
+  }
+
+  // Same helper every other screen uses, so an instant reads the same wherever it is shown.
+  return instantFromApi(backup.modifiedUtc);
 }
 
 const megabytes = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;

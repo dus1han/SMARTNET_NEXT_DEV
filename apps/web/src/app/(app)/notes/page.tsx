@@ -19,6 +19,7 @@ import * as Menu from "@radix-ui/react-dropdown-menu";
 import { useState } from "react";
 import { z } from "zod";
 import { ApiError } from "@/lib/api";
+import { instantFromApi } from "@/lib/time";
 import { createNote, deleteNote, listNotes, updateNote, MAX_BODY_LENGTH, MAX_TITLE_LENGTH, type NoteSummary } from "@/lib/notes";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -268,7 +269,8 @@ function NoteDialog({
 }
 
 function Timestamp({ at }: { at: string }) {
-  const instant = new Date(at.endsWith("Z") ? at : `${at}Z`);
+  // Shared, because the same instant used to render differently depending on which screen you were on.
+  const instant = instantFromApi(at) ?? new Date(0);
 
   return (
     <time dateTime={instant.toISOString()} title={instant.toUTCString()} className="text-sm text-text">

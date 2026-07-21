@@ -15,6 +15,7 @@ import * as Menu from "@radix-ui/react-dropdown-menu";
 import { useState } from "react";
 import { z } from "zod";
 import { ApiError } from "@/lib/api";
+import { formatInstant } from "@/lib/time";
 import {
   adjustStock,
   createItem,
@@ -539,9 +540,9 @@ function formatQuantity(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
+// Via the shared helper: the API sends UTC without a Z, so `new Date(iso)` read it as local time and
+// showed a clock out by the whole offset.
+const formatDate = (iso: string): string => formatInstant(iso);
 
 function message(error: unknown) {
   return error instanceof ApiError ? error.message : "That did not work.";

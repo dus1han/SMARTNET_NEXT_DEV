@@ -1,5 +1,6 @@
 "use client";
 
+import { instantFromApi } from "@/lib/time";
 import { useQuery } from "@tanstack/react-query";
 import { History as HistoryIcon, Printer, RotateCcw } from "lucide-react";
 import { useState } from "react";
@@ -426,7 +427,8 @@ function Diff({ rows }: { rows: DiffRow[] }) {
  * local time is correct, and the exact UTC value is one hover away.
  */
 function Timestamp({ at, className }: { at: string; className?: string }) {
-  const instant = new Date(at.endsWith("Z") ? at : `${at}Z`);
+  // Shared, because the same instant used to render differently depending on which screen you were on.
+  const instant = instantFromApi(at) ?? new Date(0);
 
   return (
     <time

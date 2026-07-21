@@ -1,3 +1,4 @@
+import { instantFromApi } from "@/lib/time";
 import type { DocumentVersionDetail } from "@/lib/history";
 import { fieldLabel, formatValue, snapshotFields } from "./diff";
 
@@ -29,7 +30,9 @@ export function printVersion(version: DocumentVersionDetail, title: string) {
     .join("");
 
   const changedBy = version.changedByName ?? "an account that no longer exists";
-  const when = new Date(version.changedAt).toUTCString();
+  // Was new Date(...).toUTCString() with no Z, so a UTC value was read as local and then converted back
+  // to UTC — shifted twice. The printed history said the wrong time.
+  const when = instantFromApi(version.changedAt)?.toUTCString() ?? "an unknown time";
 
   window_.document.write(`<!doctype html>
 <html lang="en">
