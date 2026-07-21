@@ -184,6 +184,20 @@ public sealed class QuotationEditor : IQuotationEditor
         }
     }
 
+    /// <summary>
+    /// Refreshes every legacy shadow column an edit can change.
+    /// </summary>
+    /// <remarks>
+    /// <b>The list reads these columns, not the typed ones</b> — <c>QuotationsController.List</c> both
+    /// orders and displays from <c>qdate</c>. So a shadow this method forgets is not a tidiness problem
+    /// in a column nobody reads; it is the wrong value on the screen everybody starts from.
+    /// <para>
+    /// <c>qdate</c> was forgotten on the assumption that a document's date is fixed at creation. It is
+    /// not — an edit may move it, and moving it re-rates the quotation, so <c>vper</c> goes stale with
+    /// it. STQ-223 was edited from 2028-05-19 to 2025-05-19: the detail screen and the new version showed
+    /// the new date, and the list went on showing the old one and sorting by it.
+    /// </para>
+    /// </remarks>
     private void UpdateLegacyShadow(Quotation quotation)
     {
         var entry = _db.Entry(quotation);
@@ -192,6 +206,8 @@ public sealed class QuotationEditor : IQuotationEditor
         var hasItem = quotation.Lines.Any(l => l.DeletedAt is null && l.ItemId is not null);
 
         Set(QuotationLegacyShadow.It, hasItem ? "ITEM" : "SERVICE");
+        Set(QuotationLegacyShadow.QDate, quotation.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Set(QuotationLegacyShadow.VPer, Money(quotation.TaxRatePercentage));
         Set(QuotationLegacyShadow.TotAmount, Money(quotation.Total));
         Set(QuotationLegacyShadow.NoVatTotal, Money(quotation.NetTotal));
         Set(QuotationLegacyShadow.QuoteCost, Money(quotation.Cost));

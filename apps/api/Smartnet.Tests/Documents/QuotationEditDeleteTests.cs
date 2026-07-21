@@ -68,6 +68,48 @@ public sealed class QuotationEditDeleteTests
     }
 
     [Fact]
+    public async Task Moving_the_date_moves_the_legacy_qdate_the_list_is_drawn_from()
+    {
+        // STQ-223 in production: the date was edited, the detail screen and the new version showed the
+        // new one, and the list went on showing the old one — because QuotationsController.List orders
+        // and displays from the legacy `qdate` varchar, and the editor only updated the typed column.
+        var (companyId, customerId, itemId, itemCode) = await Seed();
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId, Reason = "Quote dated wrongly" };
+
+        var created = await CreateQuotation(change, companyId, customerId, itemId, itemCode);
+        var moved = new DateOnly(2025, 5, 19);
+
+        long lineId;
+        int rowVersion;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            var q = await db.Quotations.Include(x => x.Lines).FirstAsync(x => x.Id == created.Id);
+            lineId = q.Lines.Single().Id;
+            rowVersion = q.RowVersion;
+        }
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            await EditorFor(db, change).EditAsync(created.Id, new EditQuotation(
+                rowVersion, ContactPerson: "Mr Khan", Validity: "45 Days", DocumentDiscountPercent: 0m,
+                [new EditQuotationLine(lineId, itemId, itemCode, "Widget", 2m, 100m, 0m, Cost: 120m)],
+                Date: moved));
+        }
+
+        await using (var verify = _fixture.CreateContext(change))
+        {
+            var q = await verify.Quotations.FirstAsync(x => x.Id == created.Id);
+            q.Date.Should().Be(moved, "the typed column was never the broken half");
+
+            var qdate = await verify.Database
+                .SqlQuery<string?>($"SELECT qdate AS Value FROM quotation_h WHERE id = {created.Id}")
+                .FirstAsync();
+
+            qdate.Should().Be("2025-05-19", "the list reads qdate, so a stale one is the wrong date on screen");
+        }
+    }
+
+    [Fact]
     public async Task A_converted_quotation_cannot_be_edited()
     {
         var (companyId, customerId, itemId, itemCode) = await Seed();

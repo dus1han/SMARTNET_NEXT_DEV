@@ -314,7 +314,16 @@ public sealed class InvoiceEditor : IInvoiceEditor
         });
     }
 
-    /// <summary>Updates the legacy shadow columns an edit affects; identity columns (date, customer, …) stay.</summary>
+    /// <summary>
+    /// Refreshes every legacy shadow column an edit can change.
+    /// </summary>
+    /// <remarks>
+    /// This used to say identity columns "(date, customer, …) stay", and the date does not: an edit may
+    /// move it, and moving it re-rates the invoice, so <c>vper</c> goes stale alongside <c>indate</c>.
+    /// <c>InvoicesController.List</c> orders and displays from <c>indate</c>, so the cost of the omission
+    /// lands on the list screen rather than in an unread column. Customer really does stay — nothing here
+    /// reassigns it.
+    /// </remarks>
     private void UpdateLegacyShadow(Invoice invoice)
     {
         var entry = _db.Entry(invoice);
@@ -323,6 +332,8 @@ public sealed class InvoiceEditor : IInvoiceEditor
         var hasItem = invoice.Lines.Any(l => l.DeletedAt is null && l.ItemId is not null);
 
         Set(InvoiceLegacyShadow.It, hasItem ? "ITEM" : "SERVICE");
+        Set(InvoiceLegacyShadow.InDate, invoice.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Set(InvoiceLegacyShadow.VPer, Money(invoice.TaxRatePercentage));
         Set(InvoiceLegacyShadow.TotAmount, Money(invoice.Total));
         Set(InvoiceLegacyShadow.Balance, Money(invoice.Type == InvoiceType.Cash ? 0m : invoice.Total));
         Set(InvoiceLegacyShadow.Cost, Money(invoice.Cost));
