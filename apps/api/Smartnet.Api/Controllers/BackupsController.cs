@@ -137,6 +137,13 @@ public sealed class BackupsController : ControllerBase
             // do not depend on the store at all.
             return Problem(statusCode: StatusCodes.Status502BadGateway, title: unreachable.Message);
         }
+        catch (Exception ex) when (ex is BackupSecretUnreadableException or BackupCredentialsRejectedException
+            or BackupCertificateRejectedException)
+        {
+            // 409, not 502: the store is fine and the settings are wrong. Distinguishing the two is the
+            // whole point — see the remarks on each exception.
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: ex.Message);
+        }
     }
 
     /// <summary>Takes a backup now and stores it on the destination.</summary>
@@ -156,6 +163,11 @@ public sealed class BackupsController : ControllerBase
         catch (BackupStoreUnreachableException unreachable)
         {
             return Problem(statusCode: StatusCodes.Status502BadGateway, title: unreachable.Message);
+        }
+        catch (Exception ex) when (ex is BackupSecretUnreadableException or BackupCredentialsRejectedException
+            or BackupCertificateRejectedException)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: ex.Message);
         }
         catch (BackupFailedException failed)
         {
@@ -296,6 +308,11 @@ public sealed class BackupsController : ControllerBase
         catch (BackupStoreUnreachableException unreachable)
         {
             return Problem(statusCode: StatusCodes.Status502BadGateway, title: unreachable.Message);
+        }
+        catch (Exception ex) when (ex is BackupSecretUnreadableException or BackupCredentialsRejectedException
+            or BackupCertificateRejectedException)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: ex.Message);
         }
         catch (BackupNotFoundException notFound)
         {

@@ -64,6 +64,13 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("Jwt__AccessTokenMinutes", "30");
         Environment.SetEnvironmentVariable("Cors__WebOrigin", CorsOrigin);
 
+        // Program refuses to start without somewhere to keep the Data Protection key ring, so that a
+        // deploy cannot quietly leave it inside a container it is about to replace. Tests want the
+        // opposite lifetime — a fresh ring per run, thrown away with the rest of the temp directory.
+        Environment.SetEnvironmentVariable(
+            "DataProtection__KeyPath",
+            Path.Combine(Path.GetTempPath(), $"smartnet-tests-keys-{Guid.NewGuid():N}"));
+
         await using var db = new SmartnetDbContext(
             new DbContextOptionsBuilder<SmartnetDbContext>()
                 .UseMySql(_container.GetConnectionString(), SmartnetServerVersion.Value,

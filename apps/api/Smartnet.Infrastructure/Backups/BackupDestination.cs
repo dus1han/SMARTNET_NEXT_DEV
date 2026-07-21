@@ -84,13 +84,28 @@ public sealed class BackupDestinationProvider : IBackupDestinationProvider
         {
             return _protector.Unprotect(encrypted);
         }
-        catch (System.Security.Cryptography.CryptographicException)
+        catch (System.Security.Cryptography.CryptographicException ex)
         {
-            // The Data Protection keys are not persisted (a known gap — see STATUS §5), so a redeploy
-            // invalidates every stored secret. Failing to decrypt is therefore a real, foreseeable state
-            // and not a corruption: treated as "no password set", which surfaces as an authentication
-            // failure the administrator can fix by re-entering it, rather than as a 500 they cannot.
-            return string.Empty;
+            // Said out loud rather than swallowed. This used to return an empty string on the reasoning
+            // that a failed login is a clearer signal than a 500 — which was wrong twice over. FTP does
+            // not report "your password was blank", it reports a refused login, and the layer above
+            // turned that into "could not reach the backup server". Hours went into the network before
+            // anyone suspected the key ring.
+            //
+            // The only cause is a key ring that no longer matches the ciphertext, so name that and say
+            // what fixes it. Persisting the ring (DataProtection__KeyPath) is what stops it recurring.
+            throw new BackupSecretUnreadableException(ex);
         }
     }
 }
+
+/// <summary>
+/// The stored FTP password cannot be decrypted, because the Data Protection key ring that encrypted it
+/// is gone.
+/// </summary>
+public sealed class BackupSecretUnreadableException(Exception inner)
+    : Exception(
+        "The saved FTP password could not be read — the encryption key ring has changed since it was "
+        + "stored, which happens when the key ring is not kept outside the container. Re-enter the "
+        + "password under Administration → Backups to fix it now.",
+        inner);

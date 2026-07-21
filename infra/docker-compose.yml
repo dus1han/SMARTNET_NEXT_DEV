@@ -50,6 +50,13 @@ services:
       # would keep working right up until the redeploy.
       DocumentStorage__RootPath: /var/lib/smartnet/documents
 
+      # The Data Protection key ring — what encrypts the SMTP and FTP passwords held in the database.
+      # Same reasoning as the documents path above, and the same failure if it is wrong, except quieter:
+      # a lost key ring does not lose the ciphertext, it makes it unreadable. The rows still look right
+      # in the database, and the feature reports whatever the empty password happens to cause. Ours
+      # reported an unreachable FTP server for three hours.
+      DataProtection__KeyPath: /var/lib/smartnet/dataprotection-keys
+
       # Database backups. The FTP destination is NOT here — it is configured from the Backups screen and
       # stored in `backup_settings`, so changing where backups go does not need a deploy.
       #
@@ -97,6 +104,12 @@ services:
     # created are root-owned and uploads fail for some documents but not others.
     volumes:
       - /var/www/sys-documents:/var/lib/smartnet/documents
+      # The key ring. Create and hand it over before the first deploy, exactly as for the documents:
+      #
+      #     sudo mkdir -p /var/www/sys-dpkeys && sudo chown -R 1654:1654 /var/www/sys-dpkeys
+      #
+      # These files decrypt every stored password, so they belong in the backups and nowhere public.
+      - /var/www/sys-dpkeys:/var/lib/smartnet/dataprotection-keys
     # NOT published. nginx reaches this over the compose network as `api:5080` — see the upstream in
     # nginx/default.conf — so there is nothing for a host port to serve except the public internet.
     #

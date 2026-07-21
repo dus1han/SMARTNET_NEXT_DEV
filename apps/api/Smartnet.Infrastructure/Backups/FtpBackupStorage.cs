@@ -1,4 +1,5 @@
 using FluentFTP;
+using FluentFTP.Exceptions;
 using Smartnet.Domain.Backups;
 
 namespace Smartnet.Infrastructure.Backups;
@@ -172,14 +173,43 @@ public sealed class FtpBackupStorage : IBackupStorage
             await client.Connect(cancellationToken).ConfigureAwait(false);
             return client;
         }
+        catch (FtpAuthenticationException ex)
+        {
+            // Kept apart from the unreachable case deliberately. Folding the two together is what made a
+            // rejected password read as a dead network, and the hours after that were spent on
+            // traceroutes and firewall rules for a server that was answering perfectly well. Reaching the
+            // host and being turned away by it are different problems with different owners.
+            await client.DisposeAsync().ConfigureAwait(false);
+
+            throw new BackupCredentialsRejectedException(
+                $"{destination.Host} answered but refused the login for '{destination.Username}'. "
+                + "Check the username and password under Administration → Backups.",
+                ex);
+        }
+        catch (FtpInvalidCertificateException ex)
+        {
+            // The third thing that used to read as "unreachable", and the likeliest of the three on a
+            // shared host: the certificate is valid but issued for the provider's own name rather than
+            // the customer's, so the name does not match and validation fails. A desktop client asks the
+            // user whether to trust it and remembers the answer; there is nobody to ask here, so the
+            // choice is the AcceptAnyCertificate setting — and the message has to say so, because
+            // "could not reach" sends people to look at firewalls instead.
+            await client.DisposeAsync().ConfigureAwait(false);
+
+            throw new BackupCertificateRejectedException(
+                $"The TLS certificate offered by {destination.Host} was not accepted — on shared hosting "
+                + "it is usually issued for the provider's own hostname rather than yours. Tick "
+                + "\"accept any certificate\" under Administration → Backups if that is expected here.",
+                ex);
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await client.DisposeAsync().ConfigureAwait(false);
 
             throw new BackupStoreUnreachableException(
                 $"Could not reach the backup server at {destination.Host}:{destination.Port}. "
-                + "Check that the host, port and credentials are right and that the server is accepting "
-                + "connections from this machine.",
+                + "Check that the host and port are right and that the server is accepting connections "
+                + "from this machine.",
                 ex);
         }
     }
@@ -197,6 +227,20 @@ public sealed class FtpBackupStorage : IBackupStorage
 /// different thing to go and check.
 /// </remarks>
 public sealed class BackupStoreUnreachableException(string message, Exception inner)
+    : Exception(message, inner);
+
+/// <summary>
+/// The backup server was reached and rejected the credentials.
+/// </summary>
+/// <remarks>
+/// Separate from <see cref="BackupStoreUnreachableException"/> because the two send an administrator to
+/// opposite ends of the building — one to the settings form, the other to the firewall.
+/// </remarks>
+public sealed class BackupCredentialsRejectedException(string message, Exception inner)
+    : Exception(message, inner);
+
+/// <summary>The backup server's TLS certificate was not accepted.</summary>
+public sealed class BackupCertificateRejectedException(string message, Exception inner)
     : Exception(message, inner);
 
 /// <summary>No backup destination has been configured on this deployment.</summary>

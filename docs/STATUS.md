@@ -180,8 +180,20 @@ dated weeks apart, survived it, and are the two still on the list. Check the Ove
   Archive as it stands. See `MIGRATION-DATA-CHECKS.md`.
 - **Plaintext `password` column is still live** and still written on password change — correct for
   the dual-write window, dropped at cutover.
-- **Data Protection keys are not persisted.** Carried unresolved since Phase 1. A redeploy invalidates
-  every stored SMTP password.
+- ~~**Data Protection keys are not persisted.**~~ **Fixed 2026-07-21.** Carried unresolved since Phase 1,
+  and it finally cost an afternoon. The key ring lived in the container's home directory, so each redeploy
+  minted a new one and every ciphertext already in the database became undecryptable — while still sitting
+  there looking perfectly intact. The FTP password decrypted to an empty string, the login was refused, and
+  `FtpBackupStorage` reported that as *"could not reach the backup server"*: hours went into traceroutes,
+  firewall rules and the FTP provider before anyone suspected encryption. (A real ban by the FTP host had
+  lifted hours earlier, which is what made the wrong trail so convincing.)
+  - The ring is now written to `DataProtection__KeyPath`, mounted from `/var/www/sys-dpkeys`, and
+    `Program.cs` **refuses to start** without it — this class of fault is invisible until it is expensive.
+  - **These files decrypt every stored password. Back them up; losing them means re-entering all of them.**
+  - The four SMTP call sites let the decryption failure propagate, so document email had been returning 500s
+    since the redeploy rather than misreporting. Same root cause, same fix.
+  - Decryption failure and a rejected login are now separate exceptions, as is a rejected TLS certificate.
+    Collapsing all three into one message is what made this take as long as it did.
 
 ### 5b. Settings — companies and VAT (2026-07-20, VAT model reworked 2026-07-21)
 

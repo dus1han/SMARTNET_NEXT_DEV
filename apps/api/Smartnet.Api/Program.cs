@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using System.Globalization;
 using System.Text;
@@ -196,10 +197,31 @@ builder.Services.AddScoped<IGeneralLedger, GeneralLedger>();
 // then default.
 builder.Services.AddScoped<IBusinessRuleReader, BusinessRuleReader>();
 
-// Encrypts the SMTP password at rest (A2). The keys live outside the image; in production they
-// must be persisted to a shared, backed-up location, or a redeploy silently invalidates every
-// ciphertext already in the database.
-builder.Services.AddDataProtection(options => options.ApplicationDiscriminator = "smartnet");
+// Encrypts the secrets held in the database at rest — the SMTP password (A2) and the FTP password the
+// Backups screen stores.
+//
+// THE KEY RING MUST OUTLIVE THE CONTAINER. Left at its default it lands in the container's home
+// directory, which a redeploy throws away, and every ciphertext already in the database becomes
+// undecryptable — silently, because the ciphertext is still there and still looks fine. This is not
+// hypothetical: it cost an afternoon. Backups uploaded happily at 06:53, two redeploys followed, and
+// every attempt after that failed with an error about not reaching the FTP server — the stored password
+// was decrypting to nothing and the login was being refused. The network was never the problem.
+//
+// So the path is required rather than defaulted. A missing key ring is a fault that shows up hours later
+// as somebody else's fault; refusing to start says it once, at the moment it is cheap to fix.
+var keyRing = builder.Configuration["DataProtection:KeyPath"];
+
+if (string.IsNullOrWhiteSpace(keyRing))
+{
+    throw new InvalidOperationException(
+        "DataProtection__KeyPath is not set. It must point at a directory that survives a redeploy "
+        + "(infra/docker-compose.yml mounts /var/www/sys-dpkeys for this); without it every stored "
+        + "password becomes unreadable the next time this container is replaced.");
+}
+
+builder.Services
+    .AddDataProtection(options => options.ApplicationDiscriminator = "smartnet")
+    .PersistKeysToFileSystem(Directory.CreateDirectory(keyRing));
 
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
           ?? throw new InvalidOperationException(
