@@ -112,7 +112,12 @@ public sealed class QuotationCreator : IQuotationCreator
             Lines = [.. request.Lines.Zip(calc.Lines, (input, line) => new QuotationLine
             {
                 ItemId = input.ItemId,
-                ItemCode = input.ItemCode,
+                // itemcode is NOT NULL in quotation_l — alone among the line tables; invoice_l and cn_l
+                // both allow null, which is why a service line saved on an invoice and blew up on a
+                // quotation. An absent code is the empty string, which is also what all but two of the
+                // 6,607 legacy rows hold, so this keeps new rows shaped like the old ones rather than
+                // introducing a second way to say "no item". Same treatment as ContactPerson above.
+                ItemCode = input.ItemCode ?? string.Empty,
                 Description = input.Description,
                 Quantity = line.Quantity,
                 UnitPrice = line.UnitPrice,

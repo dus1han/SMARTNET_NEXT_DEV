@@ -146,7 +146,8 @@ public sealed class QuotationEditor : IQuotationEditor
             if (input.Id is { } id && existing.TryGetValue(id, out var current))
             {
                 current.ItemId = input.ItemId;
-                current.ItemCode = input.ItemCode;
+                // NOT NULL in quotation_l; see the note in QuotationCreator.
+                current.ItemCode = input.ItemCode ?? string.Empty;
                 current.Description = input.Description;
                 current.Quantity = line.Quantity;
                 current.UnitPrice = line.UnitPrice;
@@ -163,7 +164,7 @@ public sealed class QuotationEditor : IQuotationEditor
                 {
                     QuotationId = quotation.Id,
                     ItemId = input.ItemId,
-                    ItemCode = input.ItemCode,
+                    ItemCode = input.ItemCode ?? string.Empty,
                     Description = input.Description,
                     Quantity = line.Quantity,
                     UnitPrice = line.UnitPrice,

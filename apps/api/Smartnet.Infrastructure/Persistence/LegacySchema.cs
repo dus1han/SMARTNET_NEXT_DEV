@@ -301,18 +301,29 @@ public static class LegacySchema
         """;
 
     /// <summary>
-    /// <c>quotation_l</c> — the quotation's lines, all nullable, keyless. The line total column is
-    /// <c>total</c> (invoices call theirs <c>tot</c>); <c>desc</c> is text.
+    /// <c>quotation_l</c> — the quotation's lines, keyless. The line total column is <c>total</c>
+    /// (invoices call theirs <c>tot</c>); <c>desc</c> is text.
     /// </summary>
+    /// <remarks>
+    /// <b><c>itemcode</c> is NOT NULL here and nullable on <c>invoice_l</c> and <c>cn_l</c></b> — the only
+    /// such divergence among the eight document tables, and not a mistake in this file: production really
+    /// is like that. This snapshot used to say nullable, which made a service quotation — a line with no
+    /// item — save cleanly in every test and fail with a 500 in production. A schema snapshot that is
+    /// kinder than production tests nothing; it only moves where the failure is found.
+    /// <para>
+    /// <c>itemno</c> is <c>varchar(100)</c> rather than the <c>bigint</c> once written here. Nothing maps
+    /// or writes it, so the difference never surfaced, which is exactly how it survived.
+    /// </para>
+    /// </remarks>
     public const string QuotationL = """
         CREATE TABLE `quotation_l` (
           `qno` varchar(100) DEFAULT NULL,
-          `itemno` bigint(21) DEFAULT NULL,
+          `itemno` varchar(100) DEFAULT NULL,
           `desc` text DEFAULT NULL,
           `qty` varchar(100) DEFAULT NULL,
           `rate` varchar(100) DEFAULT NULL,
           `total` varchar(100) DEFAULT NULL,
-          `itemcode` varchar(100) DEFAULT NULL
+          `itemcode` varchar(100) NOT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """;
 
