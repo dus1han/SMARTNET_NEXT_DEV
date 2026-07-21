@@ -130,7 +130,20 @@ public sealed class FtpBackupStorage : IBackupStorage
 
     private static string Remote(string folder, string name) => $"{folder.TrimEnd('/')}/{name}";
 
-    /// <summary>Opens a connection, or throws with the reason rather than a socket error.</summary>
+    /// <summary>Opens a connection, or says plainly that the store cannot be reached.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Timeouts are set explicitly and kept short.</b> The defaults are generous and the retries
+    /// multiply them, which is how a screen that lists backups came to hang for sixty seconds against an
+    /// unreachable server and then return a 500. A remote store being down is an ordinary condition —
+    /// the network is somebody else's — so it has to fail quickly and say what happened, not stall the
+    /// page it is drawn on.
+    /// </para>
+    /// <para>
+    /// The failure is translated here rather than left as a <c>TimeoutException</c> or a socket error, so
+    /// callers get one thing to catch and the user gets a sentence instead of a stack trace.
+    /// </para>
+    /// </remarks>
     public static async Task<AsyncFtpClient> ConnectAsync(
         BackupDestination destination,
         CancellationToken cancellationToken)
@@ -143,20 +156,48 @@ public sealed class FtpBackupStorage : IBackupStorage
         // Off unless asked for. Accepting any certificate would make a self-signed server "just work",
         // and would also make a machine-in-the-middle just work — see the setting's own remarks.
         client.Config.ValidateAnyCertificate = destination.AcceptAnyCertificate;
-        client.Config.RetryAttempts = 2;
+
+        client.Config.ConnectTimeout = ConnectTimeoutMs;
+        client.Config.ReadTimeout = ReadTimeoutMs;
+        client.Config.DataConnectionConnectTimeout = ConnectTimeoutMs;
+        client.Config.DataConnectionReadTimeout = ReadTimeoutMs;
+
+        // One attempt. Retrying a refused connection turns an eight-second failure into a half-minute one
+        // and, against a host that throttles by source address, makes the next attempt likelier to fail
+        // too — a connection per page load is already more than such a server expects.
+        client.Config.RetryAttempts = 1;
 
         try
         {
             await client.Connect(cancellationToken).ConfigureAwait(false);
             return client;
         }
-        catch
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await client.DisposeAsync().ConfigureAwait(false);
-            throw;
+
+            throw new BackupStoreUnreachableException(
+                $"Could not reach the backup server at {destination.Host}:{destination.Port}. "
+                + "Check that the host, port and credentials are right and that the server is accepting "
+                + "connections from this machine.",
+                ex);
         }
     }
+
+    private const int ConnectTimeoutMs = 8_000;
+    private const int ReadTimeoutMs = 15_000;
 }
+
+/// <summary>
+/// The backup destination is configured but cannot be talked to.
+/// </summary>
+/// <remarks>
+/// Distinct from <see cref="BackupNotConfiguredException"/>, which means nobody has set one up. This one
+/// means the settings exist and the server did not answer — a different sentence for the user, and a
+/// different thing to go and check.
+/// </remarks>
+public sealed class BackupStoreUnreachableException(string message, Exception inner)
+    : Exception(message, inner);
 
 /// <summary>No backup destination has been configured on this deployment.</summary>
 public sealed class BackupNotConfiguredException()

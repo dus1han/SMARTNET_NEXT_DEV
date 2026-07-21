@@ -130,6 +130,13 @@ public sealed class BackupsController : ControllerBase
             // useful answer than a 500 the screen has to interpret.
             return Ok(Array.Empty<BackupSummary>());
         }
+        catch (BackupStoreUnreachableException unreachable)
+        {
+            // 502, and quickly. This is the ordinary case of somebody else's server being down, and the
+            // screen needs to say so and stay usable — the settings form and "download a fresh backup"
+            // do not depend on the store at all.
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: unreachable.Message);
+        }
     }
 
     /// <summary>Takes a backup now and stores it on the destination.</summary>
@@ -145,6 +152,10 @@ public sealed class BackupsController : ControllerBase
         catch (BackupNotConfiguredException notConfigured)
         {
             return Problem(statusCode: StatusCodes.Status409Conflict, title: notConfigured.Message);
+        }
+        catch (BackupStoreUnreachableException unreachable)
+        {
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: unreachable.Message);
         }
         catch (BackupFailedException failed)
         {
@@ -281,6 +292,10 @@ public sealed class BackupsController : ControllerBase
         catch (BackupNotConfiguredException notConfigured)
         {
             return Problem(statusCode: StatusCodes.Status409Conflict, title: notConfigured.Message);
+        }
+        catch (BackupStoreUnreachableException unreachable)
+        {
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: unreachable.Message);
         }
         catch (BackupNotFoundException notFound)
         {
