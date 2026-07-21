@@ -6,6 +6,7 @@ import {
   FileStack,
   FileText,
   HandCoins,
+  Landmark,
   LayoutDashboard,
   Package,
   NotebookPen,
@@ -122,6 +123,10 @@ export const NAVIGATION: NavSection[] = [
     title: "Administration",
     items: [
       { href: "/users", label: "Users", icon: Users, permission: "users" },
+      // Dev_Admin only, and their own screens rather than buttons on Settings: adding a trading entity
+      // and setting the VAT rate are decisions about the business, where Settings configures one company.
+      { href: "/companies", label: "Companies", icon: Landmark, permission: "system.dev_admin" },
+      { href: "/vat-rate", label: "VAT rate", icon: Percent, permission: "system.dev_admin" },
       { href: "/audit", label: "Audit log", icon: ShieldCheck, permission: "audit.view" },
       { href: "/settings", label: "Settings", icon: Settings, permission: "settings.manage" },
     ],

@@ -200,6 +200,11 @@ dated weeks apart, survived it, and are the two still on the list. Check the Ove
   only the *adoption date* is editable (`PUT /api/settings/tax-rates/{id}`), for the case where one
   entity switched over on a different day. The rate and percentage are the same everywhere by
   construction.
+- **Both live under Administration, on their own screens** — `/companies` and `/vat-rate`, Dev_Admin
+  only. They were briefly buttons on the Settings page and that was the wrong home: Settings configures
+  *one* company at a time (letterhead, numbering, mail), while adding an entity changes what the business
+  is and the VAT rate applies across all of them. Settings keeps the per-company tax table, where the
+  only editable field is that company's adoption date.
 - **Scheduling works because default-clearing keys on the start date, not overlap.** Two defaults with
   different start dates coexist; the engine resolves each document against the default with the latest
   start on or before its date, so "18% now, 20% from January" needs no end date on the 18% and no
