@@ -159,6 +159,10 @@ builder.Services.AddHostedService<DunningBackgroundService>();
 // ---------------------------------------------------------------------------
 builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.Section));
 
+// The listing is cached for a minute. Without it, every page load opened a fresh FTP session, and the
+// burst got this server's address banned by the remote host — see BackupService.ListingFreshFor.
+builder.Services.AddMemoryCache();
+
 // The dump reads what the application reads, so it is taken with the application's own credentials —
 // SELECT, LOCK TABLES and SHOW VIEW are enough for mysqldump, and nothing more is granted.
 builder.Services.AddSingleton<IDatabaseConnectionString>(new DatabaseConnectionString(conn));

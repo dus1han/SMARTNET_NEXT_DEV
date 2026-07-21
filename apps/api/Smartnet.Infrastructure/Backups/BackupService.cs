@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Smartnet.Domain.Backups;
@@ -36,9 +37,28 @@ public sealed record RestoreOutcome(string SafetyBackup);
 /// <inheritdoc cref="IBackupService"/>
 public sealed partial class BackupService : IBackupService
 {
+    /// <summary>
+    /// How long a listing is reused before the store is asked again.
+    /// </summary>
+    /// <remarks>
+    /// <b>This exists because the absence of it got the server banned.</b> Listing opened a fresh FTP
+    /// session on every page load, and a browser tab left open — or a couple of reloads with the default
+    /// retry policy behind them — is a burst of connections that a shared FTP host reads as abuse. The
+    /// host blocked this server's address outright: no FTP, no ICMP, nothing, while the same credentials
+    /// worked from a desktop client on a different address.
+    /// <para>
+    /// A minute is long enough that browsing the screen costs one connection rather than a dozen, and
+    /// short enough that a backup taken elsewhere shows up while somebody is still looking.
+    /// </para>
+    /// </remarks>
+    private static readonly TimeSpan ListingFreshFor = TimeSpan.FromMinutes(1);
+
+    private const string ListingCacheKey = "backups.listing";
+
     private readonly IBackupStorage _storage;
     private readonly IDatabaseBackup _database;
     private readonly IBackupDestinationProvider _destinations;
+    private readonly IMemoryCache _cache;
     private readonly BackupOptions _options;
     private readonly TimeProvider _time;
     private readonly ILogger<BackupService> _logger;
@@ -47,6 +67,7 @@ public sealed partial class BackupService : IBackupService
         IBackupStorage storage,
         IDatabaseBackup database,
         IBackupDestinationProvider destinations,
+        IMemoryCache cache,
         IOptions<BackupOptions> options,
         TimeProvider time,
         ILogger<BackupService> logger)
@@ -54,13 +75,26 @@ public sealed partial class BackupService : IBackupService
         _storage = storage;
         _database = database;
         _destinations = destinations;
+        _cache = cache;
         _options = options.Value;
         _time = time;
         _logger = logger;
     }
 
-    public Task<IReadOnlyList<BackupFile>> ListAsync(CancellationToken cancellationToken = default) =>
-        _storage.ListAsync(cancellationToken);
+    public async Task<IReadOnlyList<BackupFile>> ListAsync(CancellationToken cancellationToken = default)
+    {
+        if (_cache.TryGetValue(ListingCacheKey, out IReadOnlyList<BackupFile>? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        var listing = await _storage.ListAsync(cancellationToken).ConfigureAwait(false);
+
+        // Only a successful listing is cached. Caching a failure would hide the store coming back.
+        _cache.Set(ListingCacheKey, listing, ListingFreshFor);
+
+        return listing;
+    }
 
     public Task<Stream?> OpenAsync(string name, CancellationToken cancellationToken = default) =>
         _storage.OpenReadAsync(name, cancellationToken);
@@ -89,6 +123,9 @@ public sealed partial class BackupService : IBackupService
         {
             TryDelete(scratch);
         }
+
+        // The listing is now stale whatever happens next — a new file exists.
+        _cache.Remove(ListingCacheKey);
 
         // Only the rotation is pruned. A pre-restore copy is deliberately outside it and outlives
         // everything — see BackupKind.PreRestore.

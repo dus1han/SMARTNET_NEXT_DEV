@@ -32,10 +32,21 @@ export default function BackupsPage() {
   const user = useQuery({ queryKey: ["me"], queryFn: me });
   const settings = useQuery({ queryKey: ["backup-settings"], queryFn: getBackupSettings });
 
-  // No retry. Listing means reaching somebody else's FTP server, and when that is down the default
-  // policy turns one slow failure into three — the page spun for minutes and showed a skeleton the whole
-  // time. Fail once, say so, and leave the rest of the screen working.
-  const backups = useQuery({ queryKey: ["backups"], queryFn: listBackups, retry: false });
+  // Listing means reaching somebody else's FTP server, so this query is deliberately restrained.
+  //
+  //   retry: false            — the default turns one slow failure into three, and the page spun for
+  //                             minutes showing a skeleton.
+  //   refetchOnWindowFocus    — off. Alt-tabbing back to a left-open tab should not open an FTP session.
+  //   staleTime               — a minute, matching the server-side cache.
+  //
+  // The burst of connections this replaces is what got the server's address banned by the remote host.
+  const backups = useQuery({
+    queryKey: ["backups"],
+    queryFn: listBackups,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  });
 
   const [restoring, setRestoring] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
