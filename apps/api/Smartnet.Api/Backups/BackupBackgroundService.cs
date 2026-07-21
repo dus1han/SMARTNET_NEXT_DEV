@@ -26,6 +26,17 @@ namespace Smartnet.Api.Backups;
 /// </remarks>
 public sealed partial class BackupBackgroundService : BackgroundService
 {
+    /// <summary>
+    /// How often the schedule asks whether a backup is due — not how often one is taken.
+    /// </summary>
+    /// <remarks>
+    /// Fifteen minutes is the accuracy of the cadence and the cost of a restart, against four listings an
+    /// hour on the remote store. Cheap, but not free: a listing is an FTP connection, and connecting too
+    /// eagerly is what got this server banned once already. A minute would be four times the accuracy and
+    /// sixty times the connections, for a job that runs hourly.
+    /// </remarks>
+    private static readonly TimeSpan CheckEvery = TimeSpan.FromMinutes(15);
+
     private readonly IServiceScopeFactory _scopes;
     private readonly BackupOptions _options;
     private readonly TimeProvider _time;
@@ -47,11 +58,22 @@ public sealed partial class BackupBackgroundService : BackgroundService
     {
         var interval = TimeSpan.FromHours(_options.IntervalHours);
 
-        // Settling time, not throttling. This used to claim it stopped a restart storm from dumping the
-        // database each time, which it never did — it only delayed each dump by two minutes. What
-        // actually stops it is asking the store how old the newest backup is; see BackupSchedule.
-        using var timer = new PeriodicTimer(interval, _time);
+        // The timer asks the question; BackupSchedule answers it. Deliberately NOT the backup interval.
+        //
+        // Ticking once per interval means the tick is anchored to process start, and every restart
+        // re-arms it. That first took a backup after every redeploy (the tick fired immediately, so three
+        // deploys made three backups). Gating those with an age check stopped the duplicates and
+        // introduced the opposite failure: a restart re-arms the hour, so deploys spaced under an hour
+        // apart skip every check in turn and no backup is ever taken. Four deploys inside seventy minutes
+        // is an ordinary afternoon here.
+        //
+        // Checking often and taking rarely has neither problem. A restart costs at most one check, the
+        // cadence stays true to the interval whatever the process does, and the age check is what decides
+        // — the timer only decides how soon the schedule notices it is due.
+        using var timer = new PeriodicTimer(CheckEvery, _time);
 
+        // Settling time. It never prevented anything on its own — it only moved each dump two minutes
+        // later — but the first seconds after boot are busy enough without a mysqldump.
         await Task.Delay(TimeSpan.FromMinutes(2), _time, stoppingToken).ConfigureAwait(false);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -135,9 +157,9 @@ public sealed partial class BackupBackgroundService : BackgroundService
         Message = "The scheduled backup failed. The next one will be attempted on the usual interval.")]
     private static partial void LogScheduledBackupFailed(ILogger logger, Exception exception);
 
-    [LoggerMessage(
-        EventId = 2,
-        Level = LogLevel.Information,
-        Message = "Scheduled backup skipped: a recent one already exists. This is the restart case.")]
+    // Debug, not Information: now that the schedule checks four times an hour and takes one backup, "not
+    // due yet" is the ordinary answer rather than a notable event. At Information it would be three lines
+    // of noise an hour, which is how logs stop being read.
+    [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "Not due for a backup yet.")]
     private static partial void LogSkippedAsRecent(ILogger logger);
 }
