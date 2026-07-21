@@ -39,6 +39,12 @@ public sealed class RolesController : ControllerBase
             .ConfigureAwait(false));
 
     /// <summary>The permissions that exist, so the role editor is not a list of magic strings.</summary>
+    /// <remarks>
+    /// Includes <see cref="Permissions.SystemDevAdmin"/> — shown as "Developer", and the grant that unlocks
+    /// the Companies and VAT rate screens. It is offered like any other permission but guarded like none of
+    /// them: only a Dev_Admin may hand it out (see <c>CanGrant</c>), because a permission that satisfies
+    /// every policy must not be reachable by an administrator working down a checklist.
+    /// </remarks>
     [HttpGet("permissions")]
     public ActionResult<IReadOnlyList<PermissionCatalogueEntry>> Catalogue() =>
         Ok(Permissions.All

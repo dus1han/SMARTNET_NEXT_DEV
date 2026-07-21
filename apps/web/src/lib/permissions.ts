@@ -80,8 +80,8 @@ const LABELS: Record<string, PermissionMeta> = {
   "settings.manage": { label: "Settings" },
   "audit.view": { label: "Audit log" },
   "system.dev_admin": {
-    label: "Developer / superuser",
-    hint: "Bypasses company scoping and reaches every screen. Grant deliberately.",
+    label: "Developer",
+    hint: "Bypasses company scoping and unlocks Companies and VAT rate. Grant deliberately.",
   },
 };
 

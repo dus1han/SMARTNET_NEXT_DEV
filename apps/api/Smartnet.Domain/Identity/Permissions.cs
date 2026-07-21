@@ -25,9 +25,21 @@ public static class Permissions
     // legacy app never had: roles, settings, and the audit log itself.
 
     /// <summary>
-    /// The developer/superuser. Bypasses company scoping and reaches the dev-only surfaces.
+    /// The developer. Bypasses company scoping and reaches the dev-only surfaces.
     /// Not a business role — it is granted deliberately, to a person, and it is audited.
     /// </summary>
+    /// <remarks>
+    /// Shown in the permission editors as <b>"Developer"</b>, and it is the single grant behind the
+    /// Administration screens that are not a company's business: <c>/companies</c> (adding a trading
+    /// entity) and <c>/vat-rate</c> (setting the rate for all of them). Those screens deliberately have no
+    /// permissions of their own — a surface reachable only by the superuser should not also be grantable
+    /// piecemeal, or "only the developer can do this" becomes untrue the moment someone ticks a box.
+    /// <para>
+    /// Handing it out is itself restricted to a Dev_Admin — see <c>RolesController.CanGrant</c> and
+    /// <c>UsersController</c> — so it cannot be self-awarded by an administrator who merely reached the
+    /// permission editor.
+    /// </para>
+    /// </remarks>
     public const string SystemDevAdmin = "system.dev_admin";
 
     public const string RolesManage = "roles.manage";
