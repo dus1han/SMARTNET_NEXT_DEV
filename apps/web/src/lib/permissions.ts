@@ -81,7 +81,7 @@ const LABELS: Record<string, PermissionMeta> = {
   "audit.view": { label: "Audit log" },
   "system.dev_admin": {
     label: "Developer",
-    hint: "Bypasses company scoping and unlocks Companies and VAT rate. Grant deliberately.",
+    hint: "Bypasses company scoping.",
   },
 };
 
