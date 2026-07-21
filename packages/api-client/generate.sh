@@ -10,11 +10,19 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 out="${1:-$root/packages/api-client}"
 
+# Thrown away with the process. The key ring below is real — swagger starts the app for real, so the
+# keys are actually written — but nothing it encrypts outlives this script.
+keys="$(mktemp -d)"
+trap 'rm -rf "$keys"' EXIT
+
 export DOTNET_ROLL_FORWARD=Major
 export ConnectionStrings__Smartnet="Server=localhost;Database=smartnet_invsys_dev;User=schema-gen;Password=;"
 export Jwt__SigningKey="schema-generation-only-never-used-to-sign-anything"
 export Jwt__Issuer=smartnet
 export Jwt__Audience=smartnet
+# Required since the key ring stopped being allowed to default — see Program.cs. A default there would
+# put the ring somewhere a redeploy destroys, taking every stored password with it.
+export DataProtection__KeyPath="$keys"
 
 dotnet build -c Release "$root/apps/api/Smartnet.Api/Smartnet.Api.csproj" --nologo -v quiet
 
