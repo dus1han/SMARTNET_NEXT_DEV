@@ -68,8 +68,10 @@ public sealed class QuotationDocument : HouseDocument
             });
         })));
 
-        sections.Item().Element(c => Section(c, "Items Quoted", ComposeItems));
-        sections.Item().Element(ComposeTotals);
+        sections.Item().Element(c => Section(c, "Items Quoted", ComposeItems, paginates: true));
+        // Kept whole: a totals block that breaks puts Subtotal on one page and TOTAL on the next, which is
+        // the single worst place in the document to make the reader turn over.
+        sections.Item().PreventPageBreak().Element(ComposeTotals);
 
         if (_m.Bank is not null)
         {

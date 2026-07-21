@@ -218,7 +218,8 @@ public sealed class DocumentRenderingTests
     /// Figures taken from a real invoice on the dev copy (SI-418) rather than invented round numbers, so
     /// the column widths are exercised against the magnitudes this business actually prints.
     /// </remarks>
-    private static class Sample
+    /// <summary>Internal so the page-break tests share these fixtures rather than duplicating them.</summary>
+    internal static class Sample
     {
         private static readonly BankDetails Bank =
             new("Sampath Bank", "Kohuwala", "Smart Net (Pvt) Ltd", "009410008391");

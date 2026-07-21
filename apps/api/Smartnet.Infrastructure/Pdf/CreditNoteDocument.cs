@@ -55,8 +55,10 @@ public sealed class CreditNoteDocument : HouseDocument
             });
         })));
 
-        sections.Item().Element(c => Section(c, "Items Credited", ComposeItems));
-        sections.Item().Element(ComposeTotals);
+        sections.Item().Element(c => Section(c, "Items Credited", ComposeItems, paginates: true));
+        // Kept whole: a totals block that breaks puts Subtotal on one page and TOTAL on the next, which is
+        // the single worst place in the document to make the reader turn over.
+        sections.Item().PreventPageBreak().Element(ComposeTotals);
         sections.Item().PaddingTop(8).Element(ComposeNotes);
     }
 

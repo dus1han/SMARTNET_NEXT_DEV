@@ -39,9 +39,12 @@ public sealed class TaxInvoiceDocument : HouseDocument
 
     protected override void ComposeSections(ColumnDescriptor sections)
     {
-        sections.Item().Element(ComposeParties);
-        sections.Item().Element(c => Section(c, "Items Supplied", ComposeItems));
-        sections.Item().Element(ComposeTotals);
+        // The VAT parties block: fourteen fields that mean nothing split in half.
+        sections.Item().PreventPageBreak().Element(ComposeParties);
+        sections.Item().Element(c => Section(c, "Items Supplied", ComposeItems, paginates: true));
+        // Kept whole: a totals block that breaks puts Subtotal on one page and TOTAL on the next, which is
+        // the single worst place in the document to make the reader turn over.
+        sections.Item().PreventPageBreak().Element(ComposeTotals);
 
         if (_m.Bank is not null)
         {

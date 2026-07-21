@@ -101,7 +101,7 @@ public sealed class JobSheetDocument : IDocument
             })));
 
             col.Item().Element(c => Section(c, "Fault Description", body => Block(body, _m.FaultDescription, 46)));
-            col.Item().Element(c => Section(c, "Equipment Received", ComposeItems));
+            col.Item().Element(c => Section(c, "Equipment Received", ComposeItems, paginates: true));
             col.Item().Element(c => Section(c, "Remarks", body => Block(body, _m.Remarks, 38)));
             col.Item().PaddingTop(6).Element(ComposeCollection);
         });
@@ -193,9 +193,17 @@ public sealed class JobSheetDocument : IDocument
 
     // --- building blocks -------------------------------------------------------------------
 
-    private static void Section(IContainer container, string title, Action<IContainer> body)
+    /// <param name="paginates">True only for the equipment table, which may run over a page break.</param>
+    /// <remarks>
+    /// Kept whole by default, for the reason given on <see cref="HouseDocument.Section"/>: a heading on one
+    /// page and its detail on the next is worse than the heading moving with it. PreventPageBreak rather
+    /// than ShowEntire, so a long free-typed fault description flows instead of failing to render.
+    /// </remarks>
+    private static void Section(IContainer container, string title, Action<IContainer> body, bool paginates = false)
     {
-        container.Column(col =>
+        var section = paginates ? container : container.PreventPageBreak();
+
+        section.Column(col =>
         {
             col.Item().PaddingBottom(4).BorderBottom(1).BorderColor(Accent)
                 .Text(title.ToUpperInvariant()).FontSize(9).Bold().FontColor(Accent);

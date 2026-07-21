@@ -237,9 +237,35 @@ public abstract class HouseDocument : IDocument
     protected enum Align { Left, Centre, Right }
 
     /// <summary>A section header: a slim accent tick and the label on a tinted bar.</summary>
-    protected void Section(IContainer container, string title, Action<IContainer> body)
+    /// <param name="paginates">
+    /// True only for the line-item table, which is the one section allowed to run over a page break.
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// <b>A section is kept whole by default.</b> Without that, a page break lands wherever the content
+    /// happens to reach the bottom margin — so "Payment Details" prints its heading and the bank name on
+    /// page one and the account number on page two, and the reader has to turn the page to find out which
+    /// account to pay into. A heading stranded from its detail is worse than a heading pushed to the next
+    /// page, so the whole block moves instead.
+    /// </para>
+    /// <para>
+    /// <see cref="ElementExtensions.PreventPageBreak"/> rather than <c>ShowEntire</c>, deliberately.
+    /// ShowEntire <i>demands</i> the content fit on one page and fails the layout when it cannot;
+    /// PreventPageBreak keeps it together where it fits and, when the content is genuinely taller than a
+    /// page, lets it flow as normal. Free-typed sections — a fault description, remarks — have no length
+    /// limit, so the failing version would be one long paragraph away from an unrenderable document.
+    /// </para>
+    /// <para>
+    /// The item table opts out because it legitimately spans pages: 120 lines cannot fit on one, and
+    /// keeping it together would push a long table onto a page of its own and paginate from there anyway,
+    /// wasting the first page. That case is pinned by a test.
+    /// </para>
+    /// </remarks>
+    protected void Section(IContainer container, string title, Action<IContainer> body, bool paginates = false)
     {
-        container.Column(col =>
+        var section = paginates ? container : container.PreventPageBreak();
+
+        section.Column(col =>
         {
             col.Item().Background(AccentSoft).Row(row =>
             {

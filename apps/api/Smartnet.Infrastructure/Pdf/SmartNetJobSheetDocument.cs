@@ -110,7 +110,7 @@ public sealed class SmartNetJobSheetDocument : IDocument
                 })));
 
                 sections.Item().Element(c => Section(c, "Fault Description", body => Block(body, _m.FaultDescription, 44)));
-                sections.Item().Element(c => Section(c, "Equipment Received", ComposeItems));
+                sections.Item().Element(c => Section(c, "Equipment Received", ComposeItems, paginates: true));
                 sections.Item().Element(c => Section(c, "Remarks", body => Block(body, _m.Remarks, 36)));
                 sections.Item().PaddingTop(8).Element(ComposeCollection);
             });
@@ -205,9 +205,16 @@ public sealed class SmartNetJobSheetDocument : IDocument
 
     /// <summary>A section header: a slim burgundy tick and the label on a light tinted bar, so it stands out
     /// clearly without the heaviness of a solid accent bar.</summary>
-    private static void Section(IContainer container, string title, Action<IContainer> body)
+    /// <param name="paginates">True only for the equipment table, which may run over a page break.</param>
+    /// <remarks>
+    /// Kept whole by default — see <see cref="HouseDocument.Section"/> for why, and why this is
+    /// PreventPageBreak rather than ShowEntire.
+    /// </remarks>
+    private static void Section(IContainer container, string title, Action<IContainer> body, bool paginates = false)
     {
-        container.Column(col =>
+        var section = paginates ? container : container.PreventPageBreak();
+
+        section.Column(col =>
         {
             col.Item().Background(AccentSoft).Row(row =>
             {
