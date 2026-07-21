@@ -78,6 +78,10 @@ These collapse into **one module** with a line-type field.
 `removeQItem` 🔄 · `QitemcartLoad` 🔄 · `getQAllItemsStk` 🔄 · `getQCompanyData` 🔄 ·
 `getprofitpercentage` 🔄
 
+**`getprofitpercentage` is the auto-pricing rule**, and the only place it lives. It fetches the
+customer's band from `cus_m.pro` → `profit_percent`, and the screen fills the rate with
+`ceil(cost × (1 + band%))` — see STATUS §8. Not ported; blocked on item costs.
+
 ### Quotation (service) *(7)*
 `QuotationIndex` 🗒️ · `savequote` 🔄 · `addtoCart` 🔄 · `removeQItem` 🔄 ·
 `getCompanyData` 🔄 · `getCusData` 🔄 · `getQuoteContactP` 🔄
@@ -108,6 +112,10 @@ Same four-way split as quotations.
 `InvoiceIndex` 🗒️ · `saveItemInv` 🔄 · `saveIcustomer` 🔄 · `addinvitemtoCart` 🔄 ·
 `removeINVItem` 🔄 · `invitemcartLoad` 🔄 · `getAllItemsStk` 🔄 · `getCompanyData` 🔄 ·
 `getCustomerProfit` 🔄
+
+⚠️ **`getCustomerProfit` does not price anything**, despite living here and the name suggesting it. It
+returns all ten `profit_percent` bands to fill the band dropdown on the add-customer form. The item
+invoice screen leaves the rate blank for hand entry — auto-pricing is on quotations only. STATUS §8.
 
 ### ServiceInvoice *(6)*
 `ServiceInvoiceIndex` 🗒️ · `saveSerInvoice` 🔄 · `addSertoCart` 🔄 · `removeSIItem` 🔄 ·

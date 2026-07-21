@@ -273,6 +273,44 @@ work `MIGRATION-DATA-CHECKS.md` to zero.
   is worse than neither.
 - ~~**Tax rates are read-only in the UI.**~~ Done 2026-07-20 — see §5b.
 - **Price the ~500 items**, and explain `c_form`.
+- **Per-customer profit bands drive auto-pricing in the legacy app, and are not ported.** Read from the
+  legacy source on 2026-07-21; written down here because the data survives and the behaviour does not.
+
+  `profit_percent` is a lookup of ten margin bands (5, 10, 15 … 50). Each customer carries one in
+  `cus_m.pro`, and it is **not stale configuration** — all **224 of 224** customers have one set: 114 at
+  25%, 68 at 10%, 20 at 20%, 19 at 15%, 3 at 5%. That is a maintained commercial policy separating trade
+  from retail.
+
+  Two distinct pieces, which are easy to conflate:
+
+  1. `Invoice/getCustomerProfit` returns *all ten bands* and only ever fills the band dropdown on the
+     **add-customer form** (`#AddCProit`). It assigns a band; it prices nothing.
+  2. `ItemQuotation/getprofitpercentage` returns *one customer's* band, and the item-quotation screen
+     auto-fills the rate when a line item is picked
+     (`Scripts/ControllerJS/ItemQuotationJs.js`, and the same in `EditItemQuotationJs.js`):
+
+     ```js
+     var sellprice = parseFloat(data.Cost) + (parseFloat(data.Cost) * (parseFloat(profitpercentage) / 100));
+     $('#Qrate').val(Math.ceil(sellprice));
+     ```
+
+     So **`price = ceil(cost × (1 + band%))`**, written into the rate box and overtypable. The
+     `Math.ceil` is a real convention — it always rounds *up* to the whole rupee — and would be missed
+     if this were rebuilt from the formula alone.
+
+  **The asymmetry matters:** the item *invoice* screen does not do this. Same grid, same click, and
+  `$('#invrate').val('')` — the rate is typed by hand. Auto-pricing exists on item quotations only,
+  never on invoices or service quotations.
+
+  Nothing is lost by leaving it: `Customer.ProfitPercentId` is already carried on the new entity, so the
+  bands survive. It is **blocked on item costs** regardless — every `item_m.cost` is null, so building it
+  today would suggest a price of zero. Sequence it after pricing the catalogue, which also activates the
+  read-only cost figure on item quotations (§2b).
+- **The legacy Web Catalogue was never ported, and it is not empty.** `WCategory`/`WProducts`, which
+  `legacy-analysis/FUNCTIONS.md` marks "possibly dead code — confirm before porting". Measured on live
+  2026-07-21: **`wb_products` 111 rows, `wb_prod_cat` 22, `wb_prod_seq` 117, `wb_projects` 0.** So the
+  question is still open rather than answered by absence — and if it feeds anything customer-facing it
+  disappears when the legacy app is archived. A business decision, not a technical one.
 
 ---
 
