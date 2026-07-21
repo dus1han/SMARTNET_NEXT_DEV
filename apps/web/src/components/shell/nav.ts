@@ -2,6 +2,7 @@ import {
   Banknote,
   BarChart3,
   Building2,
+  DatabaseBackup,
   FileMinus,
   FileStack,
   FileText,
@@ -127,6 +128,7 @@ export const NAVIGATION: NavSection[] = [
       // and setting the VAT rate are decisions about the business, where Settings configures one company.
       { href: "/companies", label: "Companies", icon: Landmark, permission: "system.dev_admin" },
       { href: "/vat-rate", label: "VAT rate", icon: Percent, permission: "system.dev_admin" },
+      { href: "/backups", label: "Backups", icon: DatabaseBackup, permission: "system.dev_admin" },
       { href: "/audit", label: "Audit log", icon: ShieldCheck, permission: "audit.view" },
       { href: "/settings", label: "Settings", icon: Settings, permission: "settings.manage" },
     ],

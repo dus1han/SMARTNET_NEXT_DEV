@@ -50,6 +50,20 @@ services:
       # would keep working right up until the redeploy.
       DocumentStorage__RootPath: /var/lib/smartnet/documents
 
+      # Database backups. The FTP destination is NOT here — it is configured from the Backups screen and
+      # stored in `backup_settings`, so changing where backups go does not need a deploy.
+      #
+      # This is the one piece that must not be editable through a web form: a credential permitted to
+      # DROP and CREATE the schema, used only by restore. The application's own user deliberately holds
+      # no DDL at all (infra/sql/narrow-app-user-grants.sh), which is exactly what makes audit_log
+      # append-only — so a restore cannot run as it, and giving the app that power permanently would
+      # undo the hardening.
+      #
+      # Left EMPTY here on purpose. Unset, backups and downloads work and the restore endpoints report
+      # themselves unavailable rather than half-working. Create the user with
+      # infra/sql/backup-restore-user.sql and put the connection string in /var/www/sys-secrets/.env.
+      Backup__RestoreConnectionString: ${Backup__RestoreConnectionString:-}
+
     # MariaDB runs on the HOST, not in this compose stack (see the note at the top of this file), so
     # the container needs a route to it. `host.docker.internal` resolves to the host's gateway address
     # from inside the container; on Linux that mapping does not exist by default and has to be declared

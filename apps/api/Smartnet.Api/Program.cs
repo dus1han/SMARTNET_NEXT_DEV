@@ -12,14 +12,17 @@ using Serilog;
 using Smartnet.Api.Auditing;
 using Smartnet.Api.Auth;
 using Smartnet.Api.Contracts;
+using Smartnet.Api.Backups;
 using Smartnet.Api.Dunning;
 using Smartnet.Api.Middleware;
 using Smartnet.Domain.Auditing;
+using Smartnet.Domain.Backups;
 using Smartnet.Domain.Documents;
 using Smartnet.Domain.Ledger;
 using Smartnet.Domain.Identity;
 using Smartnet.Domain.MasterData;
 using Smartnet.Infrastructure;
+using Smartnet.Infrastructure.Backups;
 using Smartnet.Infrastructure.Storage;
 using Smartnet.Domain.Settings;
 using Smartnet.Infrastructure.Identity;
@@ -143,6 +146,27 @@ builder.Services.AddSingleton<IExcelExporter, ExcelExporter>();
 // per-company mail kill switch (off by default) — see DunningController.
 builder.Services.AddSingleton<IDunningChannel, DunningChannel>();
 builder.Services.AddHostedService<DunningBackgroundService>();
+
+// ---------------------------------------------------------------------------
+// Database backups (Phase 9): hourly to FTPS, newest fifteen kept, restore on demand.
+//
+// The FTP destination is configured from the screen and lives in `backup_settings` — an administrator
+// changing where backups go should not need a deploy. What stays here in configuration is the one thing
+// that must not be editable through a web form: Backup:RestoreConnectionString, a credential that can
+// DROP and CREATE the schema. The application's own database user deliberately holds no DDL at all
+// (infra/sql/narrow-app-user-grants.sh), which is also what makes audit_log genuinely append-only, so a
+// restore cannot run as it. Unset means restore reports itself unavailable and everything else works.
+// ---------------------------------------------------------------------------
+builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.Section));
+
+// The dump reads what the application reads, so it is taken with the application's own credentials —
+// SELECT, LOCK TABLES and SHOW VIEW are enough for mysqldump, and nothing more is granted.
+builder.Services.AddSingleton<IDatabaseConnectionString>(new DatabaseConnectionString(conn));
+builder.Services.AddScoped<IBackupDestinationProvider, BackupDestinationProvider>();
+builder.Services.AddScoped<IBackupStorage, FtpBackupStorage>();
+builder.Services.AddScoped<IDatabaseBackup, MySqlDatabaseBackup>();
+builder.Services.AddScoped<IBackupService, BackupService>();
+builder.Services.AddHostedService<BackupBackgroundService>();
 builder.Services.AddScoped<INumberSeriesInitialiser, NumberSeriesInitialiser>();
 builder.Services.AddScoped<IDocumentNumberAllocator, DocumentNumberAllocator>();
 builder.Services.AddScoped<ICustomerCodeAllocator, CustomerCodeAllocator>();

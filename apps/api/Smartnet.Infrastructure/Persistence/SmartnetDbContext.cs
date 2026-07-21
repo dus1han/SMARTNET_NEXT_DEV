@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Smartnet.Domain.Auditing;
+using Smartnet.Domain.Backups;
 using Smartnet.Domain.Documents;
 using Smartnet.Domain.Identity;
 using Smartnet.Domain.Ledger;
@@ -57,6 +58,9 @@ public class SmartnetDbContext : DbContext
     public DbSet<TaxRate> TaxRates => Set<TaxRate>();
 
     public DbSet<MailSettings> MailSettings => Set<MailSettings>();
+
+    /// <summary>Where backups are sent. One row — see <see cref="BackupSettings"/>.</summary>
+    public DbSet<BackupSettings> BackupSettings => Set<BackupSettings>();
 
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
 

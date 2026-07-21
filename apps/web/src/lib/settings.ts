@@ -213,3 +213,65 @@ export const PREFIX_TOKENS = [
   { token: "{MON}", meaning: "month — JUL" },
   { token: "{MM}", meaning: "month number — 07" },
 ];
+
+// --- Database backups ----------------------------------------------------------------------------
+
+export interface BackupSummary {
+  name: string;
+  sizeBytes: number;
+  modifiedUtc: string;
+}
+
+/** No password field: the API never returns one. `hasPassword` says only whether one is stored. */
+export interface BackupSettings {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username: string | null;
+  hasPassword: boolean;
+  useTls: boolean;
+  acceptAnyCertificate: boolean;
+  remotePath: string;
+  safetyPath: string;
+  retention: number;
+  /** False when the deployment has no privileged database credential — restore is then impossible. */
+  restoreAvailable: boolean;
+}
+
+/** `password: null` leaves the stored one alone — what the form sends when only the port changed. */
+export type SaveBackupSettings = Omit<BackupSettings, "hasPassword" | "restoreAvailable"> & {
+  password: string | null;
+};
+
+export const getBackupSettings = () => api<BackupSettings>("/api/backups/settings");
+
+export const saveBackupSettings = (settings: SaveBackupSettings, reason: string) =>
+  api<void>("/api/backups/settings", { method: "PUT", body: settings, reason });
+
+export const listBackups = () => api<BackupSummary[]>("/api/backups");
+
+export const takeBackupNow = (reason: string) =>
+  api<{ name: string }>("/api/backups", { method: "POST", reason });
+
+/** Restores from a backup already on the store. Destructive; `confirm` must be the word RESTORE. */
+export const restoreBackup = (name: string, reason: string) =>
+  api<{ safetyBackup: string }>(`/api/backups/${encodeURIComponent(name)}/restore`, {
+    method: "POST",
+    body: { confirm: "RESTORE" },
+    reason,
+  });
+
+/** Restores from a file the administrator uploaded. Same warning applies, more so. */
+export const restoreFromUpload = (file: File, reason: string) => {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("confirm", "RESTORE");
+
+  return api<{ safetyBackup: string }>("/api/backups/restore", { method: "POST", body: form, reason });
+};
+
+/** Download URLs are plain navigations — the auth cookie rides along, same as document downloads. */
+export const backupDownloadUrl = (name: string) =>
+  `${API_BASE_URL}/api/backups/${encodeURIComponent(name)}/download`;
+
+export const freshBackupDownloadUrl = () => `${API_BASE_URL}/api/backups/download`;

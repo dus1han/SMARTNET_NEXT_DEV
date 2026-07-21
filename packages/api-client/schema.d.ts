@@ -178,6 +178,282 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/backups/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["BackupSettingsResponse"];
+                        "application/json": components["schemas"]["BackupSettingsResponse"];
+                        "text/json": components["schemas"]["BackupSettingsResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SaveBackupSettingsRequest"];
+                    "text/json": components["schemas"]["SaveBackupSettingsRequest"];
+                    "application/*+json": components["schemas"]["SaveBackupSettingsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["BackupSummary"][];
+                        "application/json": components["schemas"]["BackupSummary"][];
+                        "text/json": components["schemas"]["BackupSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["BackupTakenResponse"];
+                        "application/json": components["schemas"]["BackupTakenResponse"];
+                        "text/json": components["schemas"]["BackupTakenResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backups/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backups/{name}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backups/{name}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["RestoreRequest"];
+                    "text/json": components["schemas"]["RestoreRequest"];
+                    "application/*+json": components["schemas"]["RestoreRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["RestoreCompletedResponse"];
+                        "application/json": components["schemas"]["RestoreCompletedResponse"];
+                        "text/json": components["schemas"]["RestoreCompletedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/backups/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /** Format: binary */
+                        file?: string;
+                        confirm?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["RestoreCompletedResponse"];
+                        "application/json": components["schemas"]["RestoreCompletedResponse"];
+                        "text/json": components["schemas"]["RestoreCompletedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/cheques/{id}/pdf": {
         parameters: {
             query?: never;
@@ -6567,6 +6843,31 @@ export interface components {
             /** Format: int32 */
             total: number;
         };
+        BackupSettingsResponse: {
+            enabled: boolean;
+            host: string;
+            /** Format: int32 */
+            port: number;
+            username?: string | null;
+            hasPassword: boolean;
+            useTls: boolean;
+            acceptAnyCertificate: boolean;
+            remotePath: string;
+            safetyPath: string;
+            /** Format: int32 */
+            retention: number;
+            restoreAvailable: boolean;
+        };
+        BackupSummary: {
+            name: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            /** Format: date-time */
+            modifiedUtc: string;
+        };
+        BackupTakenResponse: {
+            name: string;
+        };
         BusinessRule: {
             key: string;
             value: string;
@@ -8208,6 +8509,12 @@ export interface components {
             reference: string;
             reason: string;
         };
+        RestoreCompletedResponse: {
+            safetyBackup: string;
+        };
+        RestoreRequest: {
+            confirm: string;
+        };
         RoleSummary: {
             /** Format: int64 */
             id: number;
@@ -8270,6 +8577,20 @@ export interface components {
             invoiceCount: number;
             /** Format: int32 */
             flaggedCount: number;
+        };
+        SaveBackupSettingsRequest: {
+            enabled: boolean;
+            host: string;
+            /** Format: int32 */
+            port: number;
+            username?: string | null;
+            password?: string | null;
+            useTls: boolean;
+            acceptAnyCertificate: boolean;
+            remotePath: string;
+            safetyPath: string;
+            /** Format: int32 */
+            retention: number;
         };
         SaveCustomerRequest: {
             name: string;

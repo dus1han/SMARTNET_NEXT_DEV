@@ -218,6 +218,36 @@ dated weeks apart, survived it, and are the two still on the list. Check the Ove
 - Company **delete/deactivate is still not implemented** — `deleted_at` exists and is filtered on, but
   nothing sets it.
 
+### 5c. Database backups (2026-07-21)
+
+**Hourly to FTPS, newest 15 kept, restore on demand.** Administration → Backups, Dev_Admin only.
+
+- **The destination is configured on the screen**, not in a deploy — `backup_settings`, with the FTP
+  password encrypted at rest and write-only over the API, the same contract as the SMTP password.
+- **The dump uses the application's own credentials.** Verified against live: 82 tables, 21 MB raw →
+  **9.9 MB gzipped**, so 15 backups is ~150 MB. `mysqldump` needs no more than the SELECT / LOCK TABLES /
+  SHOW VIEW the app already holds — except `--events`, which needs a privilege it does not have and
+  which this schema has no use for (zero events, zero triggers, zero routines).
+- **Restore needs a second, privileged credential** — `Backup__RestoreConnectionString`, deliberately in
+  the server env and not on the screen. Create it with `infra/sql/backup-restore-user.sql`. **Unset, and
+  restore reports itself unavailable while backups and downloads work.**
+- **A restore takes a safety copy first**, into a separate folder that the rotation never prunes, and
+  requires a typed `RESTORE` plus a change reason.
+- `mariadb-client` is now in the API image — the dump shells out to `mysqldump` rather than
+  re-implementing it.
+
+**Two things to be clear-eyed about**, both inherent to the feature rather than defects in it:
+
+1. **A restore overwrites `audit_log`**, which was deliberately made append-only so the application
+   could not rewrite history. It is the one action in the system that can erase the record of itself.
+   The restore is logged at Warning to the container log, which it cannot reach.
+2. **Giving the API a DDL credential means a compromise of the API is a compromise of every record.**
+   That trade was made knowingly so the restore button could exist. Unsetting the variable withdraws it.
+
+**Not yet verified end to end**: there is no FTP destination to test against, and no restore has been
+run. The retention and naming rules are unit-tested (20 tests); the FTP round trip and the restore path
+are unproven until pointed at a real server.
+
 ### 6. Phase 8 gaps
 - **`document_templates` does not exist.** Promised in both Phase 1 and Phase 8; templates are driven
   by `Company` alone. There is no per-company template settings surface.

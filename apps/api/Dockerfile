@@ -15,8 +15,16 @@ RUN dotnet publish Smartnet.Api/Smartnet.Api.csproj -c Release -o /app --no-rest
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# curl is used by the compose healthcheck. Installed as root, before the USER switch below.
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+# curl is used by the compose healthcheck.
+#
+# mariadb-client provides mysqldump and mysql, which the backup feature shells out to. It is deliberately
+# not re-implemented in C#: a correct logical dump is column types, character sets, escaping of binary
+# blobs and the exact CREATE TABLE the server would emit, and mysqldump is the reference implementation
+# of that. A hand-rolled one would be a second, worse implementation whose bugs surface on the day the
+# backup is needed. See Smartnet.Infrastructure/Backups/MySqlDatabaseBackup.cs.
+#
+# Both installed as root, before the USER switch below.
+RUN apt-get update && apt-get install -y --no-install-recommends curl mariadb-client \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app .

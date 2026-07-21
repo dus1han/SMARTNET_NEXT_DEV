@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Smartnet.Domain.Backups;
 using Smartnet.Domain.Settings;
 
 namespace Smartnet.Infrastructure.Persistence.Configurations;
@@ -193,6 +194,38 @@ public class EmailLogEntryConfiguration : IEntityTypeConfiguration<EmailLogEntry
 
         builder.HasIndex(e => new { e.CompanyId, e.SentAt });
         builder.HasIndex(e => e.DocumentRef);
+    }
+}
+
+/// <summary>
+/// Where backups are sent. One row, no company — see <see cref="BackupSettings"/>.
+/// </summary>
+public class BackupSettingsConfiguration : IEntityTypeConfiguration<BackupSettings>
+{
+    public void Configure(EntityTypeBuilder<BackupSettings> builder)
+    {
+        builder.ToTable("backup_settings");
+
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id).HasColumnName("id");
+        builder.Property(b => b.Enabled).HasColumnName("enabled");
+        builder.Property(b => b.Host).HasColumnName("host").HasMaxLength(200).IsRequired();
+        builder.Property(b => b.Port).HasColumnName("port");
+        builder.Property(b => b.Username).HasColumnName("username").HasMaxLength(200);
+
+        // Encrypted at rest. Never returned by any endpoint, and redacted in the audit log by the
+        // "Encrypted" suffix — the same contract as the SMTP password.
+        builder.Property(b => b.PasswordEncrypted)
+            .HasColumnName("password_encrypted")
+            .HasMaxLength(1024);
+
+        builder.Property(b => b.UseTls).HasColumnName("use_tls");
+        builder.Property(b => b.AcceptAnyCertificate).HasColumnName("accept_any_certificate");
+        builder.Property(b => b.RemotePath).HasColumnName("remote_path").HasMaxLength(255).IsRequired();
+        builder.Property(b => b.SafetyPath).HasColumnName("safety_path").HasMaxLength(255).IsRequired();
+        builder.Property(b => b.Retention).HasColumnName("retention");
+
+        Audit.Map(builder);
     }
 }
 
