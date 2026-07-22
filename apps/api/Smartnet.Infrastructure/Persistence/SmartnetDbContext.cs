@@ -111,6 +111,17 @@ public class SmartnetDbContext : DbContext
     /// <summary>Credit-note lines, on the adopted legacy <c>cn_l</c>.</summary>
     public DbSet<CreditNoteLine> CreditNoteLines => Set<CreditNoteLine>();
 
+    /// <summary>
+    /// Unraised work on the four create screens — a quotation, invoice, purchase order or job card that
+    /// has been typed but not yet issued, on the new <c>document_drafts</c> table.
+    /// </summary>
+    /// <remarks>
+    /// Not a document: it takes no number, posts no ledger and moves no stock, and the legacy app cannot
+    /// see it. See <see cref="DocumentDraft"/> for why it is a table of its own rather than a status
+    /// column on <c>quotation_h</c>.
+    /// </remarks>
+    public DbSet<DocumentDraft> DocumentDrafts => Set<DocumentDraft>();
+
     /// <summary>The receivables ledger. A customer's balance is the sum of these — see <see cref="LedgerEntry"/>.</summary>
     public DbSet<LedgerEntry> ReceivablesLedger => Set<LedgerEntry>();
 

@@ -1583,6 +1583,161 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    docType?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DraftSummary"][];
+                        "application/json": components["schemas"]["DraftSummary"][];
+                        "text/json": components["schemas"]["DraftSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SaveDraftRequest"];
+                    "text/json": components["schemas"]["SaveDraftRequest"];
+                    "application/*+json": components["schemas"]["SaveDraftRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DraftSaved"];
+                        "application/json": components["schemas"]["DraftSaved"];
+                        "text/json": components["schemas"]["DraftSaved"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/drafts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DraftDetail"];
+                        "application/json": components["schemas"]["DraftDetail"];
+                        "text/json": components["schemas"]["DraftDetail"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SaveDraftRequest"];
+                    "text/json": components["schemas"]["SaveDraftRequest"];
+                    "application/*+json": components["schemas"]["SaveDraftRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DraftSaved"];
+                        "application/json": components["schemas"]["DraftSaved"];
+                        "text/json": components["schemas"]["DraftSaved"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dunning/outstanding/{customerCode}/recipients": {
         parameters: {
             query?: never;
@@ -7733,6 +7888,51 @@ export interface components {
             changedAt: string;
             reason?: string | null;
         };
+        DraftDetail: {
+            /** Format: int64 */
+            id: number;
+            docType: string;
+            payload: string;
+            partyName?: string | null;
+            /** Format: double */
+            total?: number | null;
+            /** Format: int32 */
+            lineCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            createdByName?: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+            updatedByName?: string | null;
+            /** Format: int32 */
+            rowVersion: number;
+        };
+        DraftSaved: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int32 */
+            rowVersion: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        DraftSummary: {
+            /** Format: int64 */
+            id: number;
+            docType: string;
+            partyName?: string | null;
+            /** Format: double */
+            total?: number | null;
+            /** Format: int32 */
+            lineCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            createdByName?: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+            updatedByName?: string | null;
+            /** Format: int32 */
+            rowVersion: number;
+        };
         DunningRequest: {
             customers: string[];
             contactIds?: number[] | null;
@@ -8612,6 +8812,15 @@ export interface components {
             prefix: string;
             /** Format: int32 */
             padding: number;
+        };
+        SaveDraftRequest: {
+            docType: string;
+            payload: string;
+            partyName?: string | null;
+            /** Format: double */
+            total?: number | null;
+            /** Format: int32 */
+            lineCount: number;
         };
         SaveEmailTemplateRequest: {
             subject: string;

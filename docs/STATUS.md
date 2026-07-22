@@ -260,6 +260,38 @@ dated weeks apart, survived it, and are the two still on the list. Check the Ove
 run. The retention and naming rules are unit-tested (20 tests); the FTP round trip and the restore path
 are unproven until pointed at a real server.
 
+### 5d. Draft autosave on the four create screens (2026-07-22)
+
+**Quotation, invoice, purchase order and job card keep their work as you type**, on the server, so a
+closed tab, a signed-out session or a stray reload no longer costs somebody a forty-line document. Each
+list grew a **Drafts** tab beside its issued documents; a draft is resumed by opening it and discarded
+from either the tab or the create screen.
+
+- **A draft is not a document.** New table `document_drafts` — *not* a status column on `quotation_h` /
+  `invoice_h` / `po_h` / `jobs_m`. Two reasons, neither cosmetic: the legacy app still reads those tables
+  and has no notion of a draft, so a half-typed invoice would show up in its lists and reports; and a
+  number is allocated inside the save transaction, so a draft holding one would either reserve it for as
+  long as a tab stayed open or leave it blank and collide with the unique index the cutover is building.
+  A draft takes no number, posts no ledger and moves no stock. Raising it goes through the ordinary
+  create endpoint, unchanged.
+- **The payload is opaque to the server** — the create screen's own state, stored verbatim, checked only
+  for being well-formed JSON. It carries a shape version, and a payload from a shape the screen no longer
+  understands is refused rather than half-restored.
+- **Not `IAuditable`, deliberately.** The interceptor writes an `audit_log` diff per save, and autosave
+  saves every few seconds; a single invoice would leave hundreds of diffs of a JSON blob. There is a test
+  that fails if somebody adds the interface back.
+- **Shared within the company, not private.** Whoever may raise the document may resume its draft — one
+  person books the work, another prices it. `row_version` keeps them apart: a stale autosave is a 409 and
+  the screen says so, rather than silently overwriting the other person.
+- **Gated per draft type, in code**, because one controller serves four document types with four
+  different create permissions. `DocumentDraftPermissionTests` reads each permission off the create
+  endpoint by reflection, so the two cannot drift.
+- **Hard-deleted**, unlike everything else in the schema — a raised draft is superseded by an audited
+  document, and a discarded one is something somebody decided not to keep.
+
+**Not covered**: the edit screens (`/[id]/edit`) do not autosave — an edit still has the saved document
+to fall back on. There is no expiry, so an abandoned draft sits in the list until somebody discards it.
+
 ### 6. Phase 8 gaps
 - **`document_templates` does not exist.** Promised in both Phase 1 and Phase 8; templates are driven
   by `Company` alone. There is no per-company template settings surface.

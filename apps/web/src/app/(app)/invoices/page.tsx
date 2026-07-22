@@ -6,6 +6,10 @@
  * The invoices this app has raised — the new documents engine's first list screen. Outstanding is
  * derived from the receivables ledger on the server, never a stored column (B3); a cash invoice reads
  * as settled because its charge and its at-issue payment net to zero.
+ *
+ * Behind the Drafts tab is the other half: invoices that have been typed but not raised. They are kept
+ * apart rather than mixed in — a draft has no number, posts nothing to the ledger and has no outstanding
+ * figure to derive, so it belongs in neither this table nor any report built on it.
  */
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -15,9 +19,11 @@ import { ApiError } from "@/lib/api";
 import { getInvoices, type InvoiceSummary } from "@/lib/invoices";
 import { daysDueLabel } from "@/lib/period";
 import { FIRST_PAGE } from "@/lib/paging";
+import { DRAFT_INVOICE } from "@/lib/drafts";
 import { PageHeader } from "@/components/shell/app-shell";
 import { Plus } from "lucide-react";
 import { DataTable, type ColumnDef } from "@/components/data-table";
+import { DocumentViewFilter, DraftsPanel, type DocumentView } from "@/components/documents/drafts-panel";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Badge, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
@@ -25,6 +31,7 @@ export default function InvoicesPage() {
   const router = useRouter();
   const [page, setPage] = useState(FIRST_PAGE);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<DocumentView>("issued");
 
   const invoices = useQuery({
     queryKey: ["invoices", page, search],
@@ -42,37 +49,50 @@ export default function InvoicesPage() {
         description="Every invoice raised in the new system, newest first. The outstanding figure is derived from the ledger."
       />
 
-      {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+      <DocumentViewFilter view={view} onChange={setView} docType={DRAFT_INVOICE} issuedLabel="Invoices" />
 
-      <DataTable
-        columns={columns}
-        rows={invoices.data?.rows}
-        loading={invoices.isPending}
-        // The server searches number and customer name; this stays as the description of what is
-        // searchable, and is unused in server mode.
-        searchable={(row) => `${row.number} ${row.customerName ?? ""}`}
-        server={{
-          total: invoices.data?.total ?? 0,
-          page,
-          onPageChange: setPage,
-          search,
-          onSearchChange: setSearch,
-        }}
-        searchPlaceholder="Search by number or customer…"
-        defaultSort={{ id: "date", desc: true }}
-        actions={
-          <Button size="sm" onClick={() => router.push("/invoices/new")}>
-            <Plus />
-            New invoice
-          </Button>
-        }
-        // Both new and legacy invoices open the read view — the detail endpoint serves either.
-        onRowClick={(row) => router.push(`/invoices/${row.id}`)}
-        empty={{
-          title: "No invoices yet",
-          description: "Invoices raised in the new system appear here.",
-        }}
-      />
+      {view === "drafts" ? (
+        <DraftsPanel
+          docType={DRAFT_INVOICE}
+          resumeHref="/invoices/new"
+          noun="invoice"
+          partyLabel="Customer"
+        />
+      ) : (
+        <>
+          {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+
+          <DataTable
+            columns={columns}
+            rows={invoices.data?.rows}
+            loading={invoices.isPending}
+            // The server searches number and customer name; this stays as the description of what is
+            // searchable, and is unused in server mode.
+            searchable={(row) => `${row.number} ${row.customerName ?? ""}`}
+            server={{
+              total: invoices.data?.total ?? 0,
+              page,
+              onPageChange: setPage,
+              search,
+              onSearchChange: setSearch,
+            }}
+            searchPlaceholder="Search by number or customer…"
+            defaultSort={{ id: "date", desc: true }}
+            actions={
+              <Button size="sm" onClick={() => router.push("/invoices/new")}>
+                <Plus />
+                New invoice
+              </Button>
+            }
+            // Both new and legacy invoices open the read view — the detail endpoint serves either.
+            onRowClick={(row) => router.push(`/invoices/${row.id}`)}
+            empty={{
+              title: "No invoices yet",
+              description: "Invoices raised in the new system appear here.",
+            }}
+          />
+        </>
+      )}
     </FadeIn>
   );
 }

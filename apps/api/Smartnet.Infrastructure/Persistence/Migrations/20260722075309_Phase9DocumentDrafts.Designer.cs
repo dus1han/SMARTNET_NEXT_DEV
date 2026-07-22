@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Smartnet.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Smartnet.Infrastructure.Persistence;
 namespace Smartnet.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(SmartnetDbContext))]
-    partial class SmartnetDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260722075309_Phase9DocumentDrafts")]
+    partial class Phase9DocumentDrafts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

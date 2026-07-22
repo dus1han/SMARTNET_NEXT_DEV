@@ -5,6 +5,10 @@
  *
  * The quotations this app has raised. A quotation charges nothing, so there is no outstanding column;
  * what it shows instead is whether it has been converted into an invoice yet.
+ *
+ * Behind the Drafts tab is the other half: quotations that have been typed but not raised. They are kept
+ * apart rather than mixed in, because a draft has no number, no status and no place in any report — see
+ * `DocumentViewFilter`.
  */
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -13,9 +17,11 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { FIRST_PAGE } from "@/lib/paging";
+import { DRAFT_QUOTATION } from "@/lib/drafts";
 import { getQuotations, type QuotationSummary } from "@/lib/quotations";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
+import { DocumentViewFilter, DraftsPanel, type DocumentView } from "@/components/documents/drafts-panel";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Badge, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
@@ -23,6 +29,7 @@ export default function QuotationsPage() {
   const router = useRouter();
   const [page, setPage] = useState(FIRST_PAGE);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<DocumentView>("issued");
 
   const quotations = useQuery({
     queryKey: ["quotations", page, search],
@@ -39,34 +46,52 @@ export default function QuotationsPage() {
         description="Every quotation raised in the new system, newest first. A quotation is a priced offer — it charges nothing until converted."
       />
 
-      {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
-
-      <DataTable
-        columns={columns}
-        rows={quotations.data?.rows}
-        loading={quotations.isPending}
-        searchable={(row) => `${row.number} ${row.customerName ?? ""}`}
-        server={{
-          total: quotations.data?.total ?? 0,
-          page,
-          onPageChange: setPage,
-          search,
-          onSearchChange: setSearch,
-        }}
-        searchPlaceholder="Search by number or customer…"
-        defaultSort={{ id: "date", desc: true }}
-        actions={
-          <Button size="sm" onClick={() => router.push("/quotations/new")}>
-            <Plus />
-            New quotation
-          </Button>
-        }
-        onRowClick={(row) => router.push(`/quotations/${row.id}`)}
-        empty={{
-          title: "No quotations yet",
-          description: "Quotations raised in the new system appear here.",
-        }}
+      <DocumentViewFilter
+        view={view}
+        onChange={setView}
+        docType={DRAFT_QUOTATION}
+        issuedLabel="Quotations"
       />
+
+      {view === "drafts" ? (
+        <DraftsPanel
+          docType={DRAFT_QUOTATION}
+          resumeHref="/quotations/new"
+          noun="quotation"
+          partyLabel="Customer"
+        />
+      ) : (
+        <>
+          {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+
+          <DataTable
+            columns={columns}
+            rows={quotations.data?.rows}
+            loading={quotations.isPending}
+            searchable={(row) => `${row.number} ${row.customerName ?? ""}`}
+            server={{
+              total: quotations.data?.total ?? 0,
+              page,
+              onPageChange: setPage,
+              search,
+              onSearchChange: setSearch,
+            }}
+            searchPlaceholder="Search by number or customer…"
+            defaultSort={{ id: "date", desc: true }}
+            actions={
+              <Button size="sm" onClick={() => router.push("/quotations/new")}>
+                <Plus />
+                New quotation
+              </Button>
+            }
+            onRowClick={(row) => router.push(`/quotations/${row.id}`)}
+            empty={{
+              title: "No quotations yet",
+              description: "Quotations raised in the new system appear here.",
+            }}
+          />
+        </>
+      )}
     </FadeIn>
   );
 }

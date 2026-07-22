@@ -6,6 +6,11 @@
  * A service/repair booking: the customer, the fault, the technician, and the equipment as serial-tracked
  * lines (one row per unit — the structured replacement for the legacy text blob). No money is entered here;
  * cost and sell are recorded when the job is closed.
+ *
+ * What is typed here is also autosaved to the server as a *draft* (`useDraftAutosave`) — a scratchpad row
+ * that takes no job number and books nothing in, so an interrupted booking (which is most of them: the
+ * customer is standing there) can be picked up where it was left. Raising it still goes through the one
+ * create call; the draft is deleted once it has.
  */
 
 import { useState } from "react";
@@ -17,12 +22,29 @@ import { ApiError } from "@/lib/api";
 import { createJobCard } from "@/lib/job-cards";
 import { listCompanies, listCustomers } from "@/lib/customers";
 import { cn } from "@/lib/cn";
+import { DRAFT_JOB_CARD } from "@/lib/drafts";
 import { PageHeader } from "@/components/shell/app-shell";
 import { Button, Card, ErrorBanner, FadeIn, Input, Select, toast } from "@/components/ui";
+import { DraftNotices, DraftStatus } from "@/components/documents/draft-status";
+import { useDraftAutosave, useDraftResume } from "@/components/documents/use-draft-autosave";
 import { CustomerCombobox, customerContactNames } from "@/components/documents/line-draft";
 import { today } from "@/lib/period";
 
 interface Line { description: string; serial: string }
+
+/** The saved shape. Bump it when the state below changes meaning — see `readPayload`. */
+const DRAFT_VERSION = 1;
+
+interface JobCardDraftState {
+  companyId: string;
+  customerId: string;
+  date: string;
+  contact: string;
+  fault: string;
+  remarks: string;
+  technician: string;
+  lines: Line[];
+}
 
 export default function NewJobCardPage() {
   const router = useRouter();
@@ -40,9 +62,41 @@ export default function NewJobCardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
-  const contactOptions = customerContactNames(customers.data?.find((c) => String(c.id) === customerId));
+  const selectedCustomer = customers.data?.find((c) => String(c.id) === customerId) ?? null;
+  const contactOptions = customerContactNames(selectedCustomer);
   const filledLines = lines.filter((l) => l.description.trim() !== "" || l.serial.trim() !== "");
   const canSubmit = companyId !== "" && customerId !== "" && filledLines.length > 0;
+
+  // --- The draft ---------------------------------------------------------------------------------
+
+  const resume = useDraftResume<JobCardDraftState>(DRAFT_VERSION, (state) => {
+    setCompanyId(state.companyId);
+    setCustomerId(state.customerId);
+    setDate(state.date);
+    setContact(state.contact);
+    setFault(state.fault);
+    setRemarks(state.remarks);
+    setTechnician(state.technician);
+    setLines(state.lines);
+  });
+
+  const draft = useDraftAutosave<JobCardDraftState>({
+    docType: DRAFT_JOB_CARD,
+    version: DRAFT_VERSION,
+    state: { companyId, customerId, date, contact, fault, remarks, technician, lines },
+    // The screen starts with one blank equipment row, so line *count* proves nothing here — what counts is
+    // a customer, a fault described, or a row somebody actually filled in.
+    worthKeeping: customerId !== "" || fault.trim() !== "" || filledLines.length > 0,
+    summary: {
+      partyName: selectedCustomer?.name ?? null,
+      // A job card prices nothing at booking — cost and sell are recorded when the job is closed — so
+      // there is no total to show, and a 0.00 would be a figure the document does not have.
+      total: null,
+      lineCount: filledLines.length,
+    },
+    resuming: resume.resuming,
+    enabled: !resume.loading,
+  });
 
   function setLine(i: number, patch: Partial<Line>) {
     setLines((current) => current.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -62,6 +116,9 @@ export default function NewJobCardPage() {
         technician: technician || null,
         lines: filledLines.map((l) => ({ itemId: null, description: l.description || null, serial: l.serial || null })),
       });
+      // The job card exists now, so the draft has nothing left to protect. Cleared before navigating so
+      // the Drafts list is already right when the user goes back to it.
+      draft.clear();
       toast.success(`Job card ${created.number} raised.`);
       // Straight to the sheet, ready to print: it is signed on collection, so the person booking the
       // job needs the paper now — not after finding the card again and hunting for a download.
@@ -80,9 +137,15 @@ export default function NewJobCardPage() {
         All job cards
       </Link>
 
-      <PageHeader title="New job card" description="Book in a repair — cost and sell are recorded when the job is closed." />
+      <PageHeader
+        title={draft.draftId === null ? "New job card" : "Draft job card"}
+        description="Book in a repair — cost and sell are recorded when the job is closed."
+      />
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+
+      <DraftNotices resume={resume} />
+      <DraftStatus draft={draft} noun="job card" />
 
       <Card className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
         <Select label="Company" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>

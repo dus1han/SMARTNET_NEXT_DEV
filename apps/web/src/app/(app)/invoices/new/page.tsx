@@ -8,6 +8,11 @@
  * and is posted whole, once — the legacy server-session cart is gone (D4). One VAT rate, the company's,
  * resolved once by the server (never per keystroke) so the foot reads like a real invoice and matches the
  * figure the save returns.
+ *
+ * What is typed here is also autosaved to the server as a *draft* (`useDraftAutosave`) — a scratchpad row
+ * that takes no invoice number, posts nothing to the ledger and moves no stock, so a closed tab does not
+ * cost somebody a forty-line invoice. Raising it still goes through the one create call; the draft is
+ * deleted once it has.
  */
 
 import { useMemo, useState } from "react";
@@ -22,10 +27,13 @@ import { listItems } from "@/lib/items";
 import { today } from "@/lib/period";
 import { formatAmount, MINOR_UNITS_PER_MAJOR, QUANTITY_SCALE } from "@/lib/money";
 import { cn } from "@/lib/cn";
+import { DRAFT_INVOICE } from "@/lib/drafts";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { AlertTriangle } from "lucide-react";
 import { Button, Card, Dialog, ErrorBanner, FadeIn, Input, Select, toast } from "@/components/ui";
+import { DraftNotices, DraftStatus } from "@/components/documents/draft-status";
+import { useDraftAutosave, useDraftResume } from "@/components/documents/use-draft-autosave";
 import {
   CustomerCombobox,
   customerContactNames,
@@ -35,6 +43,22 @@ import {
   type DocumentKind,
   type DraftLine,
 } from "@/components/documents/line-draft";
+
+/** The saved shape. Bump it when the state below changes meaning — see `readPayload`. */
+const DRAFT_VERSION = 1;
+
+interface InvoiceDraftState {
+  kind: DocumentKind;
+  companyId: string;
+  customerId: string;
+  type: string;
+  date: string;
+  po: string;
+  contact: string;
+  documentDiscount: string;
+  serviceCost: string;
+  lines: DraftLine[];
+}
 
 export default function NewInvoicePage() {
   const router = useRouter();
@@ -96,6 +120,40 @@ export default function NewInvoicePage() {
 
   const canSubmit = companyId !== "" && customerId !== "" && linesArePostable(lines);
 
+  // --- The draft ---------------------------------------------------------------------------------
+
+  const resume = useDraftResume<InvoiceDraftState>(DRAFT_VERSION, (state) => {
+    setKind(state.kind);
+    setCompanyId(state.companyId);
+    setCustomerId(state.customerId);
+    setType(state.type);
+    setDate(state.date);
+    setPo(state.po);
+    setContact(state.contact);
+    setDocumentDiscount(state.documentDiscount);
+    setServiceCost(state.serviceCost);
+    setLines(state.lines);
+  });
+
+  const draft = useDraftAutosave<InvoiceDraftState>({
+    docType: DRAFT_INVOICE,
+    version: DRAFT_VERSION,
+    state: {
+      kind, companyId, customerId, type, date, po, contact, documentDiscount, serviceCost, lines,
+    },
+    // A company on its own is not work — it is the first thing the screen asks for. A customer or a line
+    // means somebody started building an invoice.
+    worthKeeping: customerId !== "" || lines.length > 0,
+    summary: {
+      partyName: selectedCustomer?.name ?? null,
+      // Major units: the totals are held in fils, and the draft's total is stored the way a document's is.
+      total: lines.length === 0 ? null : totalMajor,
+      lineCount: lines.length,
+    },
+    resuming: resume.resuming,
+    enabled: !resume.loading,
+  });
+
   // The button gates on the limit: a breach asks for confirmation first; otherwise it saves straight.
   function attemptSubmit() {
     if (overLimit) {
@@ -132,6 +190,9 @@ export default function NewInvoicePage() {
           cost: l.cost === null ? null : l.cost / MINOR_UNITS_PER_MAJOR,
         })),
       });
+      // The invoice exists now, so the draft has nothing left to protect. Cleared before navigating so
+      // the Drafts list is already right when the user goes back to it.
+      draft.clear();
       toast.success(`Invoice ${created.number} raised — ${formatMoney(created.total)}.`);
       router.push(`/invoices/${created.id}`);
     } catch (e) {
@@ -158,9 +219,18 @@ export default function NewInvoicePage() {
         All invoices
       </Link>
 
-      <PageHeader title="New invoice" description="The whole document is posted once — nothing is saved while you type." />
+      {/* The description used to end "nothing is saved while you type", which was true of the *invoice*
+          and is still true of it — but it now reads as a promise that the typing is lost, which is the
+          opposite of what happens. Said the way it is: the document is raised once, the work is kept. */}
+      <PageHeader
+        title={draft.draftId === null ? "New invoice" : "Draft invoice"}
+        description="The whole document is issued in one go — until then it is kept as a draft, not posted."
+      />
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+
+      <DraftNotices resume={resume} />
+      <DraftStatus draft={draft} noun="invoice" />
 
       <Card className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
         <Select label="Company" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>

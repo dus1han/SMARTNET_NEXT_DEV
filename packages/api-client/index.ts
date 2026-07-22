@@ -248,6 +248,14 @@ export type DocumentSummary = Schemas["DocumentSummary"];
 export type NoteSummary = Schemas["NoteSummary"];
 export type CreateNoteRequest = Schemas["CreateNoteRequest"];
 export type UpdateNoteRequest = Schemas["UpdateNoteRequest"];
+
+// --- Document drafts (Phase 9) -----------------------------------------------------------------
+
+/** Unraised work on a create screen — autosaved, resumable, and not yet a document. */
+export type DraftSummary = Schemas["DraftSummary"];
+export type DraftDetail = Schemas["DraftDetail"];
+export type SaveDraftRequest = Schemas["SaveDraftRequest"];
+export type DraftSaved = Schemas["DraftSaved"];
 export type DashboardAnalytics = Schemas["DashboardAnalytics"];
 export type MonthPoint = Schemas["MonthPoint"];
 export type CashFlowPoint = Schemas["CashFlowPoint"];

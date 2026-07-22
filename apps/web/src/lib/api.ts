@@ -77,6 +77,18 @@ interface RequestOptions {
    * company per request rather than mutating a global one.
    */
   companyId?: number;
+  /**
+   * Let this request outlive the page that started it.
+   *
+   * Only the draft autosave sets it. When a tab is closed or navigated away from, an ordinary fetch in
+   * flight is cancelled — which is precisely the moment the last few seconds of typing most need to
+   * reach the server. `keepalive` hands the request to the browser to finish on its own.
+   *
+   * Not a default: a keepalive request cannot be aborted, shares a small per-page byte budget, and its
+   * response is of no use to a page that has gone. It is right for "save this and I don't care what you
+   * say back", and wrong for everything else.
+   */
+  keepalive?: boolean;
 }
 
 const ACTIVE_COMPANY_KEY = "smartnet.activeCompany";
@@ -102,7 +114,7 @@ export function setActiveCompany(companyId: number) {
 }
 
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, reason, companyId } = options;
+  const { method = "GET", body, reason, companyId, keepalive } = options;
 
   const headers: Record<string, string> = {};
 
@@ -134,6 +146,8 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     // The auth token is an httpOnly cookie: JavaScript cannot read it, and it will not be sent
     // cross-origin unless we ask for it explicitly.
     credentials: "include",
+
+    keepalive,
   });
 
   if (response.ok) {

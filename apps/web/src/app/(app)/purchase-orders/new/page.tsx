@@ -8,6 +8,10 @@
  * type, no credit limit and no stock movement; item lines carry their item so the future goods receipt can
  * receive against them. The draft is held in the browser and posted whole, once (D4); one company VAT rate,
  * resolved by the server at the PO's date.
+ *
+ * What is typed here is also autosaved to the server as a *draft* (`useDraftAutosave`) — a scratchpad row
+ * that takes no PO number and orders nothing, so a closed tab does not cost somebody the order. Raising it
+ * still goes through the one create call; the draft is deleted once it has.
  */
 
 import { useMemo, useState } from "react";
@@ -23,10 +27,13 @@ import { listItems } from "@/lib/items";
 import { today } from "@/lib/period";
 import { formatAmount, MINOR_UNITS_PER_MAJOR, QUANTITY_SCALE } from "@/lib/money";
 import { cn } from "@/lib/cn";
+import { DRAFT_PURCHASE_ORDER } from "@/lib/drafts";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Button, Card, ErrorBanner, FadeIn, Input, Select } from "@/components/ui";
 import { toast } from "@/components/ui";
+import { DraftNotices, DraftStatus } from "@/components/documents/draft-status";
+import { useDraftAutosave, useDraftResume } from "@/components/documents/use-draft-autosave";
 import {
   LineDraftEditor,
   linesArePostable,
@@ -35,6 +42,18 @@ import {
   type DraftLine,
 } from "@/components/documents/line-draft";
 import { SupplierCombobox } from "@/components/documents/supplier-combobox";
+
+/** The saved shape. Bump it when the state below changes meaning — see `readPayload`. */
+const DRAFT_VERSION = 1;
+
+interface PurchaseOrderDraftState {
+  kind: DocumentKind;
+  companyId: string;
+  supplierId: string;
+  date: string;
+  documentDiscount: string;
+  lines: DraftLine[];
+}
 
 export default function NewPurchaseOrderPage() {
   const router = useRouter();
@@ -67,6 +86,36 @@ export default function NewPurchaseOrderPage() {
   const totals = useDraftTotals(lines, ratePercent, docPercent);
   const canSubmit = companyId !== "" && supplierId !== "" && linesArePostable(lines);
 
+  // --- The draft ---------------------------------------------------------------------------------
+
+  const selectedSupplier = suppliers.data?.find((s) => String(s.id) === supplierId) ?? null;
+
+  const resume = useDraftResume<PurchaseOrderDraftState>(DRAFT_VERSION, (state) => {
+    setKind(state.kind);
+    setCompanyId(state.companyId);
+    setSupplierId(state.supplierId);
+    setDate(state.date);
+    setDocumentDiscount(state.documentDiscount);
+    setLines(state.lines);
+  });
+
+  const draft = useDraftAutosave<PurchaseOrderDraftState>({
+    docType: DRAFT_PURCHASE_ORDER,
+    version: DRAFT_VERSION,
+    state: { kind, companyId, supplierId, date, documentDiscount, lines },
+    // A company on its own is not work — it is the first thing the screen asks for. A supplier or a line
+    // means somebody started building an order.
+    worthKeeping: supplierId !== "" || lines.length > 0,
+    summary: {
+      partyName: selectedSupplier?.name ?? null,
+      // Major units: the totals are held in fils, and the draft's total is stored the way a document's is.
+      total: lines.length === 0 ? null : totals.total / MINOR_UNITS_PER_MAJOR,
+      lineCount: lines.length,
+    },
+    resuming: resume.resuming,
+    enabled: !resume.loading,
+  });
+
   async function submit() {
     setSubmitting(true);
     setError(null);
@@ -86,6 +135,9 @@ export default function NewPurchaseOrderPage() {
           cost: l.cost === null ? null : l.cost / MINOR_UNITS_PER_MAJOR,
         })),
       });
+      // The order exists now, so the draft has nothing left to protect. Cleared before navigating so the
+      // Drafts list is already right when the user goes back to it.
+      draft.clear();
       toast.success(`Purchase order ${created.number} raised — ${formatMoney(created.total)}.`);
       router.push(`/purchase-orders/${created.id}`);
     } catch (e) {
@@ -105,9 +157,15 @@ export default function NewPurchaseOrderPage() {
         All purchase orders
       </Link>
 
-      <PageHeader title="New purchase order" description="An order to a supplier — nothing is received into stock or owed until the goods receipt and the supplier invoice." />
+      <PageHeader
+        title={draft.draftId === null ? "New purchase order" : "Draft purchase order"}
+        description="An order to a supplier — nothing is received into stock or owed until the goods receipt and the supplier invoice."
+      />
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+
+      <DraftNotices resume={resume} />
+      <DraftStatus draft={draft} noun="purchase order" />
 
       <Card className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
         <Select label="Company" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>

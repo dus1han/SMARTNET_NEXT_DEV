@@ -7,6 +7,11 @@
  * document that charges nothing and issues nothing. So there is no cash/credit type and no PO — a
  * quotation is a priced offer, not a sale — and it carries a validity (how long the price holds). The
  * draft is held in the browser and posted whole, once (D4); one company VAT rate, resolved by the server.
+ *
+ * What is typed here is also autosaved to the server as a *draft* (`useDraftAutosave`) — a scratchpad
+ * row that takes no quotation number and raises nothing, so a closed tab or an expired session does not
+ * cost somebody the whole quote. Raising it still goes through the one create call above; the draft is
+ * deleted once it has.
  */
 
 import { useMemo, useState } from "react";
@@ -21,9 +26,12 @@ import { listItems } from "@/lib/items";
 import { today } from "@/lib/period";
 import { formatAmount, MINOR_UNITS_PER_MAJOR, QUANTITY_SCALE } from "@/lib/money";
 import { cn } from "@/lib/cn";
+import { DRAFT_QUOTATION } from "@/lib/drafts";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Button, Card, ErrorBanner, FadeIn, Input, Select, toast } from "@/components/ui";
+import { DraftNotices, DraftStatus } from "@/components/documents/draft-status";
+import { useDraftAutosave, useDraftResume } from "@/components/documents/use-draft-autosave";
 import {
   CustomerCombobox,
   customerContactNames,
@@ -34,6 +42,20 @@ import {
   type DocumentKind,
   type DraftLine,
 } from "@/components/documents/line-draft";
+
+/** The saved shape. Bump it when the state below changes meaning — see `readPayload`. */
+const DRAFT_VERSION = 1;
+
+interface QuotationDraftState {
+  kind: DocumentKind;
+  companyId: string;
+  customerId: string;
+  date: string;
+  validity: string;
+  contact: string;
+  documentDiscount: string;
+  lines: DraftLine[];
+}
 
 export default function NewQuotationPage() {
   const router = useRouter();
@@ -69,6 +91,36 @@ export default function NewQuotationPage() {
   const contactOptions = customerContactNames(selectedCustomer);
 
   const totals = useDraftTotals(lines, ratePercent, docPercent);
+
+  // --- The draft ---------------------------------------------------------------------------------
+
+  const resume = useDraftResume<QuotationDraftState>(DRAFT_VERSION, (state) => {
+    setKind(state.kind);
+    setCompanyId(state.companyId);
+    setCustomerId(state.customerId);
+    setDate(state.date);
+    setValidity(state.validity);
+    setContact(state.contact);
+    setDocumentDiscount(state.documentDiscount);
+    setLines(state.lines);
+  });
+
+  const draft = useDraftAutosave<QuotationDraftState>({
+    docType: DRAFT_QUOTATION,
+    version: DRAFT_VERSION,
+    state: { kind, companyId, customerId, date, validity, contact, documentDiscount, lines },
+    // A company on its own is not work — it is the first thing the screen asks for and is often the only
+    // one. A customer or a line means somebody started building a quote.
+    worthKeeping: customerId !== "" || lines.length > 0,
+    summary: {
+      partyName: selectedCustomer?.name ?? null,
+      // Major units: the totals are held in fils, and the draft's total is stored the way a document's is.
+      total: lines.length === 0 ? null : totals.total / MINOR_UNITS_PER_MAJOR,
+      lineCount: lines.length,
+    },
+    resuming: resume.resuming,
+    enabled: !resume.loading,
+  });
   // Σ (unit cost × quantity), the same arithmetic the server will apply — so the read-only figure below is
   // the one that gets stored, not an approximation of it.
   const costBasis = draftCostBasis(lines);
@@ -98,6 +150,9 @@ export default function NewQuotationPage() {
           cost: l.cost === null ? null : l.cost / MINOR_UNITS_PER_MAJOR,
         })),
       });
+      // The quotation exists now, so the draft has nothing left to protect. Cleared before navigating so
+      // the Drafts list is already right when the user goes back to it.
+      draft.clear();
       toast.success(`Quotation ${created.number} raised — ${formatMoney(created.total)}.`);
       router.push(`/quotations/${created.id}`);
     } catch (e) {
@@ -117,9 +172,15 @@ export default function NewQuotationPage() {
         All quotations
       </Link>
 
-      <PageHeader title="New quotation" description="A priced offer — nothing is charged or issued until it is converted to an invoice." />
+      <PageHeader
+        title={draft.draftId === null ? "New quotation" : "Draft quotation"}
+        description="A priced offer — nothing is charged or issued until it is converted to an invoice."
+      />
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+
+      <DraftNotices resume={resume} />
+      <DraftStatus draft={draft} noun="quotation" />
 
       <Card className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
         <Select label="Company" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
