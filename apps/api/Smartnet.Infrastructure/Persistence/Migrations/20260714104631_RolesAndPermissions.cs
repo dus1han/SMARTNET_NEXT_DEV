@@ -173,8 +173,10 @@ namespace Smartnet.Infrastructure.Persistence.Migrations
                    'Full business permissions within one company.', 1, UTC_TIMESTAMP(), 1)
                 """);
 
-            // Dev_Admin gets everything, including system.dev_admin.
-            GrantAll(migrationBuilder, Role.DevAdmin, Permissions.All);
+            // Dev_Admin gets everything grantable, including system.dev_admin — but NOT the operations
+            // dashboard. Permissions.All holds both dashboards and is not a valid grant to anybody; see
+            // Permissions.AdministratorGrant.
+            GrantAll(migrationBuilder, Role.DevAdmin, Permissions.AdministratorGrant);
 
             // Company_Admin gets everything EXCEPT system.dev_admin — that is the entire
             // difference between the two, and the reason they are separate roles. A company
@@ -182,7 +184,7 @@ namespace Smartnet.Infrastructure.Persistence.Migrations
             GrantAll(
                 migrationBuilder,
                 Role.CompanyAdmin,
-                Permissions.All.Where(p => p != Permissions.SystemDevAdmin).ToList());
+                [.. Permissions.AdministratorGrant.Where(p => p != Permissions.SystemDevAdmin)]);
 
             // --- One role per existing user, preserving their exact flags -------------------
             migrationBuilder.Sql("""

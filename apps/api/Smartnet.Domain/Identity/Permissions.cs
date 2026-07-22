@@ -138,6 +138,23 @@ public static class Permissions
     public static readonly IReadOnlyList<string> All =
         [.. NewPermissions, .. LegacyPermissions];
 
+    /// <summary>
+    /// What an administrator role gets: everything, except the dashboard an administrator does not want.
+    /// </summary>
+    /// <remarks>
+    /// <b><see cref="All"/> is not a valid grant.</b> It contains both dashboards, and holding both is the
+    /// contradiction <see cref="DashboardOperations"/> describes — the operations dashboard is defined by
+    /// what it withholds, so adding it to the management one takes nothing away and settles nothing.
+    /// <para>
+    /// Seeding the system roles from <see cref="All"/> is exactly how Dev_Admin and Company_Admin ended up
+    /// holding the pair, and the permissions dialog — where the two are radio buttons — showed the
+    /// operations one selected, because with both ticked the last one wins. An administrator gets the
+    /// management dashboard; that is the whole point of being one.
+    /// </para>
+    /// </remarks>
+    public static readonly IReadOnlyList<string> AdministratorGrant =
+        [.. All.Where(p => p != DashboardOperations)];
+
     private static readonly HashSet<string> Known = new(All, StringComparer.Ordinal);
 
     public static bool IsKnown(string permission) => Known.Contains(permission);

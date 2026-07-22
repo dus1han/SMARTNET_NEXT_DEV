@@ -226,6 +226,26 @@ public sealed class RolesController : ControllerBase
             return false;
         }
 
+        // A role may grant one dashboard or neither, never both.
+        //
+        // The same rule is enforced on a user's own permissions and was not enforced here, which is how
+        // the seeded system roles came to hold the pair: seeding used Permissions.All, and nothing
+        // objected. A user takes the union of their roles, so a role holding both hands them both — and
+        // the permissions dialog, where the two are radio buttons, then shows the operations dashboard
+        // selected for an administrator.
+        //
+        // Neither is allowed here, unlike on a user, because a role is a building block: "everything
+        // except a dashboard" composes with a role that supplies one. It is a user who must end up with
+        // exactly one, and UsersController is where that is checked.
+        if (Permissions.DashboardPermissions.Count(permissions.Contains) > 1)
+        {
+            refusal = Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "A role grants one dashboard, not both. The operations dashboard is not a subset of the management one.");
+
+            return false;
+        }
+
         refusal = null!;
         return true;
     }
