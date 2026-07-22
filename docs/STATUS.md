@@ -292,6 +292,51 @@ from either the tab or the create screen.
 **Not covered**: the edit screens (`/[id]/edit`) do not autosave — an edit still has the saved document
 to fall back on. There is no expiry, so an abandoned draft sits in the list until somebody discards it.
 
+**A hard crash costs at most five seconds of typing.** The debounce saves 1.5s after a pause, but a
+debounce alone has no ceiling — somebody typing steadily never pauses, so nothing was saved at all for
+as long as they kept going, and a power cut took the lot (neither a cut nor a panic fires `pagehide`,
+so the flush cannot help). `MAX_WAIT_MS` bounds it. Closing the remaining five seconds means mirroring
+each keystroke to `localStorage` and offering recovery on next load; **considered and deliberately not
+done** — it needs a which-copy-wins rule, it puts customer names and prices in plaintext on a shared
+till, and a stale local copy surviving a raise would issue the same document twice.
+
+### 5e. Concurrent edits refused across the system (2026-07-22)
+
+**Two people editing one record no longer ends with the second silently winning.** `row_version` has
+been a concurrency token on every audited entity since Phase 1 and the documents modules used it, but
+the master-data and admin controllers were load-modify-save in a single request — so the "original"
+value EF compared was the one it had read a millisecond earlier and always matched. The read models did
+not even return a version for a client to send back.
+
+That is, word for word, what [`AuditColumns`](../apps/api/Smartnet.Infrastructure/Persistence/Configurations/AuditColumns.cs)
+says the token exists to prevent, and it names **the customer** as its example.
+
+Now protected, each refusing a stale version with a 409 and a missing one with a 400 — refused rather
+than defaulted, because a caller that forgets would otherwise quietly get the old behaviour back:
+
+| Customers · suppliers · items | Users (name + roles) · roles | Company profile · numbering series · business rules |
+|---|---|---|
+
+- **A permission set had no version of its own.** `PUT /users/{id}/permissions` and `/overrides` write
+  `user_permission_overrides` and never touch `user_m`, so the user's version did not move when their
+  access changed and a check against it would have passed straight through — reading as protection
+  while providing none. The permission write now moves the user's version deliberately
+  (`ConcurrencyGuard.TouchForConcurrency`), so that version means "this person's access as a whole".
+- **Business rules are checked per rule, not per screen**, because that is the grain the rows have —
+  two administrators changing different rules never conflicted and must not be made to. A refused rule
+  aborts the whole save; half-saved rules would be worse, since nobody would know which half.
+- Every write also catches `DbUpdateConcurrencyException`, so two requests that pass the controller's
+  own comparison together get a 409 that explains itself rather than a 500.
+
+**Two harness defects were found by testing this**, neither in the feature. The E2E suite could not
+start the API at all — `DataProtection__KeyPath` became mandatory after the harness was written, so
+every spec had been failing at "API did not become ready". And the seed granted `Permissions.All`,
+which the catalogue documents as *not a valid grant* (it holds both dashboards): the seeded user was in
+a state the API refuses to write back. Both fixed; the suite is 14 specs and green.
+
+**Worth knowing**: a no-op save does not move a version — the audit interceptor counts an update only
+when a value really differs. Correct, but it means `row_version` is not an activity signal.
+
 ### 6. Phase 8 gaps
 - **`document_templates` does not exist.** Promised in both Phase 1 and Phase 8; templates are driven
   by `Company` alone. There is no per-company template settings surface.
