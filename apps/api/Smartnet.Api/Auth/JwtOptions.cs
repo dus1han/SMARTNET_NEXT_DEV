@@ -23,9 +23,22 @@ public sealed class JwtOptions
     public string Audience { get; init; } = "smartnet";
 
     /// <summary>
-    /// Short. The token carries the user's permissions, so a long-lived one keeps granting access
-    /// that an administrator has already revoked. Slice 3 adds the refresh path.
+    /// How long a session lasts, from sign-in.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Absolute, not idle.</b> There is no refresh path — an earlier note here promised one in "slice
+    /// 3" and it was never built — so the clock starts at sign-in and does not reset with activity. A
+    /// user is signed out mid-sentence exactly this long after signing in, however busy they have been.
+    /// Raised from thirty minutes to an hour because being thrown out twice an afternoon while working is
+    /// its own kind of broken.
+    /// </para>
+    /// <para>
+    /// It cannot simply be set to a week. The token carries the user's permissions, so until it expires
+    /// it keeps granting access an administrator has already revoked — that window is the real cost of
+    /// every increase, and the reason the fix is a refresh path rather than a bigger number here.
+    /// </para>
+    /// </remarks>
     [Range(5, 480)]
-    public int AccessTokenMinutes { get; init; } = 30;
+    public int AccessTokenMinutes { get; init; } = 60;
 }

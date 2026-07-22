@@ -42,7 +42,9 @@ services:
       Jwt__SigningKey: ${Jwt__SigningKey:?set it in the server env file - at least 32 bytes of real entropy}
       Jwt__Issuer: ${Jwt__Issuer:-smartnet}
       Jwt__Audience: ${Jwt__Audience:-smartnet}
-      Jwt__AccessTokenMinutes: ${Jwt__AccessTokenMinutes:-30}
+      # An hour, and absolute rather than idle: there is no refresh path, so this is the time from
+      # sign-in to being signed out regardless of activity. See JwtOptions.AccessTokenMinutes.
+      Jwt__AccessTokenMinutes: ${Jwt__AccessTokenMinutes:-60}
 
       # Uploaded documents (Phase 7, slice 4). Points at the bind mount below, NOT at a path inside
       # the image: the container filesystem is thrown away on every deploy, so an unmounted path

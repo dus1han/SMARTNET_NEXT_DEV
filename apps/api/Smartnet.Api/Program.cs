@@ -255,6 +255,44 @@ builder.Services
                 context.Token = context.Request.Cookies[AuthCookie.Name];
                 return Task.CompletedTask;
             },
+
+            // Why a 401 happened, which the access log alone cannot say.
+            //
+            // Chasing "it logs me out after a few minutes" meant pairing login times against 401 times by
+            // hand, because every rejection looked identical from outside: an expired token, a cookie the
+            // browser declined to send, and a signature that no longer verifies all read as a bare 401.
+            // Those have three different causes and three different fixes.
+            //
+            // Only failures with a token attached are logged. Unauthenticated scanners probing for
+            // /api/vendor/... produce a steady trickle of 401s that carry nothing and mean nothing.
+            OnAuthenticationFailed = context =>
+            {
+                var log = context.HttpContext.RequestServices
+                    .GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("Smartnet.Auth");
+
+                AuthLog.TokenRejected(log, context.HttpContext.Request.Path.Value, context.Exception);
+
+                return Task.CompletedTask;
+            },
+
+            // The other half: a 401 with no token to reject. OnAuthenticationFailed never fires for
+            // these, so without this the two causes stay indistinguishable in the log.
+            OnChallenge = context =>
+            {
+                var request = context.HttpContext.Request;
+
+                if (!request.Cookies.ContainsKey(AuthCookie.Name) && request.Cookies.Count > 0)
+                {
+                    var log = context.HttpContext.RequestServices
+                        .GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("Smartnet.Auth");
+
+                    AuthLog.NoAuthCookie(log, request.Path.Value, request.Cookies.Count);
+                }
+
+                return Task.CompletedTask;
+            },
         };
     });
 

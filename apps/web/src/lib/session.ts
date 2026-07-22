@@ -1,7 +1,7 @@
 /**
  * What happens when the server says you are no longer signed in.
  *
- * Sessions here are a hard wall: the token lasts 30 minutes, there is no refresh path, and
+ * Sessions here are a hard wall: the token lasts an hour, there is no refresh path, and
  * `ClockSkew` is zero on the server. So expiry mid-task is normal, not exceptional, and the app has to
  * have an answer for it. It did not — this module is that answer.
  *
