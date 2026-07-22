@@ -298,9 +298,16 @@ public sealed class SettingsController : ControllerBase
             effective[setting.Key] = setting.Value;
         }
 
+        // Only this company's own rows are ever written, so theirs is the version the save checks. A key
+        // with no row here is shown as version 0 — "I saw no row of our own for this" — and saving it
+        // creates one, or is refused if somebody else created it first.
+        var ours = stored
+            .Where(s => s.CompanyId == companyId)
+            .ToDictionary(s => s.Key, s => s.RowVersion, StringComparer.Ordinal);
+
         return Ok(effective
             .Where(pair => BusinessRules.IsKnown(pair.Key))
-            .Select(pair => new BusinessRule(pair.Key, pair.Value))
+            .Select(pair => new BusinessRule(pair.Key, pair.Value, ours.GetValueOrDefault(pair.Key)))
             .OrderBy(r => r.Key, StringComparer.Ordinal)
             .ToList());
     }
@@ -326,8 +333,19 @@ public sealed class SettingsController : ControllerBase
                     cancellationToken)
                 .ConfigureAwait(false);
 
+            // Per rule, because that is the grain the rows have. Two administrators changing *different*
+            // rules do not conflict at all and must not be made to; two changing the same one do, and
+            // the second used to win silently.
+            //
+            // Version 0 means the caller saw no row of this company's own. Finding one now means somebody
+            // created it in between — the caller's "off" is being applied to a setting they never read.
             if (existing is null)
             {
+                if (rule.RowVersion != 0)
+                {
+                    return Stale(rule.Key);
+                }
+
                 _db.AppSettings.Add(new AppSetting
                 {
                     CompanyId = companyId,
@@ -337,16 +355,32 @@ public sealed class SettingsController : ControllerBase
             }
             else
             {
+                if (existing.RowVersion != rule.RowVersion)
+                {
+                    return Stale(rule.Key);
+                }
+
                 existing.Value = rule.Value;
             }
         }
 
         // Audited automatically, with the reason: turning credit-limit enforcement on is exactly
         // the kind of change somebody will want explained three months later.
+        //
+        // Nothing above has been written yet — SaveChanges is the first write — so a rule refused
+        // part-way through leaves none of the others applied either. Half-saved business rules would be
+        // worse than a refused save: nobody would know which half.
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return NoContent();
     }
+
+    /// <summary>A business rule somebody else changed while this screen was open.</summary>
+    private ObjectResult Stale(string key) => Problem(
+        statusCode: StatusCodes.Status409Conflict,
+        title:
+            $"Someone else changed the '{key}' business rule while you were editing. Reload to see "
+            + "their version, then make your changes again. Nothing has been saved.");
 
     // --- Tax rates ---------------------------------------------------------------------------
 

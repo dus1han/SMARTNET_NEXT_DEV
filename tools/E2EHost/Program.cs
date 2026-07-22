@@ -96,8 +96,14 @@ await using (var db = new SmartnetDbContext(SeedOptions(conn, change)))
     db.Users.Add(user);
     await db.SaveChangesAsync();
 
+    // AdministratorGrant, not All. Permissions.All is documented as *not a valid grant*: it holds both
+    // dashboards, and holding both is a contradiction rather than a superset — the operations dashboard
+    // is defined by what it withholds. The API enforces that on every permission save, so a user seeded
+    // from All is in a state the app itself refuses to write back, and the first spec to save this
+    // user's permissions got a 400 saying so. The same mistake the system roles had, in the one place
+    // that fix did not reach.
     var role = new Role { Name = "E2E Admin", CompanyId = null, IsSystem = false };
-    foreach (var permission in Permissions.All)
+    foreach (var permission in Permissions.AdministratorGrant)
     {
         role.Permissions.Add(new RolePermission { Permission = permission });
     }

@@ -63,4 +63,27 @@ public static class ConcurrencyGuard
 
         return null;
     }
+
+    /// <summary>
+    /// Moves an entity's version on because something it owns has changed, rather than the entity itself.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>The case this exists for.</b> A user's permissions live in <c>user_permission_overrides</c>
+    /// and in their roles — not in any column of <c>user_m</c>. So setting somebody's permissions changed
+    /// nothing on the user, their <c>row_version</c> did not move, and a version check against it passed
+    /// straight through a concurrent permission edit. Two administrators on one account could each save,
+    /// and the second silently reinstated a permission the first had just revoked. A guard that cannot
+    /// see the change it is guarding is worse than none, because it reads as protection.</para>
+    ///
+    /// <para><b>Why assigning <c>UpdatedAt</c> is the mechanism.</b> The audit interceptor decides an
+    /// entity was updated by looking for a property whose value actually differs — assignment alone is
+    /// not enough, and neither is marking the entry <c>Modified</c>. Giving <c>UpdatedAt</c> a new value
+    /// is what makes the entry qualify; the interceptor then stamps its own timestamp over it and
+    /// increments <c>row_version</c> once. The value written here is a signal, not data.</para>
+    ///
+    /// <para>The user's version therefore means "this person's access as a whole", which is the thing two
+    /// administrators are really contending over.</para>
+    /// </remarks>
+    public static void TouchForConcurrency(this IAuditable entity, TimeProvider time) =>
+        entity.UpdatedAt = time.GetUtcNow().UtcDateTime;
 }

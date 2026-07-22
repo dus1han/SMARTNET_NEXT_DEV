@@ -7026,6 +7026,8 @@ export interface components {
         BusinessRule: {
             key: string;
             value: string;
+            /** Format: int32 */
+            rowVersion: number;
         };
         CashFlowPoint: {
             /** Format: date */
@@ -8910,9 +8912,13 @@ export interface components {
         SetOverrideRequest: {
             permission: string;
             granted?: boolean | null;
+            /** Format: int32 */
+            expectedRowVersion?: number | null;
         };
         SetUserPermissionsRequest: {
             permissions: string[];
+            /** Format: int32 */
+            expectedRowVersion?: number | null;
         };
         SetVatRateRequest: {
             name: string;

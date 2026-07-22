@@ -28,7 +28,15 @@ public sealed record CompanyProfile(
     // overwrite each other. Doubles as the request field — this record is both the read and the write.
     int RowVersion = 0);
 
-public sealed record BusinessRule(string Key, string Value);
+/// <param name="RowVersion">
+/// The version of <i>this company's own</i> setting row for this key, echoed back on save.
+/// <para>
+/// <b>Zero means "this company had no row of its own"</b> — the value shown came from the global
+/// setting or from the built-in default. Saving then creates one, and the save is refused if somebody
+/// else created it first. Only the company row is ever written, so it is the only version that matters.
+/// </para>
+/// </param>
+public sealed record BusinessRule(string Key, string Value, int RowVersion = 0);
 
 public sealed record TaxRateDto(
     long Id,

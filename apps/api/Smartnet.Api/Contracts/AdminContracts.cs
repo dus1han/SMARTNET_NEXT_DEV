@@ -38,7 +38,12 @@ public sealed record UpdateUserRequest(string Name, long[] RoleIds, int? Expecte
 public sealed record ResetPasswordResponse(string TemporaryPassword);
 
 /// <summary>An override: an exception to what this user's roles grant.</summary>
-public sealed record SetOverrideRequest(string Permission, bool? Granted);
+/// <param name="ExpectedRowVersion">
+/// The user's version when the editor was opened. A permission change moves it on (see
+/// <c>TouchForConcurrency</c>), so a stale one means somebody else has changed this person's access
+/// since — and applying this on top would silently undo what they did.
+/// </param>
+public sealed record SetOverrideRequest(string Permission, bool? Granted, int? ExpectedRowVersion = null);
 
 /// <summary>
 /// The complete set of permissions a user should have — assigned directly, per person.
@@ -49,7 +54,12 @@ public sealed record SetOverrideRequest(string Permission, bool? Granted);
 /// override where a role does not already grant it, denying one where a role does. Roles still exist
 /// for the two system administrators; for everyone else this is how access is given.
 /// </remarks>
-public sealed record SetUserPermissionsRequest(string[] Permissions);
+/// <param name="ExpectedRowVersion">
+/// The user's version when the editor was opened. This request replaces the person's whole permission
+/// set, so a stale one is not a lost edit — it silently reinstates whatever another administrator has
+/// just revoked, which is a privilege they were deliberately taken off.
+/// </param>
+public sealed record SetUserPermissionsRequest(string[] Permissions, int? ExpectedRowVersion = null);
 
 // --- Roles ---------------------------------------------------------------------------------
 

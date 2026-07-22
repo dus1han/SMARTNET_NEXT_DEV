@@ -24,10 +24,22 @@ export const listPermissions = () =>
  * `reason` is mandatory: changing what someone may do is one of the audited actions. The server
  * makes the user's effective permissions equal exactly this list, so the checkboxes are the truth.
  */
-export const setUserPermissions = (id: number, permissions: string[], reason: string) =>
+/**
+ * Replaces a user's whole permission set.
+ *
+ * `expectedRowVersion` is the user's version when the editor was opened. A stale one is a 409: this
+ * replaces the *whole* set, so applying it over somebody else's change does not lose an edit — it
+ * silently reinstates a permission another administrator has just revoked.
+ */
+export const setUserPermissions = (
+  id: number,
+  permissions: string[],
+  reason: string,
+  expectedRowVersion: number,
+) =>
   api<void>(`/api/users/${id}/permissions`, {
     method: "PUT",
-    body: { permissions },
+    body: { permissions, expectedRowVersion },
     reason,
   });
 
@@ -41,25 +53,10 @@ export const createUser = (username: string, name: string, roleIds: number[]) =>
     body: { username, name, roleIds },
   });
 
-/**
- * `reason` is mandatory: the server rejects a permission change that does not explain itself.
- *
- * `expectedRowVersion` is the version the editor was opened on. This request replaces the user's whole
- * role set, so two administrators saving at once does not merely lose one edit — it can silently put
- * back a role the other has just removed. A stale one is refused with a 409.
- */
-export const updateUser = (
-  id: number,
-  name: string,
-  roleIds: number[],
-  reason: string,
-  expectedRowVersion: number,
-) =>
-  api<void>(`/api/users/${id}`, {
-    method: "PUT",
-    body: { name, roleIds, expectedRowVersion },
-    reason,
-  });
+// No `updateUser` here on purpose. `PUT /api/users/{id}` (name + roles) exists and is protected, but
+// nothing in this app calls it: the users screen assigns access through `setUserPermissions` below,
+// which is permission assignment without the ceremony of roles. A client wrapper with no call site is
+// a thing that rots — it was still passing the old argument list long after the endpoint changed.
 
 export const resetPassword = (id: number, reason: string) =>
   api<ResetPasswordResponse>(`/api/users/${id}/reset-password`, {

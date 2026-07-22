@@ -293,6 +293,15 @@ public sealed class UsersController : ControllerBase
             return NotFound();
         }
 
+        if (this.StaleEdit(user, request.ExpectedRowVersion, "user") is { } stale)
+        {
+            return stale;
+        }
+
+        // The override rows are not on the user, so nothing here would move the user's version and the
+        // check above would pass straight through the next concurrent edit. See TouchForConcurrency.
+        user.TouchForConcurrency(_time);
+
         var existing = await _db.UserPermissionOverrides
             .FirstOrDefaultAsync(
                 o => o.UserId == id && o.Permission == request.Permission,
@@ -358,6 +367,18 @@ public sealed class UsersController : ControllerBase
         {
             return NotFound();
         }
+
+        // Before any of the validation below, so a stale request is refused on the grounds that matter
+        // rather than on whichever rule it happens to trip first.
+        if (this.StaleEdit(user, request.ExpectedRowVersion, "user") is { } stale)
+        {
+            return stale;
+        }
+
+        // A permission set lives in override rows and roles, not in any column of the user — so without
+        // this the user's version would not move and the next concurrent edit would sail past the check
+        // above, silently reinstating a permission somebody had just revoked. See TouchForConcurrency.
+        user.TouchForConcurrency(_time);
 
         var desired = new HashSet<string>(request.Permissions, StringComparer.Ordinal);
 

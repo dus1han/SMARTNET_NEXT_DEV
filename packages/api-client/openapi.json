@@ -8878,6 +8878,7 @@
       "BusinessRule": {
         "required": [
           "key",
+          "rowVersion",
           "value"
         ],
         "type": "object",
@@ -8887,6 +8888,10 @@
           },
           "value": {
             "type": "string"
+          },
+          "rowVersion": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -15093,6 +15098,11 @@
           "granted": {
             "type": "boolean",
             "nullable": true
+          },
+          "expectedRowVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -15108,6 +15118,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "expectedRowVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false

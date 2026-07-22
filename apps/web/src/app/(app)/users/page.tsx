@@ -467,8 +467,11 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
     });
 
   const save = useMutation({
+    // The user's version when this dialog was opened. The server refuses the save if their access has
+    // been changed since — otherwise saving this whole set on top would silently put back a permission
+    // another administrator has just taken away.
     mutationFn: (v: { reason: string }) =>
-      setUserPermissions(user!.id, [...selected], v.reason),
+      setUserPermissions(user!.id, [...selected], v.reason, user!.rowVersion),
     onSuccess: () => {
       toast.success("Permissions saved.");
       onSaved();
