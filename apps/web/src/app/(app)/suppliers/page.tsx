@@ -247,8 +247,13 @@ function SupplierDialog({ target, onClose, onSaved }: {
 
   const save = useMutation({
     mutationFn: async (values: SupplierForm): Promise<void> => {
-      if (editing) await updateSupplier(editing.id, toRequest(values));
-      else await createSupplier(toRequest(values));
+      // expectedRowVersion: the version this form was opened on, so a concurrent edit is refused
+      // rather than silently overwriting whoever saved first.
+      if (editing) {
+        await updateSupplier(editing.id, { ...toRequest(values), expectedRowVersion: editing.rowVersion });
+      } else {
+        await createSupplier(toRequest(values));
+      }
     },
     onSuccess: () => {
       toast.success(editing ? "Supplier saved." : "Supplier created.");

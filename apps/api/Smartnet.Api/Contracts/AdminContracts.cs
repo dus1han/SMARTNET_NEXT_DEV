@@ -13,7 +13,10 @@ public sealed record UserSummary(
     bool MustChangePassword,
     bool IsLockedOut,
     IReadOnlyList<RoleSummary> Roles,
-    IReadOnlyList<string> EffectivePermissions);
+    IReadOnlyList<string> EffectivePermissions,
+    // Echoed back on save so two administrators editing one account cannot overwrite each other —
+    // which, on a screen that grants permissions, is a security question and not just a lost edit.
+    int RowVersion = 0);
 
 public sealed record CreateUserRequest(string Username, string Name, long[] RoleIds);
 
@@ -25,7 +28,12 @@ public sealed record CreateUserRequest(string Username, string Name, long[] Role
 /// </remarks>
 public sealed record CreateUserResponse(long Id, string TemporaryPassword);
 
-public sealed record UpdateUserRequest(string Name, long[] RoleIds);
+/// <param name="ExpectedRowVersion">
+/// The version the edit started from. Required, and refused when stale: this request sets a user's
+/// <i>roles</i>, so two administrators saving at once does not merely lose an edit — it can silently
+/// reinstate a role somebody else has just removed.
+/// </param>
+public sealed record UpdateUserRequest(string Name, long[] RoleIds, int? ExpectedRowVersion = null);
 
 public sealed record ResetPasswordResponse(string TemporaryPassword);
 
@@ -51,13 +59,18 @@ public sealed record RoleSummary(
     string? Description,
     bool IsSystem,
     long? CompanyId,
-    IReadOnlyList<string> Permissions);
+    IReadOnlyList<string> Permissions,
+    // Echoed back on save. A role is a set of permissions held by everyone in it, so a lost edit here
+    // is a lost permission change across every user at once.
+    int RowVersion = 0);
 
 public sealed record SaveRoleRequest(
     string Name,
     string? Description,
     long? CompanyId,
-    string[] Permissions);
+    string[] Permissions,
+    /// <summary>The version the edit started from. Required on update; ignored on create.</summary>
+    int? ExpectedRowVersion = null);
 
 public sealed record PermissionCatalogueEntry(string Key, bool IsLegacy);
 

@@ -9260,7 +9260,8 @@
           "hasLogo",
           "id",
           "isVatRegistered",
-          "name"
+          "name",
+          "rowVersion"
         ],
         "type": "object",
         "properties": {
@@ -9332,6 +9333,10 @@
           },
           "hasLogo": {
             "type": "boolean"
+          },
+          "rowVersion": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -10885,7 +10890,8 @@
           "contacts",
           "creditLimit",
           "id",
-          "name"
+          "name",
+          "rowVersion"
         ],
         "type": "object",
         "properties": {
@@ -10942,6 +10948,10 @@
             "items": {
               "$ref": "#/components/schemas/CustomerContactDto"
             }
+          },
+          "rowVersion": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -11556,7 +11566,8 @@
           "id",
           "nextNumber",
           "padding",
-          "prefix"
+          "prefix",
+          "rowVersion"
         ],
         "type": "object",
         "properties": {
@@ -11580,6 +11591,10 @@
           },
           "example": {
             "type": "string"
+          },
+          "rowVersion": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -12784,6 +12799,7 @@
           "code",
           "id",
           "name",
+          "rowVersion",
           "stockBalance"
         ],
         "type": "object",
@@ -12823,6 +12839,10 @@
           },
           "belowReorder": {
             "type": "boolean"
+          },
+          "rowVersion": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -14448,7 +14468,8 @@
           "id",
           "isSystem",
           "name",
-          "permissions"
+          "permissions",
+          "rowVersion"
         ],
         "type": "object",
         "properties": {
@@ -14476,6 +14497,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "rowVersion": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -14752,6 +14777,11 @@
               "$ref": "#/components/schemas/CustomerContactDto"
             },
             "nullable": true
+          },
+          "expectedRowVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -14769,6 +14799,11 @@
           "padding": {
             "type": "integer",
             "format": "int32"
+          },
+          "expectedRowVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -14858,6 +14893,11 @@
           "unit": {
             "type": "string",
             "nullable": true
+          },
+          "expectedRowVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -14940,6 +14980,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "expectedRowVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -14971,6 +15016,11 @@
           },
           "vatNumber": {
             "type": "string",
+            "nullable": true
+          },
+          "expectedRowVersion": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           }
         },
@@ -15777,7 +15827,8 @@
         "required": [
           "code",
           "id",
-          "name"
+          "name",
+          "rowVersion"
         ],
         "type": "object",
         "properties": {
@@ -15810,6 +15861,10 @@
           "vatNumber": {
             "type": "string",
             "nullable": true
+          },
+          "rowVersion": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -16062,6 +16117,11 @@
               "type": "integer",
               "format": "int64"
             }
+          },
+          "expectedRowVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -16075,6 +16135,7 @@
           "mustChangePassword",
           "name",
           "roles",
+          "rowVersion",
           "username"
         ],
         "type": "object",
@@ -16109,6 +16170,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "rowVersion": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

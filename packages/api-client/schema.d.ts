@@ -7162,6 +7162,8 @@ export interface components {
             bankAccountNumber?: string | null;
             brandColour?: string | null;
             hasLogo: boolean;
+            /** Format: int32 */
+            rowVersion: number;
         };
         CompanySummary: {
             /** Format: int64 */
@@ -7654,6 +7656,8 @@ export interface components {
             /** Format: double */
             creditLimit: number;
             contacts: components["schemas"]["CustomerContactDto"][];
+            /** Format: int32 */
+            rowVersion: number;
         };
         CustomerVatResponse: {
             /** Format: double */
@@ -7840,6 +7844,8 @@ export interface components {
             /** Format: int32 */
             padding: number;
             example: string;
+            /** Format: int32 */
+            rowVersion: number;
         };
         DocumentSummary: {
             /** Format: int64 */
@@ -8226,6 +8232,8 @@ export interface components {
             /** Format: double */
             stockBalance: number;
             belowReorder: boolean;
+            /** Format: int32 */
+            rowVersion: number;
         };
         JobCardCreatedResponse: {
             /** Format: int64 */
@@ -8726,6 +8734,8 @@ export interface components {
             /** Format: int64 */
             companyId?: number | null;
             permissions: string[];
+            /** Format: int32 */
+            rowVersion: number;
         };
         SalesMix: {
             /** Format: double */
@@ -8809,11 +8819,15 @@ export interface components {
             /** Format: double */
             creditLimit: number;
             contacts?: components["schemas"]["CustomerContactDto"][] | null;
+            /** Format: int32 */
+            expectedRowVersion?: number | null;
         };
         SaveDocumentSeriesRequest: {
             prefix: string;
             /** Format: int32 */
             padding: number;
+            /** Format: int32 */
+            expectedRowVersion?: number | null;
         };
         SaveDraftRequest: {
             docType: string;
@@ -8840,6 +8854,8 @@ export interface components {
             /** Format: double */
             reorderLevel?: number | null;
             unit?: string | null;
+            /** Format: int32 */
+            expectedRowVersion?: number | null;
         };
         SaveMailSettingsRequest: {
             host: string;
@@ -8862,6 +8878,8 @@ export interface components {
             /** Format: int64 */
             companyId?: number | null;
             permissions: string[];
+            /** Format: int32 */
+            expectedRowVersion?: number | null;
         };
         SaveSupplierRequest: {
             name: string;
@@ -8870,6 +8888,8 @@ export interface components {
             phone?: string | null;
             email?: string | null;
             vatNumber?: string | null;
+            /** Format: int32 */
+            expectedRowVersion?: number | null;
         };
         SendTestEmailRequest: {
             to: string;
@@ -9126,6 +9146,8 @@ export interface components {
             phone?: string | null;
             email?: string | null;
             vatNumber?: string | null;
+            /** Format: int32 */
+            rowVersion: number;
         };
         SupplierVatResponse: {
             /** Format: double */
@@ -9202,6 +9224,8 @@ export interface components {
         UpdateUserRequest: {
             name: string;
             roleIds: number[];
+            /** Format: int32 */
+            expectedRowVersion?: number | null;
         };
         UserSummary: {
             /** Format: int64 */
@@ -9213,6 +9237,8 @@ export interface components {
             isLockedOut: boolean;
             roles: components["schemas"]["RoleSummary"][];
             effectivePermissions: string[];
+            /** Format: int32 */
+            rowVersion: number;
         };
         VatRateAppliedResponse: {
             /** Format: int32 */

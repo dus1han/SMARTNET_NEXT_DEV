@@ -41,11 +41,23 @@ export const createUser = (username: string, name: string, roleIds: number[]) =>
     body: { username, name, roleIds },
   });
 
-/** `reason` is mandatory: the server rejects a permission change that does not explain itself. */
-export const updateUser = (id: number, name: string, roleIds: number[], reason: string) =>
+/**
+ * `reason` is mandatory: the server rejects a permission change that does not explain itself.
+ *
+ * `expectedRowVersion` is the version the editor was opened on. This request replaces the user's whole
+ * role set, so two administrators saving at once does not merely lose one edit — it can silently put
+ * back a role the other has just removed. A stale one is refused with a 409.
+ */
+export const updateUser = (
+  id: number,
+  name: string,
+  roleIds: number[],
+  reason: string,
+  expectedRowVersion: number,
+) =>
   api<void>(`/api/users/${id}`, {
     method: "PUT",
-    body: { name, roleIds },
+    body: { name, roleIds, expectedRowVersion },
     reason,
   });
 

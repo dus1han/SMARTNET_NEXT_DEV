@@ -57,7 +57,8 @@ public sealed class NumberingController : ControllerBase
 
                 // What the next document will actually be called. This is the number that matters
                 // to whoever is reading this screen, and it is far more use than the template.
-                Example: s.Format(s.NextNumber, today)))
+                Example: s.Format(s.NextNumber, today),
+                RowVersion: s.RowVersion))
             .ToList());
     }
 
@@ -87,10 +88,29 @@ public sealed class NumberingController : ControllerBase
             return NotFound();
         }
 
+        // The one setting where a silently lost edit reissues numbers already printed on documents:
+        // two administrators changing a prefix at once, and the second overwriting the first, is how a
+        // series ends up producing a number that is already on a customer's invoice.
+        if (this.StaleEdit(series, request.ExpectedRowVersion, "numbering series") is { } stale)
+        {
+            return stale;
+        }
+
         series.Prefix = request.Prefix;
         series.Padding = request.Padding;
 
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title:
+                    "Someone else changed this numbering series while you were editing it. Reload to "
+                    + "see their version, then make your changes again.");
+        }
 
         return NoContent();
     }

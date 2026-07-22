@@ -143,8 +143,26 @@ public sealed class SuppliersController : ControllerBase
             return NotFound();
         }
 
+        if (this.StaleEdit(supplier, request.ExpectedRowVersion, "supplier") is { } stale)
+        {
+            return stale;
+        }
+
         Apply(supplier, request);
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Two saves that both passed the check above; the token in the UPDATE separates them.
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title:
+                    "Someone else changed this supplier while you were editing it. Reload to see their "
+                    + "version, then make your changes again.");
+        }
 
         return NoContent();
     }
@@ -250,5 +268,7 @@ public sealed class SuppliersController : ControllerBase
             s.Address,
             s.Phone,
             s.Email,
-            s.VatNumber);
+            s.VatNumber,
+            // The version the edit screen echoes back, so a concurrent save is refused.
+            s.RowVersion);
 }

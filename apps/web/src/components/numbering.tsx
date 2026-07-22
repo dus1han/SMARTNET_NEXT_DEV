@@ -53,7 +53,7 @@ export function Numbering({ companyId, onError, onDone }: {
             key={s.id}
             series={s}
             onSave={(prefix, padding, why) =>
-              saveSeries(s.id, prefix, padding, why, companyId)
+              saveSeries(s.id, prefix, padding, why, companyId, s.rowVersion)
                 .then(() => {
                   onDone(`${s.docType} numbering saved.`);
                   void refresh();

@@ -163,9 +163,31 @@ public sealed class CustomersController : ControllerBase
             return NotFound();
         }
 
+        // Two people on one customer used to end with the second save winning and the first person's
+        // change gone, unremarked. The version they loaded has to still be the current one.
+        if (this.StaleEdit(customer, request.ExpectedRowVersion, "customer") is { } stale)
+        {
+            return stale;
+        }
+
         Apply(customer, request);
         ReconcileContacts(customer, request.Contacts);
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // The check above closes the window it can see; the token in the UPDATE closes the one it
+            // cannot, when two saves pass the check together. Caught so the loser gets a 409 that says
+            // what happened rather than a 500 that says the server broke.
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title:
+                    "Someone else changed this customer while you were editing it. Reload to see their "
+                    + "version, then make your changes again.");
+        }
 
         return NoContent();
     }
@@ -360,7 +382,10 @@ public sealed class CustomersController : ControllerBase
             c.Contacts
                 .OrderBy(ct => ct.Id)
                 .Select(ct => new CustomerContactDto(ct.Id, ct.Name, ct.Phone, ct.Email, ct.Usage))
-                .ToList());
+                .ToList(),
+            // The version the edit screen will echo back, so a concurrent save is refused rather than
+            // silently overwriting whoever got there first.
+            c.RowVersion);
 
     /// <summary>
     /// Reconciles the customer's contact rows to the request's list, and dual-writes the legacy

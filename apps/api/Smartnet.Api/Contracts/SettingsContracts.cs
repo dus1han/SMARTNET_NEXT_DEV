@@ -23,7 +23,10 @@ public sealed record CompanyProfile(
     string? BankAccountName,
     string? BankAccountNumber,
     string? BrandColour,
-    bool HasLogo);
+    bool HasLogo,
+    // Read back on load and echoed on save, so two administrators editing the company profile cannot
+    // overwrite each other. Doubles as the request field — this record is both the read and the write.
+    int RowVersion = 0);
 
 public sealed record BusinessRule(string Key, string Value);
 
@@ -229,14 +232,23 @@ public sealed record DocumentSeriesDto(
     string Prefix,
     long NextNumber,
     int Padding,
-    string Example);
+    string Example,
+    // Echoed back on save so a concurrent edit is refused.
+    int RowVersion = 0);
 
 /// <remarks>
 /// There is no NextNumber here, deliberately. Typing a counter into a settings form is how somebody
 /// reissues invoice 1200 by accident. The counter moves only by allocating a document, or by the
 /// initialiser — which cannot move it backwards.
 /// </remarks>
-public sealed record SaveDocumentSeriesRequest(string Prefix, int Padding);
+/// <param name="ExpectedRowVersion">
+/// The version the edit started from. Required, and refused when stale — a numbering series is the one
+/// setting where a lost edit reissues numbers that are already printed on documents.
+/// </param>
+public sealed record SaveDocumentSeriesRequest(
+    string Prefix,
+    int Padding,
+    int? ExpectedRowVersion = null);
 
 public sealed record PreviewNumberRequest(string Prefix, long NextNumber, int Padding);
 

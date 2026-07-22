@@ -159,16 +159,21 @@ export const sendTestEmail = (to: string, companyId: number) =>
 export const getNumbering = (companyId: number) =>
   api<DocumentSeries[]>("/api/settings/numbering", { companyId });
 
+/**
+ * `expectedRowVersion` is the version the row was loaded on. A numbering series is the one setting
+ * where a silently lost edit reissues numbers already printed on documents, so a stale one is a 409.
+ */
 export const saveSeries = (
   id: number,
   prefix: string,
   padding: number,
   reason: string,
   companyId: number,
+  expectedRowVersion: number,
 ) =>
   api<void>(`/api/settings/numbering/${id}`, {
     method: "PUT",
-    body: { prefix, padding },
+    body: { prefix, padding, expectedRowVersion },
     reason,
     companyId,
   });

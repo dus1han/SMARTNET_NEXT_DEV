@@ -335,7 +335,11 @@ function CustomerDialog({ target, companies, bands, onClose, onSaved }: {
   const save = useMutation({
     mutationFn: async (values: CustomerForm): Promise<void> => {
       const request = { ...toRequest(values), contacts: toContactDtos(contacts) };
-      if (editing) await updateCustomer(editing.id, request);
+
+      // The version this form was opened on. The server refuses the save if the customer has moved on
+      // since — otherwise two people editing one customer ends with the second silently winning and the
+      // first person's change gone with no error and no trace.
+      if (editing) await updateCustomer(editing.id, { ...request, expectedRowVersion: editing.rowVersion });
       else await createCustomer(request);
     },
     onSuccess: () => {

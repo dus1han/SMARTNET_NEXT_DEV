@@ -158,8 +158,27 @@ public sealed class ItemsController : ControllerBase
             return NotFound();
         }
 
+        // An item's selling price and cost are money. Two people repricing at once and the second
+        // silently winning is the worst version of this bug in the system.
+        if (this.StaleEdit(item, request.ExpectedRowVersion, "item") is { } stale)
+        {
+            return stale;
+        }
+
         Apply(item, request);
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title:
+                    "Someone else changed this item while you were editing it. Reload to see their "
+                    + "version, then make your changes again.");
+        }
 
         return NoContent();
     }
@@ -312,7 +331,9 @@ public sealed class ItemsController : ControllerBase
         i.ReorderLevel,
         i.Unit,
         balance,
-        i.ReorderLevel.HasValue && balance <= i.ReorderLevel.Value);
+        i.ReorderLevel.HasValue && balance <= i.ReorderLevel.Value,
+        // The version the edit screen echoes back, so a concurrent save is refused.
+        i.RowVersion);
 
     private static void Apply(Item item, SaveItemRequest request)
     {

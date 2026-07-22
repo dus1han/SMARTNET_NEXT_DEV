@@ -34,7 +34,8 @@ public sealed class RolesController : ControllerBase
                 role.Description,
                 role.IsSystem,
                 role.CompanyId,
-                role.Permissions.Select(p => p.Permission).ToList()))
+                role.Permissions.Select(p => p.Permission).ToList(),
+                role.RowVersion))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false));
 
@@ -84,7 +85,8 @@ public sealed class RolesController : ControllerBase
 
         return Ok(new RoleSummary(
             role.Id, role.Name, role.Description, role.IsSystem, role.CompanyId,
-            [.. role.Permissions.Select(p => p.Permission)]));
+            [.. role.Permissions.Select(p => p.Permission)],
+            role.RowVersion));
     }
 
     [HttpPut("{id:long}")]
@@ -112,6 +114,13 @@ public sealed class RolesController : ControllerBase
             return Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: $"'{role.Name}' is a system role and its permissions cannot be changed.");
+        }
+
+        // A role is a set of permissions held by everyone in it, so two administrators saving at once
+        // does not lose one edit — it silently re-grants, or revokes, across every user in the role.
+        if (this.StaleEdit(role, request.ExpectedRowVersion, "role") is { } stale)
+        {
+            return stale;
         }
 
         if (!CanGrant(request.Permissions, out var refusal))

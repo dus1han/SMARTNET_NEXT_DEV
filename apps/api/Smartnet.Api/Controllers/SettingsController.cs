@@ -142,6 +142,13 @@ public sealed class SettingsController : ControllerBase
             return NotFound();
         }
 
+        // CompanyProfile is both the read and the write shape, so the version the screen loaded comes
+        // back on the same field it was read from.
+        if (this.StaleEdit(company, request.RowVersion, "company profile") is { } stale)
+        {
+            return stale;
+        }
+
         company.Name = request.Name;
         company.IsVatRegistered = request.IsVatRegistered;
 
@@ -656,5 +663,7 @@ public sealed class SettingsController : ControllerBase
         c.AddressLine1, c.AddressLine2, c.City, c.Country,
         c.Phone, c.Email, c.Website,
         c.BankName, c.BankBranch, c.BankAccountName, c.BankAccountNumber,
-        c.BrandColour, hasLogo);
+        c.BrandColour, hasLogo,
+        // The version the settings screen echoes back, so two administrators cannot overwrite each other.
+        c.RowVersion);
 }

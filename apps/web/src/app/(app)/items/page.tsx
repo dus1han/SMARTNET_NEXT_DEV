@@ -294,7 +294,10 @@ function ItemDialog({ target, onClose, onSaved }: {
   const save = useMutation({
     mutationFn: async (values: ItemForm): Promise<void> => {
       const payload = toRequest(values);
-      if (editing) await updateItem(editing.id, payload);
+
+      // expectedRowVersion: the version this form was opened on. It matters most here — a selling price
+      // two people change at once, with the second silently winning, is money.
+      if (editing) await updateItem(editing.id, { ...payload, expectedRowVersion: editing.rowVersion });
       else await createItem(payload);
     },
     onSuccess: () => {

@@ -28,7 +28,10 @@ public sealed record CustomerSummary(
     long? ProfitPercentId,
     decimal CreditLimit,
     // The structured contacts — the source of truth the document contact-pickers now read.
-    IReadOnlyList<CustomerContactDto> Contacts);
+    IReadOnlyList<CustomerContactDto> Contacts,
+    // The version the caller is editing, echoed back on save so a concurrent edit is refused (409)
+    // rather than silently overwriting whoever saved first. Defaulted so existing callers still bind.
+    int RowVersion = 0);
 
 /// <remarks>
 /// No code field: on create the server allocates one from the shared sequence; on edit the code is
@@ -48,7 +51,17 @@ public sealed record SaveCustomerRequest(
     decimal CreditLimit,
     // The structured contacts. When present, the customer's contact rows are reconciled to this list and
     // the legacy contactp/email columns are dual-written (;-joined) from it. Null leaves contacts untouched.
-    IReadOnlyList<CustomerContactDto>? Contacts = null);
+    IReadOnlyList<CustomerContactDto>? Contacts = null,
+    /// <summary>
+    /// The <c>row_version</c> the edit was started from. Refused with 409 if the record has moved on.
+    /// </summary>
+    /// <remarks>
+    /// Null means "no version supplied", which is only valid on create — an update without one is
+    /// refused. It is not defaulted to 0 and waved through: a caller that has simply forgotten to send
+    /// it would then get the old silent-overwrite behaviour back, which is the failure this exists to
+    /// end. Ignored on create, where there is nothing yet to conflict with.
+    /// </remarks>
+    int? ExpectedRowVersion = null);
 
 public sealed record CreateCustomerResponse(long Id, string Code);
 
@@ -71,7 +84,9 @@ public sealed record SupplierSummary(
     string? Address,
     string? Phone,
     string? Email,
-    string? VatNumber);
+    string? VatNumber,
+    // Echoed back on save so a concurrent edit is refused rather than silently overwriting.
+    int RowVersion = 0);
 
 public sealed record SaveSupplierRequest(
     string Name,
@@ -79,7 +94,9 @@ public sealed record SaveSupplierRequest(
     string? Address,
     string? Phone,
     string? Email,
-    string? VatNumber);
+    string? VatNumber,
+    /// <summary>The version the edit started from. Required on update; ignored on create.</summary>
+    int? ExpectedRowVersion = null);
 
 public sealed record CreateSupplierResponse(long Id, string Code);
 
@@ -96,14 +113,19 @@ public sealed record ItemSummary(
     decimal? ReorderLevel,
     string? Unit,
     decimal StockBalance,
-    bool BelowReorder);
+    bool BelowReorder,
+    // Echoed back on save so a concurrent edit is refused rather than silently overwriting. It matters
+    // more here than most: a selling price two people change at once is money.
+    int RowVersion = 0);
 
 public sealed record SaveItemRequest(
     string Name,
     decimal? SellingPrice,
     decimal? Cost,
     decimal? ReorderLevel,
-    string? Unit);
+    string? Unit,
+    /// <summary>The version the edit started from. Required on update; ignored on create.</summary>
+    int? ExpectedRowVersion = null);
 
 public sealed record CreateItemResponse(long Id, string Code);
 

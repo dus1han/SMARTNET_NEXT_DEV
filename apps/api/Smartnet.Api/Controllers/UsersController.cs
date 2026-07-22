@@ -189,8 +189,28 @@ public sealed class UsersController : ControllerBase
             return NotFound();
         }
 
+        // Before anything is written, and before the roles are reassigned below. This request replaces
+        // the user's whole role set, so a stale one does not just lose a name change — it can put back a
+        // role another administrator has just taken away, which is a privilege the person should not have.
+        if (this.StaleEdit(user, request.ExpectedRowVersion, "user") is { } stale)
+        {
+            return stale;
+        }
+
         user.Name = request.Name;
-        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title:
+                    "Someone else changed this user while you were editing it. Reload to see their "
+                    + "version, then make your changes again.");
+        }
 
         await AssignRoles(id, request.RoleIds, cancellationToken).ConfigureAwait(false);
 
@@ -484,7 +504,9 @@ public sealed class UsersController : ControllerBase
             user.MustChangePassword,
             user.IsLockedOut(_time.GetUtcNow().UtcDateTime),
             roles,
-            [.. effective.Order(StringComparer.Ordinal)]);
+            [.. effective.Order(StringComparer.Ordinal)],
+            // The version the edit screen echoes back, so two administrators cannot overwrite each other.
+            user.RowVersion);
     }
 
     private long CurrentUserId => long.Parse(
