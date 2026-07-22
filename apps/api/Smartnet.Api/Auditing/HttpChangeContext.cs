@@ -74,4 +74,15 @@ public static class SmartnetClaims
 
     public const string Permission = "perm";
     public const string MustChangePassword = "must_change_password";
+
+    /// <summary>
+    /// When the session began — carried unchanged through every renewal, as Unix seconds.
+    /// </summary>
+    /// <remarks>
+    /// A renewing session needs two clocks, not one. The token's own <c>exp</c> is the idle limit and
+    /// moves every time it is renewed; this one never moves, and is what bounds the whole session. Without
+    /// it "renew while in use" means a cookie that, once stolen, stays valid for as long as somebody keeps
+    /// using it — which is to say, forever.
+    /// </remarks>
+    public const string SessionStart = "sst";
 }

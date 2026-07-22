@@ -1,9 +1,10 @@
 /**
  * What happens when the server says you are no longer signed in.
  *
- * Sessions here are a hard wall: the token lasts an hour, there is no refresh path, and
- * `ClockSkew` is zero on the server. So expiry mid-task is normal, not exceptional, and the app has to
- * have an answer for it. It did not — this module is that answer.
+ * A session lasts an hour and now renews while it is being used, so ordinary work no longer walks into
+ * the wall. It still ends: idle for an hour, or twelve hours after signing in however busy, and
+ * `ClockSkew` is zero on the server. So expiry mid-task remains normal rather than exceptional — rarer,
+ * but still something the app must have an answer for. It did not — this module is that answer.
  *
  * ## What was wrong
  *

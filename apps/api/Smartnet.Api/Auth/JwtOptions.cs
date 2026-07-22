@@ -41,4 +41,17 @@ public sealed class JwtOptions
     /// </remarks>
     [Range(5, 480)]
     public int AccessTokenMinutes { get; init; } = 60;
+
+    /// <summary>
+    /// The longest a session may live, however continuously it is used. Measured from sign-in.
+    /// </summary>
+    /// <remarks>
+    /// The other half of renewal. <see cref="AccessTokenMinutes"/> is now an idle limit — it moves each
+    /// time the token is renewed — and on its own that means a session stays alive for as long as somebody
+    /// keeps making requests with it, which is the honest cost of sliding expiry: a stolen cookie in
+    /// active use never lapses. This is the backstop that makes the trade acceptable. Twelve hours is
+    /// longer than a working day and far short of indefinite.
+    /// </remarks>
+    [Range(1, 168)]
+    public int AbsoluteSessionHours { get; init; } = 12;
 }

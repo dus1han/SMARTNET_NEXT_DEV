@@ -30,13 +30,18 @@ public sealed class JwtTokenService
     /// The companies this user may act in, resolved at sign-in. The company switcher picks one of
     /// these; anything else is ignored. The client never gets to assert its own access.
     /// </param>
+    /// <param name="sessionStartUtc">
+    /// When the session began, for a renewal; null for a fresh sign-in, which starts one now.
+    /// </param>
     public (string Token, DateTime ExpiresAt) Issue(
         User user,
         IReadOnlySet<string> permissions,
-        IReadOnlyList<long> companyIds)
+        IReadOnlyList<long> companyIds,
+        DateTime? sessionStartUtc = null)
     {
         var now = _time.GetUtcNow().UtcDateTime;
         var expires = now.AddMinutes(_options.AccessTokenMinutes);
+        var sessionStart = sessionStartUtc ?? now;
 
         var claims = new List<Claim>
         {
@@ -45,6 +50,13 @@ public sealed class JwtTokenService
             new(ClaimTypes.NameIdentifier, user.Id.ToString(CultureInfo.InvariantCulture)),
             new(ClaimTypes.Name, user.Username ?? string.Empty),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+
+            // Survives every renewal, so the absolute cap is measured from the real beginning of the
+            // session rather than from the last time it happened to be renewed.
+            new(
+                SmartnetClaims.SessionStart,
+                new DateTimeOffset(sessionStart, TimeSpan.Zero).ToUnixTimeSeconds()
+                    .ToString(CultureInfo.InvariantCulture)),
         };
 
         // Carried in the token so that every endpoint can refuse to do anything except change the

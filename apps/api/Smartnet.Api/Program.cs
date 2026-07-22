@@ -362,6 +362,13 @@ app.UseCors();
 app.UseRateLimiter();
 
 app.UseAuthentication();
+
+// Between authentication and authorization, on purpose. It needs the claims, so it cannot run earlier;
+// and it must not depend on the request being authorized, because a request that is about to be refused
+// still proves the session is in use. Renewing before the endpoint runs also guarantees the response has
+// not started, which is the only moment a cookie can still be written.
+app.UseMiddleware<SlidingSessionMiddleware>();
+
 app.UseAuthorization();
 
 // After UseAuthorization, so the claims exist to inspect; before the endpoints, so that a user
