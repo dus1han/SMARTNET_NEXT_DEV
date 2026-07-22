@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
 import { createDraftSaver, saveDelayMs, type DraftSaver } from "@/lib/draft-saver";
 import {
@@ -93,6 +93,14 @@ export interface DraftAutosave {
   /** Why autosave stopped, when it did. */
   error: ApiError | null;
   /**
+   * Autosave has stopped for good on this screen — discarded, raised, or beaten by a colleague.
+   *
+   * The screen must not go on telling somebody their work is being kept once this is true. It briefly
+   * did: discarding set the status back to `idle`, and the idle line reads "your work is saved as a
+   * draft as you type", which was then a lie — carry on typing, close the tab, lose the lot.
+   */
+  stopped: boolean;
+  /**
    * A colleague has saved this draft, so this screen must not raise the document.
    *
    * <b>Two people holding one draft could otherwise raise it twice</b>, and that is not a lost draft —
@@ -139,6 +147,26 @@ export function useDraftAutosave<T>({
   const [status, setStatus] = useState<DraftStatus>("idle");
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
+  const [stopped, setStopped] = useState(false);
+
+  const queryClient = useQueryClient();
+
+  /**
+   * Tells the Drafts lists that what they hold is out of date.
+   *
+   * <b>Without this a new draft does not appear until a hard refresh.</b> Queries are fresh for 30
+   * seconds app-wide (`providers.tsx`), so starting a draft and going straight back to the list served
+   * the cached page — the row simply was not there, and the feature looked broken at the first thing
+   * anybody tries.
+   *
+   * Invalidating is nearly free here. The lists are not mounted while somebody is on a create screen,
+   * and `invalidateQueries` only refetches *active* queries — so this marks them stale and the refetch
+   * happens when the list is next opened, rather than on every keystroke's save.
+   */
+  const invalidateLists = useCallback(
+    () => void queryClient.invalidateQueries({ queryKey: ["drafts", docType] }),
+    [queryClient, docType],
+  );
 
   // The ordering — one request at a time, nothing dropped, stop for good on a conflict — lives in
   // `createDraftSaver`, where it is tested without React. This hook is the debounce, the DOM events and
@@ -160,10 +188,13 @@ export function useDraftAutosave<T>({
           setSavedAt(new Date());
           setStatus("saved");
           setError(null);
+          invalidateLists();
         },
         onFailed: (failure, conflict) => {
           setError(failure as ApiError);
           setStatus(conflict ? "conflict" : "error");
+          // A conflict is terminal: the saver has stopped and will not send again.
+          if (conflict) setStopped(true);
         },
       },
     ),
@@ -265,23 +296,43 @@ export function useDraftAutosave<T>({
   }, [saver]);
 
   const discard = useCallback(async () => {
+    // Stopped before the delete, not after: an autosave landing in between would recreate the row that
+    // is about to be removed, and the user would find the draft they just discarded back in the list.
     const id = saver.stop();
 
+    setStopped(true);
     setDraftId(null);
     setStatus("idle");
     setSavedAt(null);
 
+    // Deliberately not caught. The screen awaits this and keeps its dialog open on a failure, because
+    // "discarded" is not something to report when the row is still there.
     if (id !== null) await deleteDraft(id);
-  }, [saver]);
+
+    invalidateLists();
+  }, [saver, invalidateLists]);
 
   const clear = useCallback(() => {
     const id = saver.stop();
+    setStopped(true);
 
     // Not awaited: the document is raised and the screen is navigating. See the interface's remarks.
     if (id !== null) void deleteDraft(id).catch(() => {});
-  }, [saver]);
 
-  return { status, savedAt, draftId, error, blocked: status === "conflict", discard, clear };
+    // So the Drafts tab does not still show a draft that has just become a document.
+    invalidateLists();
+  }, [saver, invalidateLists]);
+
+  return {
+    status,
+    savedAt,
+    draftId,
+    error,
+    stopped,
+    blocked: status === "conflict",
+    discard,
+    clear,
+  };
 }
 
 export interface DraftResume {

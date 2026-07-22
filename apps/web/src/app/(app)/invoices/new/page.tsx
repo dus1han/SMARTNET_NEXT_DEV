@@ -243,7 +243,7 @@ function NewInvoiceForm() {
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
 
       <DraftNotices resume={resume} />
-      <DraftStatus draft={draft} noun="invoice" />
+      <DraftStatus draft={draft} noun="invoice" returnHref="/invoices" />
 
       <Card className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
         <Select label="Company" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>

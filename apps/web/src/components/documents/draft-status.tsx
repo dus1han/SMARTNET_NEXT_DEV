@@ -9,8 +9,10 @@
  */
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CloudOff, Cloud, Loader2, Trash2, TriangleAlert } from "lucide-react";
-import { Button, Dialog, ErrorBanner } from "@/components/ui";
+import { ApiError } from "@/lib/api";
+import { Button, Dialog, ErrorBanner, toast } from "@/components/ui";
 import type { DraftAutosave, DraftResume } from "./use-draft-autosave";
 
 /**
@@ -47,18 +49,37 @@ export function DraftNotices({ resume }: { resume: DraftResume }) {
   return null;
 }
 
-export function DraftStatus({ draft, noun }: { draft: DraftAutosave; noun: string }) {
+export function DraftStatus({ draft, noun, returnHref }: {
+  draft: DraftAutosave;
+  noun: string;
+  /** Where discarding lands — the document's list. */
+  returnHref: string;
+}) {
+  const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  const [failed, setFailed] = useState<ApiError | null>(null);
 
+  /**
+   * Discards, then leaves.
+   *
+   * <b>It used to stay put</b>, on the reasoning that "discard the draft" asks to delete the saved copy
+   * and not to wipe the screen. That was wrong twice over: nothing visibly happened, so the button read
+   * as broken — and the form left behind was no longer being saved, while the line under the heading
+   * still said it was. Going back to the list is what "discard" plainly means.
+   */
   async function discard() {
     setDiscarding(true);
+    setFailed(null);
     try {
       await draft.discard();
       setConfirming(false);
-      // Deliberately no toast and no navigation: the user is still on the screen they were typing in,
-      // and the form is untouched — only the saved copy is gone. Emptying the form for them would
-      // destroy the work they can still see, which is not what "discard the draft" asked for.
+      toast.success(`Draft ${noun} discarded.`);
+      router.push(returnHref);
+    } catch (e) {
+      // Stay, and say so. Reporting it as discarded while the row is still there is the one outcome
+      // worth avoiding — the user would go looking for it in the list and find it.
+      setFailed(e as ApiError);
     } finally {
       setDiscarding(false);
     }
@@ -83,8 +104,8 @@ export function DraftStatus({ draft, noun }: { draft: DraftAutosave; noun: strin
         title={`Discard this draft ${noun}?`}
         description={
           <>
-            The saved copy is deleted and cannot be recovered. What is on screen stays where it is — so
-            if you carry on typing, a new draft is started.
+            It is deleted and cannot be recovered, and you will be taken back to the list. Nothing has
+            been raised, so nothing is cancelled — but the work typed into it is gone.
           </>
         }
         footer={
@@ -97,7 +118,9 @@ export function DraftStatus({ draft, noun }: { draft: DraftAutosave; noun: strin
             </Button>
           </>
         }
-      />
+      >
+        {failed && <ErrorBanner message={failed.message} correlationId={failed.correlationId} />}
+      </Dialog>
     </>
   );
 }
@@ -154,6 +177,18 @@ function Indicator({ draft }: { draft: DraftAutosave }) {
       <span className="flex items-center gap-2 text-muted">
         <Cloud className="size-4 shrink-0" aria-hidden />
         Draft saved {agoLabel(draft.savedAt)}.
+      </span>
+    );
+  }
+
+  // Autosave has stopped and is not coming back — the draft was discarded, or its delete failed. Saying
+  // "your work is saved as you type" here would be the exact false reassurance this feature exists to
+  // remove: the user carries on typing, closes the tab, and loses everything.
+  if (draft.stopped) {
+    return (
+      <span className="flex items-center gap-2 text-warning-text">
+        <CloudOff className="size-4 shrink-0" aria-hidden />
+        This is no longer being saved as a draft. Raise it, or copy anything you need before leaving.
       </span>
     );
   }
