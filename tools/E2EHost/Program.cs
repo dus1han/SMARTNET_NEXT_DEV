@@ -68,7 +68,12 @@ await using (var db = new SmartnetDbContext(SeedOptions(conn, change)))
 
     // Numbering series: an invoice series (Phase 5) and the Phase 6 PO and job-card series. Supplier
     // invoices carry the supplier's own reference and are not numbered, so they need no series.
+    //
+    // A missing series is a 500, not a quiet fallback — DocumentNumberAllocator refuses to invent one
+    // rather than reissue numbers that are already printed on documents. So every document type a spec
+    // raises needs one here, and the quotation series was absent until a spec tried to raise one.
     db.DocumentSeries.Add(new DocumentSeries { CompanyId = company.Id, DocType = DocumentTypes.Invoice, Prefix = "E2E-", NextNumber = 1, Padding = 0 });
+    db.DocumentSeries.Add(new DocumentSeries { CompanyId = company.Id, DocType = DocumentTypes.Quotation, Prefix = "E2EQ-", NextNumber = 1, Padding = 0 });
     db.DocumentSeries.Add(new DocumentSeries { CompanyId = company.Id, DocType = DocumentTypes.PurchaseOrder, Prefix = "E2EPO-", NextNumber = 1, Padding = 0 });
     db.DocumentSeries.Add(new DocumentSeries { CompanyId = company.Id, DocType = DocumentTypes.JobCard, Prefix = "E2EJOB-", NextNumber = 1, Padding = 0 });
 

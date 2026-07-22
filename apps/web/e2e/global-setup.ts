@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { setTimeout as sleep } from "node:timers/promises";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { API_URL, WEB_URL } from "./seed";
 
@@ -63,6 +64,16 @@ function startHost(): Promise<{ proc: ChildProcess; conn: string }> {
 function startApi(conn: string): ChildProcess {
   const exe = path.join(ROOT, "apps/api/Smartnet.Api/bin/Debug/net10.0/Smartnet.Api.exe");
   log(`starting API on ${API_URL} against the throwaway DB…`);
+
+  // The data-protection key ring. Program.cs refuses to start without one — deliberately, so that a
+  // deployment cannot put it somewhere a redeploy destroys and take every stored password with it.
+  // That check was added after this harness was written, so the whole suite had stopped starting: the
+  // API exited immediately and every spec failed at "API did not become ready".
+  //
+  // A fresh directory per run, thrown away with the run. Nothing it protects outlives the throwaway
+  // database it is protecting things in.
+  const keys = fs.mkdtempSync(path.join(os.tmpdir(), "smartnet-e2e-dpkeys-"));
+
   const proc = spawn(exe, [], {
     cwd: path.dirname(exe),
     stdio: ["ignore", "pipe", "pipe"],
@@ -75,6 +86,7 @@ function startApi(conn: string): ChildProcess {
       Jwt__Issuer: "smartnet",
       Jwt__Audience: "smartnet",
       Cors__WebOrigin: WEB_URL,
+      DataProtection__KeyPath: keys,
     },
   });
   pipe(proc, "api");
