@@ -1,5 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { readPayload, writePayload } from "./drafts";
+import { ACTIVE_WINDOW_MS, activeElsewhere, readPayload, writePayload } from "./drafts";
+
+/**
+ * Drafts are shared, so two people can open one. The badge on the Drafts list is the only warning
+ * anybody gets before they start typing — after that, the first to save wins and the other is locked
+ * out of raising it. So it has to warn about the right person.
+ */
+describe("activeElsewhere", () => {
+  // The API sends UTC without a zone, which is why this goes through instantFromApi rather than Date.
+  const at = (msAgo: number) => new Date(Date.now() - msAgo).toISOString().replace("Z", "");
+  const now = Date.now();
+
+  it("warns when a colleague saved it moments ago", () => {
+    expect(activeElsewhere({ updatedById: 2, updatedAt: at(5_000) }, 1, now)).toBe(true);
+  });
+
+  it("says nothing about a draft you saved yourself", () => {
+    // Your own autosave fires every few seconds. A badge on your own row would fire constantly and
+    // teach people to ignore it — which would cost them the one time it mattered.
+    expect(activeElsewhere({ updatedById: 1, updatedAt: at(5_000) }, 1, now)).toBe(false);
+  });
+
+  it("stops warning once the draft has gone quiet", () => {
+    expect(activeElsewhere({ updatedById: 2, updatedAt: at(ACTIVE_WINDOW_MS + 1_000) }, 1, now))
+      .toBe(false);
+  });
+
+  it("warns a signed-out or unknown viewer rather than staying silent", () => {
+    // No viewer id means we cannot prove it is not somebody else, and silence is the worse guess.
+    expect(activeElsewhere({ updatedById: 2, updatedAt: at(5_000) }, null, now)).toBe(true);
+  });
+
+  it("says nothing when there is no author or no usable timestamp", () => {
+    expect(activeElsewhere({ updatedById: null, updatedAt: at(5_000) }, 1, now)).toBe(false);
+    expect(activeElsewhere({ updatedById: 2, updatedAt: "not a date" }, 1, now)).toBe(false);
+  });
+});
 
 /**
  * A draft is written by one deployment of a create screen and read back by whichever one happens to be

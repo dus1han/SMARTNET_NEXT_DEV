@@ -366,7 +366,15 @@ function NewInvoiceForm() {
             </div>
           )}
 
-          <Button className="mt-2 w-full" onClick={attemptSubmit} pending={submitting} disabled={!canSubmit}>
+          {/* draft.blocked: a colleague has moved this draft on, so this screen is working from a
+              version they have already replaced. Raising it here would issue a second invoice for the
+              same customer — see DraftAutosave.blocked. */}
+          <Button
+            className="mt-2 w-full"
+            onClick={attemptSubmit}
+            pending={submitting}
+            disabled={!canSubmit || draft.blocked}
+          >
             Raise invoice
           </Button>
         </Card>

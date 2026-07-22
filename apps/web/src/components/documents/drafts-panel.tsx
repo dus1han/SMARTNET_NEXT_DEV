@@ -15,12 +15,19 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FilePenLine, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
+import { me } from "@/lib/auth";
 import { cn } from "@/lib/cn";
-import { deleteDraft, listDrafts, type DraftDocType, type DraftSummary } from "@/lib/drafts";
+import {
+  activeElsewhere,
+  deleteDraft,
+  listDrafts,
+  type DraftDocType,
+  type DraftSummary,
+} from "@/lib/drafts";
 import { instantFromApi } from "@/lib/time";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { formatMoney } from "@/components/reports";
-import { Button, Dialog, ErrorBanner, toast } from "@/components/ui";
+import { Badge, Button, Dialog, ErrorBanner, toast } from "@/components/ui";
 
 /** Which half of a list screen is showing: the documents it has raised, or the ones it has not. */
 export type DocumentView = "issued" | "drafts";
@@ -114,6 +121,10 @@ export function DraftsPanel({ docType, resumeHref, noun, partyLabel }: DraftsPan
   const drafts = useQuery({ queryKey: ["drafts", docType], queryFn: () => listDrafts(docType) });
   const error = drafts.error as ApiError | null;
 
+  // Who is looking, so a draft this user saved themselves is not reported as somebody else editing it.
+  const viewer = useQuery({ queryKey: ["me"], queryFn: me });
+  const viewerId = viewer.data?.userId ?? null;
+
   const discard = useMutation({
     mutationFn: (draft: DraftSummary) => deleteDraft(draft.id),
     onSuccess: async () => {
@@ -132,7 +143,7 @@ export function DraftsPanel({ docType, resumeHref, noun, partyLabel }: DraftsPan
       )}
 
       <DataTable
-        columns={columns(partyLabel, setDiscarding)}
+        columns={columns(partyLabel, viewerId, setDiscarding)}
         rows={drafts.data}
         loading={drafts.isPending}
         searchable={(row) => `${row.partyName ?? ""} ${row.createdByName ?? ""}`}
@@ -178,6 +189,7 @@ export function DraftsPanel({ docType, resumeHref, noun, partyLabel }: DraftsPan
 
 function columns(
   partyLabel: string,
+  viewerId: number | null,
   onDiscard: (draft: DraftSummary) => void,
 ): ColumnDef<DraftSummary, unknown>[] {
   return [
@@ -227,11 +239,16 @@ function columns(
       accessorFn: (row) => row.updatedByName ?? row.createdByName ?? "",
       header: "Left by",
       // Whoever last typed into it — which, in a shared draft, is not always who started it.
-      cell: ({ row }) => (
-        <span className="text-muted">
-          {row.original.updatedByName ?? row.original.createdByName ?? "—"}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const who = row.original.updatedByName ?? row.original.createdByName ?? "—";
+
+        return (
+          <span className="flex items-center gap-2">
+            <span className="text-muted">{who}</span>
+            {activeElsewhere(row.original, viewerId) && <Badge tone="warning">Being edited</Badge>}
+          </span>
+        );
+      },
     },
     {
       id: "discard",

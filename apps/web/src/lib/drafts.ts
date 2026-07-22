@@ -8,6 +8,7 @@
 
 import type { DraftDetail, DraftSaved, DraftSummary, SaveDraftRequest } from "@smartnet/api-client";
 import { api } from "./api";
+import { instantFromApi } from "./time";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
 export type { DraftDetail, DraftSaved, DraftSummary, SaveDraftRequest } from "@smartnet/api-client";
@@ -59,6 +60,37 @@ export const updateDraft = (
 
 /** Discards a draft, or clears it once its document has been raised. Already-gone is not an error. */
 export const deleteDraft = (id: number) => api<void>(`/api/drafts/${id}`, { method: "DELETE" });
+
+/**
+ * How recently saved counts as "somebody is in this right now".
+ *
+ * Autosave writes at least every five seconds while anybody is typing, so an active editor is never
+ * more than seconds stale; the rest of this window is thinking time — reading the customer's email,
+ * looking up a part number — which is still somebody at the keyboard.
+ */
+export const ACTIVE_WINDOW_MS = 3 * 60 * 1000;
+
+/**
+ * Whether somebody *else* has this draft open right now, as far as can be told.
+ *
+ * <b>Inferred, not observed.</b> There is no presence channel; this reads `updated_at`, which is
+ * already stored, so it over-warns — a colleague who typed two minutes ago and then walked away still
+ * shows as editing. That is the error worth making: a false warning costs a moment's pause, a missed
+ * one costs two people building the same document and one of them being locked out at the end of it.
+ */
+export function activeElsewhere(
+  draft: Pick<DraftSummary, "updatedById" | "updatedAt">,
+  viewerId: number | null,
+  now: number = Date.now(),
+): boolean {
+  // Never about you. Your own draft, saved eight seconds ago by your own autosave, is not a collision —
+  // and a row telling you that you are editing it would teach people to ignore the badge.
+  if (draft.updatedById == null || draft.updatedById === viewerId) return false;
+
+  const at = instantFromApi(draft.updatedAt);
+
+  return at !== null && now - at.getTime() < ACTIVE_WINDOW_MS;
+}
 
 /**
  * The shape a create screen serialises into a draft.

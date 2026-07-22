@@ -245,7 +245,15 @@ function NewPurchaseOrderForm() {
             <Row label="Total" value={formatAmount(totals.total)} strong />
           </div>
 
-          <Button className="mt-2 w-full" onClick={submit} pending={submitting} disabled={!canSubmit}>
+          {/* draft.blocked: a colleague has moved this draft on, so this screen is working from a
+              version they have already replaced. Raising it here would issue a second order to the same
+              supplier — see DraftAutosave.blocked. */}
+          <Button
+            className="mt-2 w-full"
+            onClick={submit}
+            pending={submitting}
+            disabled={!canSubmit || draft.blocked}
+          >
             Raise purchase order
           </Button>
         </Card>

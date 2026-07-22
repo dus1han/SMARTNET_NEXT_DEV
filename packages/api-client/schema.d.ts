@@ -7929,6 +7929,8 @@ export interface components {
             createdByName?: string | null;
             /** Format: date-time */
             updatedAt: string;
+            /** Format: int64 */
+            updatedById?: number | null;
             updatedByName?: string | null;
             /** Format: int32 */
             rowVersion: number;

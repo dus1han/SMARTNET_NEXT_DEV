@@ -92,6 +92,20 @@ export interface DraftAutosave {
   draftId: number | null;
   /** Why autosave stopped, when it did. */
   error: ApiError | null;
+  /**
+   * A colleague has saved this draft, so this screen must not raise the document.
+   *
+   * <b>Two people holding one draft could otherwise raise it twice</b>, and that is not a lost draft —
+   * it is two real quotations, with two numbers, for one customer. Once a save has been refused, this
+   * screen is working from a version somebody else has moved past, so it is no longer entitled to turn
+   * that version into a document. The screens disable their raise button on it.
+   *
+   * <b>What this is not.</b> It is a guard on a screen, not a lock on the draft: reloading the page
+   * clears it, because the reload fetches the current version and the user is then working from what
+   * everyone else has. That is the intended escape hatch, and it is also the limit of this approach —
+   * it stops the accident, not somebody determined to have two documents.
+   */
+  blocked: boolean;
   /** Throw the draft away — the user's decision, from the screen's Discard button. */
   discard: () => Promise<void>;
   /**
@@ -267,7 +281,7 @@ export function useDraftAutosave<T>({
     if (id !== null) void deleteDraft(id).catch(() => {});
   }, [saver]);
 
-  return { status, savedAt, draftId, error, discard, clear };
+  return { status, savedAt, draftId, error, blocked: status === "conflict", discard, clear };
 }
 
 export interface DraftResume {

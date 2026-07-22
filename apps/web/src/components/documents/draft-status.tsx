@@ -119,8 +119,10 @@ function Indicator({ draft }: { draft: DraftAutosave }) {
       <span className="flex items-center gap-2 text-warning-text">
         <TriangleAlert className="size-4 shrink-0" aria-hidden />
         <span>
-          Someone else edited this draft, so it has stopped saving. Your work is still on screen —
-          raise it, or reopen the draft to see their version.
+          A colleague has edited this draft, so it has stopped saving here and cannot be raised from
+          this page — otherwise you would both raise it and the customer would get two documents. Your
+          work is still on screen: copy anything you need, then reload the draft to carry on from their
+          version.
         </span>
       </span>
     );

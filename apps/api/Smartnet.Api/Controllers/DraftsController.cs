@@ -96,6 +96,7 @@ public sealed class DraftsController : ControllerBase
             d.CreatedAt,
             Name(names, d.CreatedBy),
             d.UpdatedAt,
+            d.UpdatedBy,
             Name(names, d.UpdatedBy),
             d.RowVersion)).ToList());
     }

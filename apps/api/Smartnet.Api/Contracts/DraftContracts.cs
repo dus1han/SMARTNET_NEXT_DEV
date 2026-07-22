@@ -7,6 +7,11 @@ namespace Smartnet.Api.Contracts;
 /// The payload is deliberately absent. A list of twenty drafts would otherwise carry twenty serialised
 /// create screens, and the list shows none of it; the payload is fetched only when a draft is resumed.
 /// </remarks>
+/// <param name="UpdatedById">
+/// Who last saved it, by id rather than name. The list needs to know whether that was the person
+/// reading it — "being edited by someone else" must not appear on a draft you are editing yourself —
+/// and comparing display names to answer that would go wrong the first time two people share one.
+/// </param>
 public sealed record DraftSummary(
     long Id,
     string DocType,
@@ -16,6 +21,7 @@ public sealed record DraftSummary(
     DateTime CreatedAt,
     string? CreatedByName,
     DateTime UpdatedAt,
+    long? UpdatedById,
     string? UpdatedByName,
     int RowVersion);
 

@@ -300,7 +300,15 @@ function NewQuotationForm() {
             </div>
           )}
 
-          <Button className="mt-2 w-full" onClick={submit} pending={submitting} disabled={!canSubmit}>
+          {/* draft.blocked: a colleague has moved this draft on, so this screen is working from a
+              version they have already replaced. Raising it here would issue a second quotation for the
+              same customer — see DraftAutosave.blocked. */}
+          <Button
+            className="mt-2 w-full"
+            onClick={submit}
+            pending={submitting}
+            disabled={!canSubmit || draft.blocked}
+          >
             Raise quotation
           </Button>
         </Card>

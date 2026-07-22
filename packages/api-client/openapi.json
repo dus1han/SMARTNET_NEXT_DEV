@@ -11851,6 +11851,11 @@
             "type": "string",
             "format": "date-time"
           },
+          "updatedById": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
           "updatedByName": {
             "type": "string",
             "nullable": true
