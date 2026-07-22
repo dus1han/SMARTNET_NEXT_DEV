@@ -1,9 +1,24 @@
 -- ---------------------------------------------------------------------------
 -- Creates `document_drafts` on live, and grants it to the application user.
 -- ---------------------------------------------------------------------------
--- Run as an account with DDL and GRANT OPTION (root via sudo):
+-- Run as an account with DDL and GRANT OPTION (root via sudo), ON THE SERVER:
 --
---     sudo mysql smartnet_invsys < apply-document-drafts.sql
+--     scp infra/sql/apply-document-drafts.sql deploy@<host>:~/
+--     ssh deploy@<host>
+--     sudo mysql smartnet_invsys < ~/apply-document-drafts.sql
+--
+-- IT CANNOT BE RUN FROM A DEVELOPER MACHINE. `root` is localhost-only on the VPS — a remote attempt is
+-- refused at authentication, not at privileges — and the application's own account has no grants on
+-- `smartnet_invsys` at all, by design (DEVELOPMENT.md), so a mistyped connection string fails loudly
+-- rather than damaging live data. Both were confirmed by trying, on 2026-07-22.
+--
+-- AND IT HAS TO BE COPIED, not pulled: there is no repository checkout on the VPS, and `dotnet` there
+-- is the runtime only (v8, no SDK), so `dotnet ef database update` cannot be run on the server either.
+-- See MIGRATION-DATA-CHECKS.md, "Applying the migrations to live".
+--
+-- STRICT MODE IS NOT A CONCERN HERE. Live runs sql_mode=STRICT_TRANS_TABLES, which is what aborted the
+-- 2026-07-20 migration on a five-digit date. Nothing in this file converts or inserts data: it is a
+-- CREATE with explicit types, an INSERT of two string literals, and a GRANT.
 --
 -- WHY THIS IS A MANUAL STEP. The API does not migrate at startup — there is no Migrate() call in
 -- Program.cs — so a release that adds a table does not create it. That is deliberate: the application's
