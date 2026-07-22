@@ -97,13 +97,3 @@ export function readPayload<T>(payload: string, version: number): T | null {
     return null;
   }
 }
-
-/** The draft id a create screen was opened to resume, from `?draft=`. */
-export function draftIdFromLocation(): number | null {
-  if (typeof window === "undefined") return null;
-
-  const raw = new URLSearchParams(window.location.search).get("draft");
-  const parsed = raw === null ? Number.NaN : Number(raw);
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}

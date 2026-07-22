@@ -15,7 +15,7 @@
  * deleted once it has.
  */
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -31,7 +31,7 @@ import { DRAFT_INVOICE } from "@/lib/drafts";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { AlertTriangle } from "lucide-react";
-import { Button, Card, Dialog, ErrorBanner, FadeIn, Input, Select, toast } from "@/components/ui";
+import { Button, Card, Dialog, ErrorBanner, FadeIn, Input, LoadingPanel, Select, toast } from "@/components/ui";
 import { DraftNotices, DraftStatus } from "@/components/documents/draft-status";
 import { useDraftAutosave, useDraftResume } from "@/components/documents/use-draft-autosave";
 import {
@@ -60,7 +60,20 @@ interface InvoiceDraftState {
   lines: DraftLine[];
 }
 
+/**
+ * `useDraftResume` reads `?draft=` through `useSearchParams`, which forces the client tree up to the
+ * nearest Suspense boundary to be client-rendered — so the boundary is here rather than swallowing the
+ * route. Same reasoning as the sign-in screen.
+ */
 export default function NewInvoicePage() {
+  return (
+    <Suspense fallback={<LoadingPanel label="Opening…" />}>
+      <NewInvoiceForm />
+    </Suspense>
+  );
+}
+
+function NewInvoiceForm() {
   const router = useRouter();
   const companies = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
   const customers = useQuery({ queryKey: ["customers"], queryFn: listCustomers });

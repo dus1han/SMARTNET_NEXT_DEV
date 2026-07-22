@@ -12,6 +12,22 @@
 
 import type { DraftSaved, SaveDraftRequest } from "./drafts";
 
+/**
+ * How long to wait before sending, given how long the oldest unsaved edit has been sitting.
+ *
+ * A plain debounce waits for a pause, and someone typing steadily never gives it one — so their work
+ * is never saved at all while they keep going, and a crash takes all of it. This bounds that: the
+ * debounce still chooses the moment, but never past `maxWaitMs` from the first unsaved keystroke.
+ *
+ * Returns 0 when the ceiling has already been reached, meaning send now.
+ */
+export function saveDelayMs(
+  msSinceOldestUnsaved: number,
+  { debounceMs, maxWaitMs }: { debounceMs: number; maxWaitMs: number },
+): number {
+  return Math.max(0, Math.min(debounceMs, maxWaitMs - msSinceOldestUnsaved));
+}
+
 /** What actually talks to the server. Injected so the ordering can be tested without one. */
 export type SendDraft = (
   /** The row to update, or null to create one. */

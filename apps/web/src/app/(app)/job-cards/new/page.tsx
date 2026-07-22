@@ -13,7 +13,7 @@
  * create call; the draft is deleted once it has.
  */
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -24,7 +24,7 @@ import { listCompanies, listCustomers } from "@/lib/customers";
 import { cn } from "@/lib/cn";
 import { DRAFT_JOB_CARD } from "@/lib/drafts";
 import { PageHeader } from "@/components/shell/app-shell";
-import { Button, Card, ErrorBanner, FadeIn, Input, Select, toast } from "@/components/ui";
+import { Button, Card, ErrorBanner, FadeIn, Input, LoadingPanel, Select, toast } from "@/components/ui";
 import { DraftNotices, DraftStatus } from "@/components/documents/draft-status";
 import { useDraftAutosave, useDraftResume } from "@/components/documents/use-draft-autosave";
 import { CustomerCombobox, customerContactNames } from "@/components/documents/line-draft";
@@ -46,7 +46,20 @@ interface JobCardDraftState {
   lines: Line[];
 }
 
+/**
+ * `useDraftResume` reads `?draft=` through `useSearchParams`, which forces the client tree up to the
+ * nearest Suspense boundary to be client-rendered — so the boundary is here rather than swallowing the
+ * route. Same reasoning as the sign-in screen.
+ */
 export default function NewJobCardPage() {
+  return (
+    <Suspense fallback={<LoadingPanel label="Opening…" />}>
+      <NewJobCardForm />
+    </Suspense>
+  );
+}
+
+function NewJobCardForm() {
   const router = useRouter();
   const companies = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
   const customers = useQuery({ queryKey: ["customers"], queryFn: listCustomers });

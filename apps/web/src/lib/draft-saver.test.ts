@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDraftSaver, type SendDraft } from "./draft-saver";
+import { createDraftSaver, saveDelayMs, type SendDraft } from "./draft-saver";
 import type { DraftSaved, SaveDraftRequest } from "./drafts";
 
 /**
@@ -42,6 +42,42 @@ const saved = (id: number, rowVersion: number): DraftSaved => ({
   id,
   rowVersion,
   updatedAt: "2026-07-22T10:00:00",
+});
+
+/**
+ * A debounce alone has no ceiling: its timer restarts on every keystroke, so somebody typing steadily
+ * is never saved for as long as they keep going, and a power cut takes all of it. These pin the bound.
+ */
+describe("saveDelayMs", () => {
+  const window = { debounceMs: 1_500, maxWaitMs: 5_000 };
+
+  it("waits for a pause when there is room before the ceiling", () => {
+    expect(saveDelayMs(0, window)).toBe(1_500);
+    expect(saveDelayMs(2_000, window)).toBe(1_500);
+  });
+
+  it("shortens the wait so a save lands exactly on the ceiling", () => {
+    // 4s of unbroken typing: a further 1.5s would overshoot, so it goes at 5s.
+    expect(saveDelayMs(4_000, window)).toBe(1_000);
+    expect(saveDelayMs(4_900, window)).toBe(100);
+  });
+
+  it("sends immediately once the ceiling has passed", () => {
+    // Never negative — a negative delay is an immediate timer either way, but returning one would mean
+    // the ceiling had silently stopped being a ceiling.
+    expect(saveDelayMs(5_000, window)).toBe(0);
+    expect(saveDelayMs(60_000, window)).toBe(0);
+  });
+
+  it("bounds the unsaved window to the ceiling however long typing continues", () => {
+    // The property that matters: a save lands by the ceiling, or right now if the ceiling has already
+    // gone by. (It cannot land *at* the ceiling once that is in the past — time already spent is spent,
+    // which is why the bound is `max(elapsed, ceiling)` and not the ceiling alone.)
+    for (const elapsed of [0, 500, 1_500, 3_000, 4_999, 5_000, 10_000]) {
+      expect(elapsed + saveDelayMs(elapsed, window))
+        .toBeLessThanOrEqual(Math.max(elapsed, window.maxWaitMs));
+    }
+  });
 });
 
 describe("createDraftSaver", () => {

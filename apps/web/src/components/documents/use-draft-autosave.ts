@@ -11,13 +11,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api";
-import { createDraftSaver, type DraftSaver } from "@/lib/draft-saver";
+import { createDraftSaver, saveDelayMs, type DraftSaver } from "@/lib/draft-saver";
 import {
   createDraft,
   deleteDraft,
-  draftIdFromLocation,
   getDraft,
   readPayload,
   updateDraft,
@@ -28,11 +28,24 @@ import {
 /**
  * How long a pause counts as "stopped typing".
  *
- * Long enough that a burst of typing is one save rather than thirty, short enough that what is lost
- * to a hard crash is a sentence and not a document. The house motion rule — nothing animates while
- * the user is typing — has the same instinct behind it: work with the pauses, not against the keys.
+ * Long enough that a burst of typing is one save rather than thirty. The house motion rule — nothing
+ * animates while the user is typing — has the same instinct behind it: work with the pauses.
  */
 const DEBOUNCE_MS = 1_500;
+
+/**
+ * The longest anything may go unsaved, however continuously somebody is typing.
+ *
+ * <b>A debounce on its own has no ceiling</b>, and that is not a detail. Its timer restarts on every
+ * keystroke, so somebody typing steadily through a long fault description never stops for 1.5 seconds
+ * and is therefore never saved at all — for as long as they keep going. A power cut or a kernel panic
+ * takes the lot, and neither fires `pagehide`, so the flush below cannot help either.
+ *
+ * With this, the debounce still decides *when* within the window, but the window itself is bounded: a
+ * hard crash costs at most five seconds of typing, whatever the user was doing at the time. The cost is
+ * one request every five seconds from somebody typing without pause, which is nothing.
+ */
+const MAX_WAIT_MS = 5_000;
 
 /** What the Drafts list shows about a draft, derived by the screen from its own state. */
 export interface DraftSummaryFields {
@@ -166,15 +179,36 @@ export function useDraftAutosave<T>({
   // effects below re-run when it does.
   const allowed = worthKeeping || draftId !== null;
 
-  // The debounce. The timer is cleared and restarted on every change, so only a pause in typing reaches
-  // the server. `setPending` is separate from `save` precisely so the flush handlers below can send what
-  // is on screen *now* rather than what was on screen when the timer was set.
+  /** When the oldest still-unsaved edit was made — what the ceiling is measured from. */
+  const dirtySinceRef = useRef<number | null>(null);
+
+  // The debounce, with a ceiling. The timer restarts on every change, so a pause in typing reaches the
+  // server — but never later than MAX_WAIT_MS after the first unsaved keystroke, so somebody typing
+  // without pause is still saved. `setPending` is separate from `save` precisely so the flush handlers
+  // below can send what is on screen *now* rather than what was on screen when the timer was set.
   useEffect(() => {
     if (!enabled || !allowed) return;
 
     saver.setPending({ docType, payload, partyName, total, lineCount });
 
-    const timer = setTimeout(() => void saver.save(), DEBOUNCE_MS);
+    // First unsaved change since the last successful save starts the clock. `hasUnsaved` is false right
+    // after one lands, which is what resets it.
+    const now = Date.now();
+    dirtySinceRef.current ??= now;
+
+    const delay = saveDelayMs(now - dirtySinceRef.current, {
+      debounceMs: DEBOUNCE_MS,
+      maxWaitMs: MAX_WAIT_MS,
+    });
+
+    const timer = setTimeout(() => {
+      void saver.save().then(() => {
+        // Only clear the clock once there is genuinely nothing outstanding. A save that failed, or one
+        // that raced with further typing, must not look like a fresh start — that would restart the
+        // ceiling and let the unsaved window grow without bound again.
+        if (!saver.hasUnsaved()) dirtySinceRef.current = null;
+      });
+    }, delay);
 
     return () => clearTimeout(timer);
   }, [enabled, allowed, saver, docType, payload, partyName, total, lineCount]);
@@ -260,9 +294,21 @@ export interface DraftResume {
  * middle of loading — so it is passed as `enabled: !loading`, and the emptiness is never written back.
  */
 export function useDraftResume<T>(version: number, apply: (state: T) => void): DraftResume {
-  // Read once, from `location` rather than `useSearchParams`, which would force this page under a
-  // Suspense boundary at build time — the same reason the job-card screen reads `?print=1` this way.
-  const [id] = useState(draftIdFromLocation);
+  // `useSearchParams`, not `window.location.search`.
+  //
+  // This read used to come from `location`, copying the job-card screen's `?print=1` trick, to keep the
+  // page out of a Suspense boundary. It silently did not work: arriving here by a client-side navigation
+  // from the Drafts tab, the component mounts before the browser URL has been rewritten, so the read
+  // returned null, no draft was ever fetched, and the form sat there empty with no error to explain it.
+  // The API log settled it — a POST and a PUT for the draft, and never a GET.
+  //
+  // This hook reads the router's own state instead, which is correct whichever way the screen was
+  // reached. The cost is that every screen using it needs a Suspense boundary, which the four create
+  // pages now have; that is the documented trade and it is cheaper than a resume that quietly fails.
+  const searchParams = useSearchParams();
+  const raw = searchParams.get("draft");
+  const parsed = raw === null ? Number.NaN : Number(raw);
+  const id = Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 
   const draft = useQuery({
     queryKey: ["draft", id],

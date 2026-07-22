@@ -14,7 +14,7 @@
  * still goes through the one create call; the draft is deleted once it has.
  */
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
@@ -30,7 +30,7 @@ import { cn } from "@/lib/cn";
 import { DRAFT_PURCHASE_ORDER } from "@/lib/drafts";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatMoney, formatReportDate } from "@/components/reports";
-import { Button, Card, ErrorBanner, FadeIn, Input, Select } from "@/components/ui";
+import { Button, Card, ErrorBanner, FadeIn, Input, LoadingPanel, Select } from "@/components/ui";
 import { toast } from "@/components/ui";
 import { DraftNotices, DraftStatus } from "@/components/documents/draft-status";
 import { useDraftAutosave, useDraftResume } from "@/components/documents/use-draft-autosave";
@@ -55,7 +55,20 @@ interface PurchaseOrderDraftState {
   lines: DraftLine[];
 }
 
+/**
+ * `useDraftResume` reads `?draft=` through `useSearchParams`, which forces the client tree up to the
+ * nearest Suspense boundary to be client-rendered — so the boundary is here rather than swallowing the
+ * route. Same reasoning as the sign-in screen.
+ */
 export default function NewPurchaseOrderPage() {
+  return (
+    <Suspense fallback={<LoadingPanel label="Opening…" />}>
+      <NewPurchaseOrderForm />
+    </Suspense>
+  );
+}
+
+function NewPurchaseOrderForm() {
   const router = useRouter();
   const companies = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
   const suppliers = useQuery({ queryKey: ["suppliers"], queryFn: listSuppliers });
