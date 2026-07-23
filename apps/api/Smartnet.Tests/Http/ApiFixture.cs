@@ -45,6 +45,9 @@ public sealed class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
     public long CompanyId { get; private set; }
     public long UserId { get; private set; }
 
+    /// <summary>The container's connection string, for a test that seeds the database directly.</summary>
+    public string ConnectionString => _container.GetConnectionString();
+
     public async Task InitializeAsync()
     {
         await _container.StartAsync();
