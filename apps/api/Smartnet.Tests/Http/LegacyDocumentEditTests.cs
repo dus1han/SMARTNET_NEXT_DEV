@@ -70,6 +70,49 @@ public sealed class LegacyDocumentEditTests
     }
 
     /// <summary>
+    /// The same guarantee for a purchase order. Its controller guard reads the legacy context directly
+    /// rather than the filtered set, so it never carried the invoice bug — this pins that it stays that way.
+    /// </summary>
+    [Fact]
+    public async Task Editing_a_legacy_purchase_order_over_http_reaches_the_editor_instead_of_404ing()
+    {
+        var (orderId, lineId, itemId, itemCode, rowVersion) = await SeedLegacyPurchaseOrderAsync();
+
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/purchase-orders/{orderId}")
+        {
+            Content = JsonContent.Create(new
+            {
+                ExpectedRowVersion = rowVersion,
+                Lines = new[]
+                {
+                    new
+                    {
+                        Id = (long?)lineId,
+                        ItemId = (long?)itemId,
+                        ItemCode = itemCode,
+                        Description = "Widget",
+                        Quantity = 3m,
+                        UnitPrice = 100m,
+                        DiscountPercent = 0m,
+                        Cost = (decimal?)60m,
+                    },
+                },
+                DocumentDiscountPercent = 0m,
+                DocumentCost = (decimal?)null,
+                Date = (DateOnly?)null,
+            }),
+        };
+        request.Headers.Add("X-Change-Reason", "Correcting the quantity on a migrated purchase order.");
+
+        var response = await _api.SignedIn.SendAsync(request);
+
+        response.StatusCode.Should().NotBe(
+            HttpStatusCode.NotFound,
+            "a legacy purchase order must be adopted and edited, not rejected by the existence guard");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    /// <summary>
     /// Seeds a legacy invoice as the old app wrote it — money in varchar columns, customer and item as
     /// codes, <c>data_origin 'legacy'</c> — in the fixture's company, plus its imported opening balance.
     /// Mirrors <see cref="Smartnet.Tests.Documents.LegacyInvoiceAdoptionTests"/>'s seed.
@@ -134,5 +177,59 @@ public sealed class LegacyDocumentEditTests
         await db.SaveChangesAsync();
 
         return (invoiceId, lineId, item.Id, itemCode, rowVersion);
+    }
+
+    /// <summary>
+    /// Seeds a legacy purchase order as the old app wrote it — money in varchar columns, supplier and item
+    /// as codes, <c>data_origin 'legacy'</c> — in the fixture's company. A PO posts no ledger and no stock,
+    /// so there is nothing to import alongside it.
+    /// </summary>
+    private async Task<(long OrderId, long LineId, long ItemId, string ItemCode, int RowVersion)> SeedLegacyPurchaseOrderAsync()
+    {
+        await using var db = new SmartnetDbContext(
+            new DbContextOptionsBuilder<SmartnetDbContext>()
+                .UseMySql(_api.ConnectionString, SmartnetServerVersion.Value,
+                    mysql => mysql.MigrationsAssembly(typeof(SmartnetDbContext).Assembly.FullName))
+                .Options);
+
+        var companyId = _api.CompanyId;
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var itemCode = $"IL-{suffix}";
+
+        var supplier = new Supplier { Code = $"SL-{suffix}", Name = "Legacy Supplier" };
+        var item = new Item { Code = itemCode, Name = "Widget", Cost = 60m, SellingPrice = 100m };
+        db.Suppliers.Add(supplier);
+        db.Items.Add(item);
+        await db.SaveChangesAsync();
+
+        var number = $"PO-L{suffix}";
+
+        // total 236 (net 200 + 18% VAT); one 2 × 100 item line. po_h's PO number column is `po_no`; po_l's
+        // is `pono`, and its item code column is `itemno`.
+        await db.Database.ExecuteSqlAsync($"""
+            INSERT INTO po_h
+              (po_no, podate, supplier, totamount, preparedby, cdatetime, company, nonvattotal, vatty,
+               vatpercent, company_id, data_origin)
+            VALUES
+              ({number}, '2024-05-01', {supplier.Code}, '236', 'Old User', '2024-05-01 10:00:00',
+               {companyId.ToString(CultureInfo.InvariantCulture)}, '200', '1', '18', {companyId}, 'legacy')
+            """);
+
+        await db.Database.ExecuteSqlAsync($"""
+            INSERT INTO po_l (pono, itemno, `desc`, qty, rate, total)
+            VALUES ({number}, {item.Code}, 'Widget', '2', '100', '200')
+            """);
+
+        var orderId = await db.Database
+            .SqlQuery<long>($"SELECT id AS Value FROM po_h WHERE po_no = {number}")
+            .SingleAsync();
+        var lineId = await db.Database
+            .SqlQuery<long>($"SELECT id AS Value FROM po_l WHERE pono = {number} ORDER BY id")
+            .FirstAsync();
+        var rowVersion = await db.Database
+            .SqlQuery<int>($"SELECT row_version AS Value FROM po_h WHERE id = {orderId}")
+            .SingleAsync();
+
+        return (orderId, lineId, item.Id, itemCode, rowVersion);
     }
 }
