@@ -514,9 +514,10 @@ public sealed class InvoicesController : ControllerBase
     /// </summary>
     /// <remarks>
     /// A reason is mandatory (<see cref="RequireChangeReasonAttribute"/>, AUDIT.md §5) — editing money is
-    /// exactly the change the audit trail exists to explain. Only a <c>new</c> invoice this app owns is
-    /// editable; a legacy row is read-only. A stale <c>ExpectedRowVersion</c> — someone else edited it since
-    /// the screen loaded — is a 409, not a silent overwrite (the legacy last-write-wins bug).
+    /// exactly the change the audit trail exists to explain. A legacy row is adopted into the new model on
+    /// save (see <see cref="IInvoiceEditor"/>), then edited like any other. A stale <c>ExpectedRowVersion</c>
+    /// — someone else edited it since the screen loaded — is a 409, not a silent overwrite (the legacy
+    /// last-write-wins bug).
     /// </remarks>
     [HttpPut("{id:long}")]
     [RequirePermission(Permissions.ItemInvoice)]
@@ -526,9 +527,12 @@ public sealed class InvoicesController : ControllerBase
         EditInvoiceRequest request,
         CancellationToken cancellationToken)
     {
-        // Only this app's own invoices are editable, and only in a company the caller may act in.
+        // The invoice must exist and be in a company the caller may act in. IgnoreQueryFilters so a legacy
+        // row is found too — the editor adopts it into the new model on save; without this the filtered set
+        // returns nothing and a legacy invoice 404s before adoption can ever run.
         var companyId = await _db.Invoices
-            .Where(i => i.Id == id)
+            .IgnoreQueryFilters()
+            .Where(i => i.Id == id && i.DeletedAt == null)
             .Select(i => i.CompanyId)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -597,8 +601,11 @@ public sealed class InvoicesController : ControllerBase
         [FromQuery] int expectedRowVersion,
         CancellationToken cancellationToken)
     {
+        // IgnoreQueryFilters so a legacy row is found too — the deleter adopts it before voiding (see
+        // InvoiceDeleter); the filtered set would return nothing and 404 a legacy invoice before then.
         var companyId = await _db.Invoices
-            .Where(i => i.Id == id)
+            .IgnoreQueryFilters()
+            .Where(i => i.Id == id && i.DeletedAt == null)
             .Select(i => i.CompanyId)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);

@@ -556,10 +556,13 @@ public sealed class QuotationsController : ControllerBase
         ConvertQuotationRequest request,
         CancellationToken cancellationToken)
     {
-        // The quotation must be one the caller may see; deny by default extends to the company.
+        // The quotation must be one the caller may see; deny by default extends to the company. IgnoreQueryFilters
+        // so a legacy quotation is found too — the converter loads and records the conversion on the legacy row
+        // itself; the filtered set would return nothing and 404 a legacy quote before conversion can run.
         var accessible = _company.Accessible.ToList();
         var quotationCompany = await _db.Quotations
-            .Where(q => q.Id == id)
+            .IgnoreQueryFilters()
+            .Where(q => q.Id == id && q.DeletedAt == null)
             .Select(q => q.CompanyId)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
