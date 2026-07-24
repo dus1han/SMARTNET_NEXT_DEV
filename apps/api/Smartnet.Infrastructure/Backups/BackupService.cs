@@ -57,6 +57,7 @@ public sealed partial class BackupService : IBackupService
 
     private readonly IBackupStorage _storage;
     private readonly IDatabaseBackup _database;
+    private readonly IKeyRingBackup _keyRing;
     private readonly IBackupDestinationProvider _destinations;
     private readonly IMemoryCache _cache;
     private readonly BackupOptions _options;
@@ -66,6 +67,7 @@ public sealed partial class BackupService : IBackupService
     public BackupService(
         IBackupStorage storage,
         IDatabaseBackup database,
+        IKeyRingBackup keyRing,
         IBackupDestinationProvider destinations,
         IMemoryCache cache,
         IOptions<BackupOptions> options,
@@ -74,6 +76,7 @@ public sealed partial class BackupService : IBackupService
     {
         _storage = storage;
         _database = database;
+        _keyRing = keyRing;
         _destinations = destinations;
         _cache = cache;
         _options = options.Value;
@@ -122,6 +125,15 @@ public sealed partial class BackupService : IBackupService
         finally
         {
             TryDelete(scratch);
+        }
+
+        // The key ring travels with the data — see IKeyRingBackup. One overwritten file beside the
+        // rotation, not a stamped copy (which nothing would ever prune). Skipped for a pre-restore copy:
+        // that is the database's own undo and has nothing to do with the ring. Never fatal — a ring hiccup
+        // must not lose the database backup that just succeeded, so it is logged and the run still counts.
+        if (kind != BackupKind.PreRestore)
+        {
+            await TryBackupKeyRingAsync(kind, cancellationToken).ConfigureAwait(false);
         }
 
         // The listing is now stale whatever happens next — a new file exists.
@@ -180,6 +192,41 @@ public sealed partial class BackupService : IBackupService
         return new RestoreOutcome(safety);
     }
 
+    /// <summary>
+    /// Snapshots the key ring to the store beside the database backup. Its failure is logged, never thrown:
+    /// the database backup has already succeeded by the time this runs, and it must not be undone by a
+    /// problem reading a directory of key files.
+    /// </summary>
+    private async Task TryBackupKeyRingAsync(BackupKind kind, CancellationToken cancellationToken)
+    {
+        var scratch = Path.Combine(Path.GetTempPath(), BackupNaming.KeyRingName);
+
+        try
+        {
+            await using (var file = File.Create(scratch))
+            {
+                await _keyRing.SnapshotToAsync(file, cancellationToken).ConfigureAwait(false);
+            }
+
+            await using (var upload = File.OpenRead(scratch))
+            {
+                // Not a pre-restore kind here (the caller guards that), so this lands in the rotation folder
+                // beside the database dumps rather than the safety folder.
+                await _storage.UploadAsync(BackupNaming.KeyRingName, upload, kind, cancellationToken).ConfigureAwait(false);
+            }
+
+            LogKeyRingBackedUp(_logger);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogKeyRingBackupFailed(_logger, ex);
+        }
+        finally
+        {
+            TryDelete(scratch);
+        }
+    }
+
     private async Task PruneAsync(CancellationToken cancellationToken)
     {
         var destination = await _destinations.CurrentAsync(cancellationToken).ConfigureAwait(false);
@@ -217,6 +264,17 @@ public sealed partial class BackupService : IBackupService
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "Pruned old backup {Name}")]
     private static partial void LogPruned(ILogger logger, string name);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Information, Message = "Key ring backed up alongside the database.")]
+    private static partial void LogKeyRingBackedUp(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 6,
+        Level = LogLevel.Warning,
+        Message = "The key ring backup failed, though the database backup itself succeeded. The key ring "
+            + "decrypts the stored SMTP and FTP passwords, so a restore taken now would come up unable to "
+            + "read them — fix this before the ring next rolls over.")]
+    private static partial void LogKeyRingBackupFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(
         EventId = 3,
