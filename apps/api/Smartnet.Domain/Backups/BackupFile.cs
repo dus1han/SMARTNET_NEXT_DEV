@@ -78,6 +78,18 @@ public static partial class BackupNaming
     public static string For(BackupKind kind, DateTime utcNow) =>
         $"smartnet-{Suffix(kind)}-{utcNow.ToString(Stamp, CultureInfo.InvariantCulture)}.sql.gz";
 
+    /// <summary>
+    /// The key ring snapshot's name — fixed, and overwritten on every run.
+    /// </summary>
+    /// <remarks>
+    /// You always want the <i>current</i> ring: it holds every active key, so the newest snapshot is a
+    /// superset of any older one and a history of it buys nothing. Deliberately <b>not</b> a
+    /// <c>.sql.gz</c>, so <see cref="IsBackupName"/> excludes it — it is never offered as a restorable
+    /// database backup, and, being outside the rotation, is never pruned. A stamped copy per run would be
+    /// the opposite mistake: nothing prunes it, so it would accumulate on the store forever.
+    /// </remarks>
+    public const string KeyRingName = "smartnet-keyring.tar.gz";
+
     private static string Suffix(BackupKind kind) => kind switch
     {
         BackupKind.Scheduled => "auto",

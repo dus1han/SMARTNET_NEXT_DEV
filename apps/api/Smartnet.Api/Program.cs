@@ -223,6 +223,11 @@ builder.Services
     .AddDataProtection(options => options.ApplicationDiscriminator = "smartnet")
     .PersistKeysToFileSystem(Directory.CreateDirectory(keyRing));
 
+// The key ring is backed up alongside the database (see IKeyRingBackup / BackupService), from the same
+// directory it is persisted to here — so a restore is never left with passwords it cannot decrypt, which
+// is the failure that put every stored SMTP/FTP password out of reach the last time the ring was replaced.
+builder.Services.AddSingleton<IKeyRingBackup>(new KeyRingBackup(keyRing));
+
 var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
           ?? throw new InvalidOperationException(
               "Jwt configuration is missing. Set JWT_SIGNING_KEY (see .env.example).");
