@@ -361,6 +361,81 @@ public sealed class ImapMailboxReader : IMailboxReader
         await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task MoveAsync(MailboxConnection connection, string fromFolder, uint uid, string toFolder, CancellationToken cancellationToken = default)
+    {
+        using var client = new ImapClient { Timeout = TimeoutMs };
+        await ConnectAsync(client, connection, cancellationToken).ConfigureAwait(false);
+
+        var source = await OpenAsync(client, fromFolder, FolderAccess.ReadWrite, cancellationToken).ConfigureAwait(false);
+
+        IMailFolder destination;
+        try
+        {
+            destination = toFolder.Equals("INBOX", StringComparison.OrdinalIgnoreCase)
+                ? client.Inbox
+                : await client.GetFolderAsync(toFolder, cancellationToken).ConfigureAwait(false);
+        }
+        catch (FolderNotFoundException)
+        {
+            throw new MailboxReadException($"The folder '{toFolder}' does not exist in this mailbox.");
+        }
+
+        await source.MoveToAsync(new UniqueId(uid), destination, cancellationToken).ConfigureAwait(false);
+        await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task CreateFolderAsync(MailboxConnection connection, string name, CancellationToken cancellationToken = default)
+    {
+        using var client = new ImapClient { Timeout = TimeoutMs };
+        await ConnectAsync(client, connection, cancellationToken).ConfigureAwait(false);
+
+        var root = client.GetFolder(client.PersonalNamespaces[0]);
+
+        try
+        {
+            await root.CreateAsync(name, isMessageFolder: true, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is ImapCommandException or ImapProtocolException or InvalidOperationException)
+        {
+            throw new MailboxReadException($"Could not create the folder '{name}': {ex.Message}");
+        }
+
+        await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task DeleteFolderAsync(MailboxConnection connection, string folder, CancellationToken cancellationToken = default)
+    {
+        using var client = new ImapClient { Timeout = TimeoutMs };
+        await ConnectAsync(client, connection, cancellationToken).ConfigureAwait(false);
+
+        IMailFolder target;
+        try
+        {
+            target = await client.GetFolderAsync(folder, cancellationToken).ConfigureAwait(false);
+        }
+        catch (FolderNotFoundException)
+        {
+            throw new MailboxReadException($"The folder '{folder}' does not exist in this mailbox.");
+        }
+
+        // The well-known folders are load-bearing — deleting Sent or Trash breaks send-copy and delete.
+        if (RoleOf(target) != MailFolderRole.Other)
+        {
+            throw new MailboxReadException("Inbox, Sent, Drafts, Trash, Junk and Archive cannot be deleted.");
+        }
+
+        try
+        {
+            await target.DeleteAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is ImapCommandException or ImapProtocolException or InvalidOperationException)
+        {
+            throw new MailboxReadException($"Could not delete the folder: {ex.Message}");
+        }
+
+        await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task AppendToSentAsync(MailboxConnection connection, SentMessage message, CancellationToken cancellationToken = default)
     {
         using var client = new ImapClient { Timeout = TimeoutMs };

@@ -253,6 +253,92 @@ public sealed class MailController : ControllerBase
         }
     }
 
+    /// <summary>Moves a message to another folder.</summary>
+    [HttpPost("{id:long}/messages/{uid:long}/move")]
+    public async Task<IActionResult> Move(
+        long id,
+        long uid,
+        CancellationToken cancellationToken,
+        string folder = "INBOX",
+        string to = "")
+    {
+        if (string.IsNullOrWhiteSpace(to))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "No destination folder was given.");
+        }
+
+        var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (error is not null)
+        {
+            return error;
+        }
+
+        try
+        {
+            await _reader.MoveAsync(connection!, folder, (uint)uid, to, cancellationToken).ConfigureAwait(false);
+            return NoContent();
+        }
+        catch (MailboxReadException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: "The mail server refused.", detail: ex.Message);
+        }
+    }
+
+    /// <summary>Creates a new folder in the mailbox.</summary>
+    [HttpPost("{id:long}/folders")]
+    public async Task<IActionResult> CreateFolder(long id, CreateFolderRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Enter a folder name.");
+        }
+
+        var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (error is not null)
+        {
+            return error;
+        }
+
+        try
+        {
+            await _reader.CreateFolderAsync(connection!, request.Name.Trim(), cancellationToken).ConfigureAwait(false);
+            return NoContent();
+        }
+        catch (MailboxReadException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: "The mail server refused.", detail: ex.Message);
+        }
+    }
+
+    /// <summary>Deletes a folder (a custom one — the well-known folders are protected).</summary>
+    [HttpDelete("{id:long}/folders")]
+    public async Task<IActionResult> DeleteFolder(long id, CancellationToken cancellationToken, string folder = "")
+    {
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "No folder was given.");
+        }
+
+        var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (error is not null)
+        {
+            return error;
+        }
+
+        try
+        {
+            await _reader.DeleteFolderAsync(connection!, folder, cancellationToken).ConfigureAwait(false);
+            return NoContent();
+        }
+        catch (MailboxReadException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: "The mail server refused.", detail: ex.Message);
+        }
+    }
+
     /// <summary>Downloads one attachment of a message, by the index the read response gave it.</summary>
     [HttpGet("{id:long}/messages/{uid:long}/attachments/{index:int}")]
     public async Task<IActionResult> Attachment(

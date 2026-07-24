@@ -17,6 +17,9 @@ import {
   ArrowLeft,
   ChevronDown,
   Download,
+  FolderInput,
+  FolderPlus,
+  FolderX,
   Forward,
   Inbox,
   Mail,
@@ -34,11 +37,14 @@ import type { MailContactSuggestion, MailFolder, MailHeader, MailboxListItem, Ma
 import { ApiError } from "@/lib/api";
 import {
   attachmentUrl,
+  createFolder,
+  deleteFolder,
   deleteMessage,
   listFolders,
   listMailContacts,
   listMessages,
   listMyMailboxes,
+  moveMessage,
   readMessage,
   sendMail,
   setSeen,
@@ -88,6 +94,7 @@ export default function MailPage() {
   const [query, setQuery] = useState(""); // the search box text
   const [applied, setApplied] = useState(""); // the search actually running
   const [compose, setCompose] = useState<Compose | null>(null);
+  const [newFolder, setNewFolder] = useState<string | null>(null); // the new-folder dialog's field, or null when closed
 
   // Selected mailbox, defaulting to the first once the list arrives — derived, not set from an effect.
   const mailboxId = picked ?? mailboxes.data?.[0]?.id ?? null;
@@ -174,6 +181,37 @@ export default function MailPage() {
     onError: (error: unknown) => toast.error(message(error)),
   });
 
+  const move = useMutation({
+    mutationFn: (to: string) => moveMessage(mailboxId!, folder, uid!, to),
+    onSuccess: () => {
+      toast.success("Message moved.");
+      setUid(null);
+      refreshLists();
+    },
+    onError: (error: unknown) => toast.error(message(error)),
+  });
+
+  const addFolder = useMutation({
+    mutationFn: (name: string) => createFolder(mailboxId!, name),
+    onSuccess: () => {
+      toast.success("Folder created.");
+      setNewFolder(null);
+      void queryClient.invalidateQueries({ queryKey: ["folders", mailboxId] });
+    },
+    onError: (error: unknown) => toast.error(message(error)),
+  });
+
+  const removeFolder = useMutation({
+    mutationFn: (full: string) => deleteFolder(mailboxId!, full),
+    onSuccess: () => {
+      toast.success("Folder deleted.");
+      setFolder("INBOX");
+      resetView();
+      void queryClient.invalidateQueries({ queryKey: ["folders", mailboxId] });
+    },
+    onError: (error: unknown) => toast.error(message(error)),
+  });
+
   const startReply = (msg: MailMessage) =>
     setCompose({
       to: msg.fromAddress,
@@ -241,9 +279,32 @@ export default function MailPage() {
                 <RefreshCw className="size-4" />
               </Button>
             )}
+            {uid === null && folders.data?.find((f) => f.fullName === folder)?.role === "Other" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-danger"
+                pending={removeFolder.isPending}
+                onClick={() => {
+                  if (window.confirm(`Delete the folder "${folder}"? Messages in it are deleted too.`)) {
+                    removeFolder.mutate(folder);
+                  }
+                }}
+              >
+                <FolderX className="size-4" />
+                Delete folder
+              </Button>
+            )}
           </div>
 
-          {uid === null && <FolderBar folders={folders.data} selected={folder} onSelect={selectFolder} />}
+          {uid === null && (
+            <FolderBar
+              folders={folders.data}
+              selected={folder}
+              onSelect={selectFolder}
+              onCreate={() => setNewFolder("")}
+            />
+          )}
 
           {uid === null && (
             <form
@@ -314,12 +375,14 @@ export default function MailPage() {
               query={openMsg}
               mailboxId={mailboxId!}
               folder={folder}
+              folders={folders.data}
               onBack={() => setUid(null)}
               onReply={startReply}
               onForward={startForward}
               onMarkUnread={() => markUnread.mutate()}
+              onMove={(to) => move.mutate(to)}
               onDelete={() => remove.mutate()}
-              busy={markUnread.isPending || remove.isPending}
+              busy={markUnread.isPending || remove.isPending || move.isPending}
             />
           )}
         </>
@@ -334,6 +397,29 @@ export default function MailPage() {
         onSend={() => compose && send.mutate(compose)}
         onClose={() => setCompose(null)}
       />
+
+      <Dialog
+        open={newFolder !== null}
+        onOpenChange={(next) => !next && setNewFolder(null)}
+        title="New folder"
+        description="Creates a folder in this mailbox."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setNewFolder(null)}>
+              Cancel
+            </Button>
+            <Button
+              pending={addFolder.isPending}
+              disabled={!newFolder?.trim()}
+              onClick={() => newFolder && addFolder.mutate(newFolder.trim())}
+            >
+              Create
+            </Button>
+          </>
+        }
+      >
+        <Input label="Folder name" value={newFolder ?? ""} onChange={(e) => setNewFolder(e.target.value)} />
+      </Dialog>
     </FadeIn>
   );
 }
@@ -420,12 +506,13 @@ function unreadPill(box: MailboxListItem | null) {
   return null;
 }
 
-function FolderBar({ folders, selected, onSelect }: {
+function FolderBar({ folders, selected, onSelect, onCreate }: {
   folders: MailFolder[] | undefined;
   selected: string;
   onSelect: (fullName: string) => void;
+  onCreate: () => void;
 }) {
-  if (!folders || folders.length <= 1) return null;
+  if (!folders) return null;
 
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -455,6 +542,15 @@ function FolderBar({ folders, selected, onSelect }: {
           </button>
         );
       })}
+
+      <button
+        type="button"
+        onClick={onCreate}
+        className="flex items-center gap-1.5 rounded-lg border border-dashed border-subtle px-3 py-1.5 text-sm text-muted transition-colors hover:bg-surface-sunken hover:text-text"
+      >
+        <FolderPlus className="size-4" aria-hidden />
+        New folder
+      </button>
     </div>
   );
 }
@@ -498,17 +594,20 @@ function MessageList({ headers, loading, error, onSelect }: {
   );
 }
 
-function MessageView({ query, mailboxId, folder, onBack, onReply, onForward, onMarkUnread, onDelete, busy }: {
+function MessageView({ query, mailboxId, folder, folders, onBack, onReply, onForward, onMarkUnread, onMove, onDelete, busy }: {
   query: { data?: MailMessage; isPending: boolean; error: unknown };
   mailboxId: number;
   folder: string;
+  folders: MailFolder[] | undefined;
   onBack: () => void;
   onReply: (msg: MailMessage) => void;
   onForward: (msg: MailMessage) => void;
   onMarkUnread: () => void;
+  onMove: (to: string) => void;
   onDelete: () => void;
   busy: boolean;
 }) {
+  const moveTargets = folders?.filter((f) => f.fullName !== folder) ?? [];
   return (
     <div className="space-y-3">
       <Button variant="ghost" size="sm" onClick={onBack}>
@@ -541,6 +640,34 @@ function MessageView({ query, mailboxId, folder, onBack, onReply, onForward, onM
                   <MailOpen className="size-4" />
                   Unread
                 </Button>
+                {moveTargets.length > 0 && (
+                  <Menu.Root>
+                    <Menu.Trigger asChild>
+                      <Button variant="ghost" size="sm" disabled={busy}>
+                        <FolderInput className="size-4" />
+                        Move
+                      </Button>
+                    </Menu.Trigger>
+                    <Menu.Portal>
+                      <Menu.Content
+                        align="end"
+                        sideOffset={4}
+                        className="z-50 max-h-72 w-48 overflow-y-auto rounded-lg border border-subtle bg-surface p-1 shadow-lg data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+                      >
+                        {moveTargets.map((f) => (
+                          <Menu.Item
+                            key={f.fullName}
+                            onSelect={() => onMove(f.fullName)}
+                            className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm outline-none data-[highlighted]:bg-surface-sunken"
+                          >
+                            <FolderInput className="size-4 text-muted" aria-hidden />
+                            {f.name}
+                          </Menu.Item>
+                        ))}
+                      </Menu.Content>
+                    </Menu.Portal>
+                  </Menu.Root>
+                )}
                 <Button variant="ghost" size="sm" onClick={onDelete} disabled={busy} className="text-danger">
                   <Trash2 className="size-4" />
                   Delete

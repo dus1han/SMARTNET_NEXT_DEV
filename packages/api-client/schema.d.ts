@@ -3295,8 +3295,54 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
-        delete?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateFolderRequest"];
+                    "text/json": components["schemas"]["CreateFolderRequest"];
+                    "application/*+json": components["schemas"]["CreateFolderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: {
+                    folder?: string;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -3424,6 +3470,45 @@ export interface paths {
                 query?: {
                     folder?: string;
                     seen?: boolean;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                    uid: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/{id}/messages/{uid}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: {
+                    folder?: string;
+                    to?: string;
                 };
                 header?: never;
                 path: {
@@ -7946,6 +8031,9 @@ export interface components {
             chequeDate?: string | null;
             /** Format: date */
             chequeDueDate?: string | null;
+        };
+        CreateFolderRequest: {
+            name: string;
         };
         CreateInvoiceLineRequest: {
             /** Format: int64 */

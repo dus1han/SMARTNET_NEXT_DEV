@@ -124,6 +124,26 @@ public interface IMailboxReader
         uint uid,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Moves a message from one folder to another.</summary>
+    Task MoveAsync(
+        MailboxConnection connection,
+        string fromFolder,
+        uint uid,
+        string toFolder,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Creates a new top-level folder.</summary>
+    Task CreateFolderAsync(
+        MailboxConnection connection,
+        string name,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes a folder. Refuses the well-known ones (Inbox, Sent, Drafts, Trash, Junk, Archive).</summary>
+    Task DeleteFolderAsync(
+        MailboxConnection connection,
+        string folder,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Files a copy of an outbound message in the Sent folder, so sending leaves a record.</summary>
     Task AppendToSentAsync(
         MailboxConnection connection,

@@ -16,6 +16,9 @@ public sealed record MailFolderResponse(string FullName, string Name, string Rol
 /// <summary>A suggested recipient — a customer contact — for the To/Cc/Bcc autocomplete.</summary>
 public sealed record MailContactSuggestion(string Name, string Email);
 
+/// <summary>Creates a folder.</summary>
+public sealed record CreateFolderRequest(string Name);
+
 /// <summary>One row in the inbox list — no body, so the list is one cheap fetch.</summary>
 public sealed record MailHeaderResponse(
     uint Uid,

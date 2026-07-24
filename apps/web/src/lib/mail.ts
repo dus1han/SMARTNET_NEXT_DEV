@@ -39,6 +39,20 @@ export const setSeen = (mailboxId: number, folder: string, uid: number, seen: bo
 export const deleteMessage = (mailboxId: number, folder: string, uid: number) =>
   api<void>(`/api/mail/${mailboxId}/messages/${uid}?${folderQuery(folder)}`, { method: "DELETE" });
 
+/** Move a message from one folder to another. */
+export const moveMessage = (mailboxId: number, folder: string, uid: number, to: string) =>
+  api<void>(`/api/mail/${mailboxId}/messages/${uid}/move?${folderQuery(folder)}&to=${encodeURIComponent(to)}`, {
+    method: "POST",
+  });
+
+/** Create a new folder in the mailbox. */
+export const createFolder = (mailboxId: number, name: string) =>
+  api<void>(`/api/mail/${mailboxId}/folders`, { method: "POST", body: { name } });
+
+/** Delete a custom folder (the well-known ones are protected server-side). */
+export const deleteFolder = (mailboxId: number, folder: string) =>
+  api<void>(`/api/mail/${mailboxId}/folders?${folderQuery(folder)}`, { method: "DELETE" });
+
 export interface OutgoingMail {
   to: string;
   cc: string;
