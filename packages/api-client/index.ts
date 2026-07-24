@@ -39,6 +39,11 @@ export type BusinessRule = Schemas["BusinessRule"];
 export type TaxRate = Schemas["TaxRateDto"];
 export type MailSettings = Schemas["MailSettingsResponse"];
 export type SaveMailSettingsRequest = Schemas["SaveMailSettingsRequest"];
+export type MailAccount = Schemas["MailAccountResponse"];
+export type SaveMailAccountRequest = Schemas["SaveMailAccountRequest"];
+export type MailServerSettings = Schemas["MailServerSettingsResponse"];
+export type SaveMailServerSettingsRequest = Schemas["SaveMailServerSettingsRequest"];
+export type MailDomain = Schemas["MailDomainResponse"];
 export type EmailTemplate = Schemas["EmailTemplateDto"];
 
 // --- Document numbering ----------------------------------------------------------------------

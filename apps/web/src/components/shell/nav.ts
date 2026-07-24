@@ -9,6 +9,7 @@ import {
   HandCoins,
   Landmark,
   LayoutDashboard,
+  Mail,
   Package,
   NotebookPen,
   Paperclip,
@@ -16,6 +17,7 @@ import {
   Receipt,
   Scale,
   ScrollText,
+  Server,
   Settings,
   ShieldCheck,
   ShoppingBag,
@@ -129,6 +131,8 @@ export const NAVIGATION: NavSection[] = [
       { href: "/companies", label: "Companies", icon: Landmark, permission: "system.dev_admin" },
       { href: "/vat-rate", label: "VAT rate", icon: Percent, permission: "system.dev_admin" },
       { href: "/backups", label: "Backups", icon: DatabaseBackup, permission: "system.dev_admin" },
+      { href: "/mail-accounts", label: "Mail accounts", icon: Mail, permission: "mail_accounts" },
+      { href: "/cpanel", label: "cPanel", icon: Server, permission: "system.dev_admin" },
       { href: "/audit", label: "Audit log", icon: ShieldCheck, permission: "audit.view" },
       { href: "/settings", label: "Settings", icon: Settings, permission: "settings.manage" },
     ],
@@ -137,10 +141,15 @@ export const NAVIGATION: NavSection[] = [
 
 /** Hides a section entirely when the user may see nothing in it. An empty heading is clutter. */
 export function visibleSections(permissions: string[]): NavSection[] {
+  // Dev-Admin satisfies every permission on the server, so the nav mirrors that rather than checking each
+  // link literally — otherwise a Dev-Admin whose grant predates a newly added permission (like mail_accounts)
+  // could reach a page by URL but never see its link.
+  const isDevAdmin = permissions.includes("system.dev_admin");
+
   return NAVIGATION.map((section) => ({
     ...section,
     items: section.items.filter(
-      (item) => !item.permission || permissions.includes(item.permission),
+      (item) => isDevAdmin || !item.permission || permissions.includes(item.permission),
     ),
   })).filter((section) => section.items.length > 0);
 }

@@ -59,6 +59,10 @@ public class SmartnetDbContext : DbContext
 
     public DbSet<MailSettings> MailSettings => Set<MailSettings>();
 
+    public DbSet<MailAccount> MailAccounts => Set<MailAccount>();
+
+    public DbSet<MailServerSettings> MailServerSettings => Set<MailServerSettings>();
+
     /// <summary>Where backups are sent. One row — see <see cref="BackupSettings"/>.</summary>
     public DbSet<BackupSettings> BackupSettings => Set<BackupSettings>();
 

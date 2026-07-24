@@ -3189,6 +3189,268 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mail-accounts/server-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MailServerSettingsResponse"];
+                        "application/json": components["schemas"]["MailServerSettingsResponse"];
+                        "text/json": components["schemas"]["MailServerSettingsResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SaveMailServerSettingsRequest"];
+                    "text/json": components["schemas"]["SaveMailServerSettingsRequest"];
+                    "application/*+json": components["schemas"]["SaveMailServerSettingsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail-accounts/domain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MailDomainResponse"];
+                        "application/json": components["schemas"]["MailDomainResponse"];
+                        "text/json": components["schemas"]["MailDomainResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MailAccountResponse"][];
+                        "application/json": components["schemas"]["MailAccountResponse"][];
+                        "text/json": components["schemas"]["MailAccountResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SaveMailAccountRequest"];
+                    "text/json": components["schemas"]["SaveMailAccountRequest"];
+                    "application/*+json": components["schemas"]["SaveMailAccountRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MailAccountResponse"];
+                        "application/json": components["schemas"]["MailAccountResponse"];
+                        "text/json": components["schemas"]["MailAccountResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail-accounts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SaveMailAccountRequest"];
+                    "text/json": components["schemas"]["SaveMailAccountRequest"];
+                    "application/*+json": components["schemas"]["SaveMailAccountRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail-accounts/{id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SendTestEmailRequest"];
+                    "text/json": components["schemas"]["SendTestEmailRequest"];
+                    "application/*+json": components["schemas"]["SendTestEmailRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notes": {
         parameters: {
             query?: never;
@@ -8344,6 +8606,34 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
         };
+        MailAccountResponse: {
+            /** Format: int64 */
+            id: number;
+            displayName: string;
+            emailAddress: string;
+            hasPassword: boolean;
+            enabled: boolean;
+        };
+        MailDomainResponse: {
+            domain?: string | null;
+        };
+        MailServerSettingsResponse: {
+            mailDomain?: string | null;
+            outgoingHost: string;
+            /** Format: int32 */
+            outgoingPort: number;
+            outgoingUseSsl: boolean;
+            incomingProtocol: string;
+            incomingHost: string;
+            /** Format: int32 */
+            incomingPort: number;
+            incomingUseSsl: boolean;
+            cpanelHost?: string | null;
+            /** Format: int32 */
+            cpanelPort: number;
+            cpanelUsername?: string | null;
+            hasCpanelApiToken: boolean;
+        };
         MailSettingsResponse: {
             host: string;
             /** Format: int32 */
@@ -8858,6 +9148,29 @@ export interface components {
             unit?: string | null;
             /** Format: int32 */
             expectedRowVersion?: number | null;
+        };
+        SaveMailAccountRequest: {
+            displayName: string;
+            emailAddress: string;
+            password?: string | null;
+            enabled: boolean;
+        };
+        SaveMailServerSettingsRequest: {
+            mailDomain?: string | null;
+            outgoingHost: string;
+            /** Format: int32 */
+            outgoingPort: number;
+            outgoingUseSsl: boolean;
+            incomingProtocol: string;
+            incomingHost: string;
+            /** Format: int32 */
+            incomingPort: number;
+            incomingUseSsl: boolean;
+            cpanelHost?: string | null;
+            /** Format: int32 */
+            cpanelPort: number;
+            cpanelUsername?: string | null;
+            cpanelApiToken?: string | null;
         };
         SaveMailSettingsRequest: {
             host: string;

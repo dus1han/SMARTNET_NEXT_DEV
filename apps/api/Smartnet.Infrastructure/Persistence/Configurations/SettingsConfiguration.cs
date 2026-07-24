@@ -156,6 +156,61 @@ public class MailSettingsConfiguration : IEntityTypeConfiguration<MailSettings>
     }
 }
 
+public class MailServerSettingsConfiguration : IEntityTypeConfiguration<MailServerSettings>
+{
+    public void Configure(EntityTypeBuilder<MailServerSettings> builder)
+    {
+        builder.ToTable("mail_server_settings");
+
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.Id).HasColumnName("id");
+        builder.Property(m => m.MailDomain).HasColumnName("mail_domain").HasMaxLength(200);
+
+        builder.Property(m => m.OutgoingHost).HasColumnName("outgoing_host").HasMaxLength(200).IsRequired();
+        builder.Property(m => m.OutgoingPort).HasColumnName("outgoing_port");
+        builder.Property(m => m.OutgoingUseSsl).HasColumnName("outgoing_use_ssl");
+
+        builder.Property(m => m.IncomingProtocol).HasColumnName("incoming_protocol").HasMaxLength(8).IsRequired();
+        builder.Property(m => m.IncomingHost).HasColumnName("incoming_host").HasMaxLength(200).IsRequired();
+        builder.Property(m => m.IncomingPort).HasColumnName("incoming_port");
+        builder.Property(m => m.IncomingUseSsl).HasColumnName("incoming_use_ssl");
+
+        // cPanel provisioning
+        builder.Property(m => m.CpanelHost).HasColumnName("cpanel_host").HasMaxLength(200);
+        builder.Property(m => m.CpanelPort).HasColumnName("cpanel_port");
+        builder.Property(m => m.CpanelUsername).HasColumnName("cpanel_username").HasMaxLength(100);
+        builder.Property(m => m.CpanelApiTokenEncrypted).HasColumnName("cpanel_api_token_encrypted").HasMaxLength(1024);
+
+        Audit.Map(builder);
+    }
+}
+
+public class MailAccountConfiguration : IEntityTypeConfiguration<MailAccount>
+{
+    public void Configure(EntityTypeBuilder<MailAccount> builder)
+    {
+        builder.ToTable("mail_accounts");
+
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.Id).HasColumnName("id");
+        builder.Property(m => m.DisplayName).HasColumnName("display_name").HasMaxLength(100).IsRequired();
+        builder.Property(m => m.EmailAddress).HasColumnName("email_address").HasMaxLength(200).IsRequired();
+
+        // Encrypted at rest. Never returned by any endpoint, and redacted in the audit log.
+        builder.Property(m => m.PasswordEncrypted)
+            .HasColumnName("password_encrypted")
+            .HasMaxLength(1024);
+
+        builder.Property(m => m.Enabled).HasColumnName("enabled");
+
+        // Soft-deleted accounts are gone from every ordinary query — the list, the lookups — the same as a
+        // hard delete would leave them, but the row and its audit trail survive.
+        builder.HasQueryFilter(m => m.DeletedAt == null);
+
+        Audit.Map(builder);
+    }
+}
+
 public class EmailTemplateConfiguration : IEntityTypeConfiguration<EmailTemplate>
 {
     public void Configure(EntityTypeBuilder<EmailTemplate> builder)
