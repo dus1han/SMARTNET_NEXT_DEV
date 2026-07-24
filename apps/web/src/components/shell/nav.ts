@@ -7,6 +7,7 @@ import {
   FileStack,
   FileText,
   HandCoins,
+  Inbox,
   Landmark,
   LayoutDashboard,
   Mail,
@@ -94,6 +95,9 @@ export const NAVIGATION: NavSection[] = [
     items: [
       { href: "/documents", label: "Documents", icon: Paperclip, permission: "docstorage" },
       { href: "/notes", label: "Notes", icon: NotebookPen, permission: "notes" },
+      // The user-facing mailbox (read + send), gated by `email`. The mailboxes it shows are the ones an
+      // administrator assigned to this user; managing the mailboxes themselves is /mail-accounts.
+      { href: "/mail", label: "Mail", icon: Inbox, permission: "email" },
     ],
   },
   {

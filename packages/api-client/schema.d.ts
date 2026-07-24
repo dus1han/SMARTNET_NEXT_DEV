@@ -3189,6 +3189,166 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mail/mailboxes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MailboxListItem"][];
+                        "application/json": components["schemas"]["MailboxListItem"][];
+                        "text/json": components["schemas"]["MailboxListItem"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    skip?: number;
+                    take?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MailHeaderResponse"][];
+                        "application/json": components["schemas"]["MailHeaderResponse"][];
+                        "text/json": components["schemas"]["MailHeaderResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/{id}/messages/{uid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    uid: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MailMessageResponse"];
+                        "application/json": components["schemas"]["MailMessageResponse"];
+                        "text/json": components["schemas"]["MailMessageResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/{id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SendMailRequest"];
+                    "text/json": components["schemas"]["SendMailRequest"];
+                    "application/*+json": components["schemas"]["SendMailRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mail-accounts/server-settings": {
         parameters: {
             query?: never;
@@ -8695,6 +8855,29 @@ export interface components {
         MailDomainResponse: {
             domain?: string | null;
         };
+        MailHeaderResponse: {
+            /** Format: int32 */
+            uid: number;
+            fromName: string;
+            fromAddress: string;
+            subject: string;
+            /** Format: date-time */
+            date: string;
+            seen: boolean;
+            hasAttachments: boolean;
+        };
+        MailMessageResponse: {
+            /** Format: int32 */
+            uid: number;
+            fromName: string;
+            fromAddress: string;
+            to: string;
+            subject: string;
+            /** Format: date-time */
+            date: string;
+            body: string;
+            isHtml: boolean;
+        };
         MailServerSettingsResponse: {
             mailDomain?: string | null;
             outgoingHost: string;
@@ -8726,6 +8909,15 @@ export interface components {
             sendEnabled: boolean;
             /** Format: int32 */
             dailyLimit: number;
+        };
+        MailboxListItem: {
+            /** Format: int64 */
+            id: number;
+            displayName: string;
+            emailAddress: string;
+            /** Format: int32 */
+            unread?: number | null;
+            error?: string | null;
         };
         MailboxSummary: {
             /** Format: int64 */
@@ -9289,6 +9481,11 @@ export interface components {
             vatNumber?: string | null;
             /** Format: int32 */
             expectedRowVersion?: number | null;
+        };
+        SendMailRequest: {
+            to: string;
+            subject: string;
+            body: string;
         };
         SendTestEmailRequest: {
             to: string;

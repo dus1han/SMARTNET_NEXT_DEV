@@ -141,6 +141,10 @@ builder.Services.AddScoped<ICompanyContext, CompanyContext>();
 builder.Services.AddScoped<Smartnet.Api.Mailing.DocumentMailer>();
 builder.Services.AddSingleton<IMailSender, MailSender>();
 
+// Reading a user's assigned mailbox over IMAP for the Mail screen. Stateless and connection-per-call, so a
+// singleton is safe — see ImapMailboxReader.
+builder.Services.AddSingleton<IMailboxReader, ImapMailboxReader>();
+
 // cPanel provisioning — a typed client so a create/re-password reaches the host over HTTPS. Kept short:
 // the mailbox screen waits on it, and a hung cPanel must fail rather than hold the request open.
 builder.Services

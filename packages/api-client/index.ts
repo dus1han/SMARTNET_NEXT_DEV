@@ -48,6 +48,12 @@ export type SaveMailServerSettingsRequest = Schemas["SaveMailServerSettingsReque
 export type MailDomain = Schemas["MailDomainResponse"];
 export type EmailTemplate = Schemas["EmailTemplateDto"];
 
+// The user-facing mail screen.
+export type MailboxListItem = Schemas["MailboxListItem"];
+export type MailHeader = Schemas["MailHeaderResponse"];
+export type MailMessage = Schemas["MailMessageResponse"];
+export type SendMailRequest = Schemas["SendMailRequest"];
+
 // --- Document numbering ----------------------------------------------------------------------
 
 export type DocumentSeries = Schemas["DocumentSeriesDto"];
