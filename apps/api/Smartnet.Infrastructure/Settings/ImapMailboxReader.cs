@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using MailKit;
 using MailKit.Net.Imap;
+using MailKit.Search;
 using MailKit.Security;
 using MimeKit;
 using Smartnet.Domain.Settings;
@@ -108,6 +109,53 @@ public sealed class ImapMailboxReader : IMailboxReader
         await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
 
         // Fetch returns the range oldest-first; the newest belongs at the top of the list.
+        return summaries
+            .OrderByDescending(summary => summary.UniqueId.Id)
+            .Select(ToHeader)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<MailHeader>> SearchAsync(
+        MailboxConnection connection,
+        string folder,
+        string query,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        using var client = new ImapClient { Timeout = TimeoutMs };
+        await ConnectAsync(client, connection, cancellationToken).ConfigureAwait(false);
+
+        var mailFolder = await OpenAsync(client, folder, FolderAccess.ReadOnly, cancellationToken).ConfigureAwait(false);
+
+        // The server does the matching — subject, from, to or body contains the query.
+        var criteria = SearchQuery.SubjectContains(query)
+            .Or(SearchQuery.BodyContains(query))
+            .Or(SearchQuery.FromContains(query))
+            .Or(SearchQuery.ToContains(query));
+
+        var uids = await mailFolder.SearchAsync(criteria, cancellationToken).ConfigureAwait(false);
+
+        if (uids.Count == 0)
+        {
+            await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
+            return [];
+        }
+
+        // Newest matches first, capped — a search that hit thousands should not fetch thousands of envelopes.
+        var newest = uids.OrderByDescending(uid => uid.Id).Take(take).ToList();
+
+        var summaries = await mailFolder
+            .FetchAsync(
+                newest,
+                MessageSummaryItems.UniqueId
+                    | MessageSummaryItems.Envelope
+                    | MessageSummaryItems.Flags
+                    | MessageSummaryItems.BodyStructure,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
+
         return summaries
             .OrderByDescending(summary => summary.UniqueId.Id)
             .Select(ToHeader)
@@ -329,6 +377,11 @@ public sealed class ImapMailboxReader : IMailboxReader
             foreach (var recipient in message.To)
             {
                 mime.To.Add(MailboxAddress.Parse(recipient));
+            }
+
+            foreach (var recipient in message.Cc)
+            {
+                mime.Cc.Add(MailboxAddress.Parse(recipient));
             }
 
             mime.Subject = message.Subject;

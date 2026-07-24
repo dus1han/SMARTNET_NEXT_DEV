@@ -14,9 +14,11 @@ export const listFolders = (mailboxId: number) => api<MailFolder[]>(`/api/mail/$
 
 const folderQuery = (folder: string) => `folder=${encodeURIComponent(folder)}`;
 
-/** One folder's messages, newest first. */
-export const listMessages = (mailboxId: number, folder: string, take = 40) =>
-  api<MailHeader[]>(`/api/mail/${mailboxId}/messages?${folderQuery(folder)}&skip=0&take=${take}`);
+/** One folder's messages, newest first — or those matching `search` (subject/from/to/body) when given. */
+export const listMessages = (mailboxId: number, folder: string, take = 40, search?: string) => {
+  const q = search ? `&search=${encodeURIComponent(search)}` : "";
+  return api<MailHeader[]>(`/api/mail/${mailboxId}/messages?${folderQuery(folder)}&skip=0&take=${take}${q}`);
+};
 
 /** One message in full. Opening it marks it read on the server. */
 export const readMessage = (mailboxId: number, folder: string, uid: number) =>
@@ -36,6 +38,8 @@ export const deleteMessage = (mailboxId: number, folder: string, uid: number) =>
 
 export interface OutgoingMail {
   to: string;
+  cc: string;
+  bcc: string;
   subject: string;
   body: string;
   files: File[];
@@ -45,6 +49,8 @@ export interface OutgoingMail {
 export const sendMail = (mailboxId: number, mail: OutgoingMail) => {
   const form = new FormData();
   form.append("to", mail.to);
+  form.append("cc", mail.cc);
+  form.append("bcc", mail.bcc);
   form.append("subject", mail.subject);
   form.append("body", mail.body);
   for (const file of mail.files) form.append("files", file);

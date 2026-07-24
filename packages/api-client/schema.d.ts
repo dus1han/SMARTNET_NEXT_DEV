@@ -3278,6 +3278,7 @@ export interface paths {
                     folder?: string;
                     skip?: number;
                     take?: number;
+                    search?: string;
                 };
                 header?: never;
                 path: {
@@ -3472,6 +3473,8 @@ export interface paths {
                 content: {
                     "multipart/form-data": {
                         To?: string;
+                        Cc?: string;
+                        Bcc?: string;
                         Subject?: string;
                         Body?: string;
                         Files?: string[];

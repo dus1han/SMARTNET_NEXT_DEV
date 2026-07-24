@@ -264,8 +264,8 @@ public sealed class JobCardsController : ControllerBase
             recipients,
             subject,
             body,
-            [new MailAttachment($"job-sheet-{job.Jobno}.pdf", "application/pdf", pdf)],
-            cancellationToken).ConfigureAwait(false);
+            attachments: [new MailAttachment($"job-sheet-{job.Jobno}.pdf", "application/pdf", pdf)],
+            cancellationToken: cancellationToken).ConfigureAwait(false);
 
         // Recorded either way. A send that the server refused is exactly the event someone goes looking
         // for when the customer says they never received it — "we tried and it bounced" is an answer.

@@ -190,7 +190,7 @@ public sealed class DocumentMailer
             : _protection.CreateProtector(PasswordProtector).Unprotect(settings.PasswordEncrypted);
 
         return await _mail
-            .SendAsync(settings, password, recipients, subject, htmlBody, attachments, cancellationToken)
+            .SendAsync(settings, password, recipients, subject, htmlBody, attachments: attachments, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
     }
 }

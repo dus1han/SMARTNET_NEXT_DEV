@@ -114,14 +114,15 @@ public sealed class MailController : ControllerBase
         }
     }
 
-    /// <summary>One folder's messages, newest first, one page at a time.</summary>
+    /// <summary>One folder's messages, newest first — or those matching <paramref name="search"/> when given.</summary>
     [HttpGet("{id:long}/messages")]
     public async Task<ActionResult<IReadOnlyList<MailHeaderResponse>>> Messages(
         long id,
         CancellationToken cancellationToken,
         string folder = "INBOX",
         int skip = 0,
-        int take = 30)
+        int take = 30,
+        string? search = null)
     {
         var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
 
@@ -130,11 +131,13 @@ public sealed class MailController : ControllerBase
             return error;
         }
 
+        var count = Math.Clamp(take, 1, 200);
+
         try
         {
-            var headers = await _reader
-                .ListMessagesAsync(connection!, folder, Math.Max(0, skip), Math.Clamp(take, 1, 200), cancellationToken)
-                .ConfigureAwait(false);
+            var headers = string.IsNullOrWhiteSpace(search)
+                ? await _reader.ListMessagesAsync(connection!, folder, Math.Max(0, skip), count, cancellationToken).ConfigureAwait(false)
+                : await _reader.SearchAsync(connection!, folder, search.Trim(), count, cancellationToken).ConfigureAwait(false);
 
             return Ok(headers.Select(ToResponse).ToList());
         }
@@ -283,6 +286,9 @@ public sealed class MailController : ControllerBase
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Enter at least one recipient.");
         }
 
+        var cc = SplitAddresses(form.Cc ?? string.Empty);
+        var bcc = SplitAddresses(form.Bcc ?? string.Empty);
+
         var attachments = new List<MailAttachment>(form.Files.Count);
 
         foreach (var file in form.Files)
@@ -315,7 +321,16 @@ public sealed class MailController : ControllerBase
         var html = System.Net.WebUtility.HtmlEncode(form.Body ?? string.Empty).Replace("\n", "<br>", StringComparison.Ordinal);
 
         var result = await _sender
-            .SendAsync(settings, password, recipients, form.Subject ?? string.Empty, html, attachments.Count > 0 ? attachments : null, cancellationToken)
+            .SendAsync(
+                settings,
+                password,
+                recipients,
+                form.Subject ?? string.Empty,
+                html,
+                cc: cc.Count > 0 ? cc : null,
+                bcc: bcc.Count > 0 ? bcc : null,
+                attachments: attachments.Count > 0 ? attachments : null,
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         if (!result.Sent)
@@ -338,7 +353,7 @@ public sealed class MailController : ControllerBase
                 await _reader
                     .AppendToSentAsync(
                         connection,
-                        new SentMessage(account.DisplayName, account.EmailAddress, recipients, form.Subject ?? string.Empty, html, attachments),
+                        new SentMessage(account.DisplayName, account.EmailAddress, recipients, cc, form.Subject ?? string.Empty, html, attachments),
                         cancellationToken)
                     .ConfigureAwait(false);
             }

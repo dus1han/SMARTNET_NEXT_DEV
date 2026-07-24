@@ -23,6 +23,8 @@ public sealed class MailSender : IMailSender
                 Text = "This is a test message from SMARTNET. If you are reading it, "
                      + "outbound mail is configured correctly.",
             },
+            cc: null,
+            bcc: null,
             cancellationToken);
 
     public Task<MailResult> SendAsync(
@@ -31,6 +33,8 @@ public sealed class MailSender : IMailSender
         IReadOnlyCollection<string> recipients,
         string subject,
         string htmlBody,
+        IReadOnlyCollection<string>? cc = null,
+        IReadOnlyCollection<string>? bcc = null,
         IReadOnlyCollection<MailAttachment>? attachments = null,
         CancellationToken cancellationToken = default)
     {
@@ -58,7 +62,7 @@ public sealed class MailSender : IMailSender
             body = multipart;
         }
 
-        return SendMessageAsync(settings, password, recipients, subject, body, cancellationToken);
+        return SendMessageAsync(settings, password, recipients, subject, body, cc, bcc, cancellationToken);
     }
 
     private static async Task<MailResult> SendMessageAsync(
@@ -67,6 +71,8 @@ public sealed class MailSender : IMailSender
         IReadOnlyCollection<string> recipients,
         string subject,
         MimeEntity body,
+        IReadOnlyCollection<string>? cc,
+        IReadOnlyCollection<string>? bcc,
         CancellationToken cancellationToken)
     {
         // The kill switch, honoured on every path — test and dunning alike.
@@ -107,6 +113,16 @@ public sealed class MailSender : IMailSender
         foreach (var recipient in recipients)
         {
             message.To.Add(MailboxAddress.Parse(recipient));
+        }
+
+        foreach (var address in cc ?? [])
+        {
+            message.Cc.Add(MailboxAddress.Parse(address));
+        }
+
+        foreach (var address in bcc ?? [])
+        {
+            message.Bcc.Add(MailboxAddress.Parse(address));
         }
 
         if (!string.IsNullOrWhiteSpace(settings.Bcc))

@@ -104,7 +104,7 @@ public sealed partial class DunningBackgroundService : BackgroundService
         var (subject, body) = Render(template, job);
 
         var result = await mail
-            .SendAsync(settings, password, [job.Recipient], subject, body, attachments: null, cancellationToken)
+            .SendAsync(settings, password, [job.Recipient], subject, body, attachments: null, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         // SendEnabled off → MailResult.Sent is false with the "switched off" message: that is the gate,

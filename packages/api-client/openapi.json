@@ -4073,6 +4073,13 @@
               "format": "int32",
               "default": 30
             }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -4325,6 +4332,12 @@
                   "To": {
                     "type": "string"
                   },
+                  "Cc": {
+                    "type": "string"
+                  },
+                  "Bcc": {
+                    "type": "string"
+                  },
                   "Subject": {
                     "type": "string"
                   },
@@ -4342,6 +4355,12 @@
               },
               "encoding": {
                 "To": {
+                  "style": "form"
+                },
+                "Cc": {
+                  "style": "form"
+                },
+                "Bcc": {
                   "style": "form"
                 },
                 "Subject": {

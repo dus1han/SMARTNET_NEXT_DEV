@@ -45,6 +45,8 @@ public interface IMailSender
         IReadOnlyCollection<string> recipients,
         string subject,
         string htmlBody,
+        IReadOnlyCollection<string>? cc = null,
+        IReadOnlyCollection<string>? bcc = null,
         IReadOnlyCollection<MailAttachment>? attachments = null,
         CancellationToken cancellationToken = default);
 }

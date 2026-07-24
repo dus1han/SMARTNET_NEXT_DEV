@@ -25,6 +25,7 @@ import {
   PenSquare,
   RefreshCw,
   Reply,
+  Search,
   Send,
   Trash2,
   X,
@@ -59,6 +60,8 @@ function when(iso: string) {
 
 interface Compose {
   to: string;
+  cc: string;
+  bcc: string;
   subject: string;
   body: string;
   files: File[];
@@ -78,6 +81,8 @@ export default function MailPage() {
   const [folder, setFolder] = useState("INBOX");
   const [uid, setUid] = useState<number | null>(null);
   const [take, setTake] = useState(PAGE);
+  const [query, setQuery] = useState(""); // the search box text
+  const [applied, setApplied] = useState(""); // the search actually running
   const [compose, setCompose] = useState<Compose | null>(null);
 
   // Selected mailbox, defaulting to the first once the list arrives — derived, not set from an effect.
@@ -92,8 +97,8 @@ export default function MailPage() {
   });
 
   const messages = useQuery({
-    queryKey: ["messages", mailboxId, folder, take],
-    queryFn: () => listMessages(mailboxId!, folder, take),
+    queryKey: ["messages", mailboxId, folder, take, applied],
+    queryFn: () => listMessages(mailboxId!, folder, take, applied || undefined),
     enabled: mailboxId !== null,
     refetchInterval: 60_000,
   });
@@ -117,17 +122,22 @@ export default function MailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openMsg.data?.uid]);
 
+  const resetView = () => {
+    setUid(null);
+    setTake(PAGE);
+    setQuery("");
+    setApplied("");
+  };
+
   const selectMailbox = (id: number) => {
     setPicked(id);
     setFolder("INBOX");
-    setUid(null);
-    setTake(PAGE);
+    resetView();
   };
 
   const selectFolder = (full: string) => {
     setFolder(full);
-    setUid(null);
-    setTake(PAGE);
+    resetView();
   };
 
   const send = useMutation({
@@ -163,6 +173,8 @@ export default function MailPage() {
   const startReply = (msg: MailMessage) =>
     setCompose({
       to: msg.fromAddress,
+      cc: "",
+      bcc: "",
       subject: prefixed(msg.subject, "re:", "Re: "),
       body: `\n\n----- On ${when(msg.date)}, ${msg.fromName || msg.fromAddress} wrote -----\n${quote(msg)}`,
       files: [],
@@ -171,6 +183,8 @@ export default function MailPage() {
   const startForward = (msg: MailMessage) =>
     setCompose({
       to: "",
+      cc: "",
+      bcc: "",
       subject: prefixed(msg.subject, "fwd:", "Fwd: "),
       body: `\n\n----- Forwarded message -----\nFrom: ${msg.fromName || msg.fromAddress}\nDate: ${new Date(
         msg.date,
@@ -196,7 +210,7 @@ export default function MailPage() {
         title="Mail"
         description="The mailboxes assigned to you. Read, reply and compose."
         actions={
-          <Button onClick={() => setCompose({ to: "", subject: "", body: "", files: [] })} disabled={mailboxId === null}>
+          <Button onClick={() => setCompose({ to: "", cc: "", bcc: "", subject: "", body: "", files: [] })} disabled={mailboxId === null}>
             <PenSquare />
             Compose
           </Button>
@@ -227,8 +241,51 @@ export default function MailPage() {
 
           {uid === null && <FolderBar folders={folders.data} selected={folder} onSelect={selectFolder} />}
 
+          {uid === null && (
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setApplied(query.trim());
+                setTake(PAGE);
+              }}
+            >
+              <div className="relative min-w-0 flex-1 sm:max-w-md">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" aria-hidden />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search this folder…"
+                  className="h-10 w-full rounded-lg border border-subtle bg-surface pl-9 pr-9 text-sm text-text outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
+                />
+                {applied && (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => {
+                      setQuery("");
+                      setApplied("");
+                      setTake(PAGE);
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-text"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+              <Button type="submit" variant="secondary" size="sm">
+                Search
+              </Button>
+            </form>
+          )}
+
           {uid === null ? (
             <>
+              {applied && (
+                <p className="text-xs text-muted">
+                  Results for “{applied}”. <button type="button" className="text-primary hover:underline" onClick={() => { setQuery(""); setApplied(""); }}>Clear</button>
+                </p>
+              )}
               <MessageList
                 headers={messages.data}
                 loading={messages.isPending && mailboxId !== null}
@@ -566,6 +623,7 @@ function ComposeDialog({ draft, from, pending, onChange, onSend, onClose }: {
   onSend: () => void;
   onClose: () => void;
 }) {
+  const [showCc, setShowCc] = useState(false);
   const canSend = !!draft && draft.to.trim() !== "";
 
   return (
@@ -589,12 +647,34 @@ function ComposeDialog({ draft, from, pending, onChange, onSend, onClose }: {
     >
       {draft && (
         <div className="space-y-4">
-          <Input
-            label="To"
-            placeholder="name@example.com, another@example.com"
-            value={draft.to}
-            onChange={(e) => onChange({ ...draft, to: e.target.value })}
-          />
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-sm font-medium text-text">To</span>
+              {!showCc && (
+                <button
+                  type="button"
+                  className="text-xs font-medium text-primary hover:underline"
+                  onClick={() => setShowCc(true)}
+                >
+                  Cc / Bcc
+                </button>
+              )}
+            </div>
+            <input
+              placeholder="name@example.com, another@example.com"
+              value={draft.to}
+              onChange={(e) => onChange({ ...draft, to: e.target.value })}
+              className="h-10 w-full rounded-lg border border-subtle bg-surface px-3 text-sm text-text outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
+            />
+          </div>
+
+          {showCc && (
+            <>
+              <Input label="Cc" value={draft.cc} onChange={(e) => onChange({ ...draft, cc: e.target.value })} />
+              <Input label="Bcc" value={draft.bcc} onChange={(e) => onChange({ ...draft, bcc: e.target.value })} />
+            </>
+          )}
+
           <Input
             label="Subject"
             value={draft.subject}

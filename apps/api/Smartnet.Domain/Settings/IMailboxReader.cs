@@ -57,6 +57,7 @@ public sealed record SentMessage(
     string FromName,
     string FromAddress,
     IReadOnlyCollection<string> To,
+    IReadOnlyCollection<string> Cc,
     string Subject,
     string HtmlBody,
     IReadOnlyCollection<MailAttachment> Attachments);
@@ -81,6 +82,14 @@ public interface IMailboxReader
         MailboxConnection connection,
         string folder,
         int skip,
+        int take,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>The folder's messages matching a query in the subject, sender, recipient or body — newest first.</summary>
+    Task<IReadOnlyList<MailHeader>> SearchAsync(
+        MailboxConnection connection,
+        string folder,
+        string query,
         int take,
         CancellationToken cancellationToken = default);
 
