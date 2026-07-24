@@ -428,13 +428,35 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
   onSaved: () => void;
   ask: (request: import("@/components/form").ReasonRequest) => void;
 }) {
+  const DEV_ADMIN = "system.dev_admin";
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loaded, setLoaded] = useState<number | null>(null);
 
+  // Developer holds every permission by definition (PermissionPolicies.cs: Dev_Admin satisfies every
+  // policy). So on this screen it fills the whole catalogue rather than sitting as one tick among many
+  // — otherwise saving pushes only the superuser bit, and the legacy app, which reads each flag on its
+  // own and has no notion of a superuser, shows the developer no menus at all. Exclusive groups still
+  // take exactly one, so the set the server gets is a legal one.
+  const fillAll = (set: Set<string>) => {
+    for (const group of groups) {
+      if (group.exclusive) {
+        const keys = group.items.map((i) => i.key);
+        if (!keys.some((k) => set.has(k)) && keys[0]) set.add(keys[0]);
+      } else {
+        for (const item of group.items) set.add(item.key);
+      }
+    }
+    return set;
+  };
+
   // Sync the ticks to whichever user was opened — their current EFFECTIVE permissions — during
-  // render rather than in an effect.
+  // render rather than in an effect. A developer opens with everything ticked even if only the bit was
+  // stored, so saving repairs the missing legacy flags in place.
   if (user && loaded !== user.id) {
-    setSelected(new Set(user.effectivePermissions));
+    const initial = new Set(user.effectivePermissions);
+    if (initial.has(DEV_ADMIN)) fillAll(initial);
+    setSelected(initial);
     setLoaded(user.id);
   }
 
@@ -443,6 +465,9 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
       const next = new Set(current);
       if (on) next.add(key);
       else next.delete(key);
+      // Ticking Developer pulls in the rest; the rest snap back while it is on (the boxes are disabled
+      // below), so the only way to thin the set is to untick Developer first.
+      if (next.has(DEV_ADMIN)) fillAll(next);
       return next;
     });
 
@@ -453,6 +478,8 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
         if (on) next.add(key);
         else next.delete(key);
       }
+      // "Select all" on Administration includes Developer, which means all — not just that section.
+      if (next.has(DEV_ADMIN)) fillAll(next);
       return next;
     });
 
@@ -481,6 +508,10 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
   });
 
   const total = groups.reduce((sum, g) => sum + g.items.length, 0);
+
+  // While Developer is on it owns the whole set, so the other boxes are shown ticked but locked —
+  // untick Developer to edit individual permissions.
+  const devOn = selected.has(DEV_ADMIN);
 
   // A new user starts with no dashboard, so the radios open with nothing chosen and there is a real
   // "not yet valid" state to hold the save against. Named rather than counted so the message can say
@@ -527,6 +558,13 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
           {selected.size} of {total} granted.
         </p>
 
+        {devOn && (
+          <p className="rounded-lg border border-subtle bg-surface-sunken px-3 py-2.5 text-xs text-muted">
+            <span className="font-medium text-text">Developer</span> grants every permission. Untick it to
+            choose individual ones.
+          </p>
+        )}
+
         {unresolved.map((g) => (
           <p key={g.title} className="text-xs text-warning-text">
             Choose one option under {g.title} before saving.
@@ -549,8 +587,9 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
                 ) : (
                   <button
                     type="button"
+                    disabled={devOn}
                     onClick={() => setGroup(keys, !allOn)}
-                    className="text-xs font-medium text-primary hover:underline"
+                    className="text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted disabled:no-underline"
                   >
                     {allOn ? "Clear all" : "Select all"}
                   </button>
@@ -560,11 +599,17 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
               <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
                 {group.items.map((item) => {
                   const on = selected.has(item.key);
+                  // Developer itself stays live so it can be switched off; everything else is held on
+                  // underneath it.
+                  const locked = devOn && item.key !== DEV_ADMIN;
 
                   return (
                     <label
                       key={item.key}
-                      className="flex cursor-pointer items-start gap-2.5 rounded-md px-1.5 py-1.5 hover:bg-surface-sunken"
+                      className={cn(
+                        "flex items-start gap-2.5 rounded-md px-1.5 py-1.5",
+                        locked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-surface-sunken",
+                      )}
                       title={item.hint}
                     >
                       <input
@@ -572,8 +617,9 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
                         // A shared name is what makes arrow keys move between the options rather
                         // than in and out of a lone radio.
                         name={group.exclusive ? `perm-${group.title}` : undefined}
+                        disabled={locked}
                         className={cn(
-                          "mt-0.5 size-4 border-subtle text-primary focus-visible:ring-2 focus-visible:ring-ring/25",
+                          "mt-0.5 size-4 border-subtle text-primary focus-visible:ring-2 focus-visible:ring-ring/25 disabled:cursor-not-allowed",
                           group.exclusive ? "rounded-full" : "rounded",
                         )}
                         checked={on}

@@ -22,6 +22,7 @@ import {
   testMailAccount,
   updateMailAccount,
 } from "@/lib/mail-accounts";
+import { MINIMUM_REASON_LENGTH } from "@/lib/admin";
 import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
@@ -299,7 +300,9 @@ function MailAccountDialog({ account, domain, open, onClose, onSaved }: {
   });
 
   const nameOk = account ? true : localPart.trim() !== "";
-  const canSave = displayName.trim() !== "" && nameOk && reason.trim().length >= 3;
+  // The server's rule (RequireChangeReason, 10 chars). The old local check was 3, so a short reason
+  // passed here and then came back a 400 the user read as "reason required" with a reason on screen.
+  const canSave = displayName.trim() !== "" && nameOk && reason.trim().length >= MINIMUM_REASON_LENGTH;
 
   return (
     <Dialog
@@ -365,6 +368,7 @@ function MailAccountDialog({ account, domain, open, onClose, onSaved }: {
         <Input
           label="Reason for this change"
           placeholder="Recorded against your name (AUDIT.md §5)."
+          hint={`Recorded in the audit log. At least ${MINIMUM_REASON_LENGTH} characters.`}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />

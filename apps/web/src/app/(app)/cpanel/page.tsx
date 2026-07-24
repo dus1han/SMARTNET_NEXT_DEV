@@ -9,10 +9,11 @@
  * the Mail accounts screen.
  */
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Server, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import type { SaveMailServerSettingsRequest } from "@smartnet/api-client";
+import { MINIMUM_REASON_LENGTH } from "@/lib/admin";
 import { ApiError } from "@/lib/api";
 import { getMailServerSettings, saveMailServerSettings } from "@/lib/mail-accounts";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -27,6 +28,7 @@ function message(error: unknown) {
 }
 
 export default function CpanelPage() {
+  const queryClient = useQueryClient();
   const server = useQuery({ queryKey: ["mail-server-settings"], queryFn: getMailServerSettings });
 
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -51,6 +53,10 @@ export default function CpanelPage() {
       setToken("");
       if (token) setHasToken(true);
       setReason("");
+      // The domain feeds the Mail accounts add screen's @suffix, and these settings feed a re-open of
+      // this page — refresh both so neither shows a stale copy after a save.
+      void queryClient.invalidateQueries({ queryKey: ["mail-server-settings"] });
+      void queryClient.invalidateQueries({ queryKey: ["mail-domain"] });
     },
     onError: (error: unknown) => toast.error(message(error)),
   });
@@ -77,7 +83,10 @@ export default function CpanelPage() {
   // cPanel is all-or-nothing: a host without a username (or the reverse) can never authenticate.
   const cpanelHalf = !!draft.cpanelHost?.trim() !== !!draft.cpanelUsername?.trim();
   const canSave =
-    draft.outgoingHost.trim() !== "" && draft.incomingHost.trim() !== "" && !cpanelHalf && reason.trim().length >= 3;
+    draft.outgoingHost.trim() !== ""
+    && draft.incomingHost.trim() !== ""
+    && !cpanelHalf
+    && reason.trim().length >= MINIMUM_REASON_LENGTH;
 
   return (
     <FadeIn className="space-y-6">
@@ -107,11 +116,18 @@ export default function CpanelPage() {
           </p>
         </div>
 
-        <div className="mt-5 grid gap-6 lg:grid-cols-2">
-          <fieldset className="space-y-4">
-            <legend className="text-xs font-semibold uppercase tracking-wide text-muted">Outgoing (SMTP)</legend>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Host" value={draft.outgoingHost} onChange={(e) => set("outgoingHost", e.target.value)} />
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <fieldset className="rounded-xl border border-subtle bg-surface-sunken/40 p-4">
+            <legend className="px-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+              Outgoing (SMTP)
+            </legend>
+            <div className="mt-1 grid grid-cols-[1fr_6rem] gap-3">
+              <Input
+                label="Host"
+                placeholder="mail.smart-net.lk"
+                value={draft.outgoingHost}
+                onChange={(e) => set("outgoingHost", e.target.value)}
+              />
               <Input
                 label="Port"
                 type="number"
@@ -119,7 +135,7 @@ export default function CpanelPage() {
                 onChange={(e) => set("outgoingPort", Number(e.target.value))}
               />
             </div>
-            <label className="flex items-center gap-2 text-sm text-text">
+            <label className="mt-4 flex items-center gap-2 border-t border-subtle pt-3 text-sm text-text">
               <input
                 type="checkbox"
                 className={checkbox}
@@ -130,10 +146,12 @@ export default function CpanelPage() {
             </label>
           </fieldset>
 
-          <fieldset className="space-y-4">
-            <legend className="text-xs font-semibold uppercase tracking-wide text-muted">Incoming (IMAP / POP3)</legend>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block">
+          <fieldset className="rounded-xl border border-subtle bg-surface-sunken/40 p-4">
+            <legend className="px-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+              Incoming (IMAP / POP3)
+            </legend>
+            <div className="mt-1 space-y-3">
+              <label className="block max-w-[10rem]">
                 <span className="mb-1.5 block text-sm font-medium text-text">Protocol</span>
                 <select
                   className="h-10 w-full rounded-lg border border-subtle bg-surface px-3 text-sm text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
@@ -144,16 +162,22 @@ export default function CpanelPage() {
                   <option value="POP3">POP3</option>
                 </select>
               </label>
-              <div className="hidden sm:block" />
-              <Input label="Host" value={draft.incomingHost} onChange={(e) => set("incomingHost", e.target.value)} />
-              <Input
-                label="Port"
-                type="number"
-                value={draft.incomingPort}
-                onChange={(e) => set("incomingPort", Number(e.target.value))}
-              />
+              <div className="grid grid-cols-[1fr_6rem] gap-3">
+                <Input
+                  label="Host"
+                  placeholder="mail.smart-net.lk"
+                  value={draft.incomingHost}
+                  onChange={(e) => set("incomingHost", e.target.value)}
+                />
+                <Input
+                  label="Port"
+                  type="number"
+                  value={draft.incomingPort}
+                  onChange={(e) => set("incomingPort", Number(e.target.value))}
+                />
+              </div>
             </div>
-            <label className="flex items-center gap-2 text-sm text-text">
+            <label className="mt-4 flex items-center gap-2 border-t border-subtle pt-3 text-sm text-text">
               <input
                 type="checkbox"
                 className={checkbox}
@@ -213,6 +237,7 @@ export default function CpanelPage() {
         <Input
           label="Reason for this change"
           placeholder="Recorded against your name."
+          hint={`Recorded in the audit log. At least ${MINIMUM_REASON_LENGTH} characters.`}
           className="min-w-64 flex-1"
           value={reason}
           onChange={(e) => setReason(e.target.value)}

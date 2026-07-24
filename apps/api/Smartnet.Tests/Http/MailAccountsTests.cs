@@ -102,6 +102,30 @@ public sealed class MailAccountsTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task Adding_an_address_that_already_exists_is_refused()
+    {
+        var client = _api.SignedIn;
+
+        (await PostAsync(client, Body("First", "duplicate@smart-net.lk", password: "x")))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+
+        // Same address again — turned away, not added a second time.
+        (await PostAsync(client, Body("Second", "duplicate@smart-net.lk", password: "x")))
+            .StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        // And the address is matched case-insensitively — a mailbox is the same mailbox in any case.
+        (await PostAsync(client, Body("Third", "Duplicate@Smart-Net.LK", password: "x")))
+            .StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        // Only the first one is there.
+        (await ListAsync(client))
+            .Count(a => string.Equals(
+                a.GetProperty("emailAddress").GetString(), "duplicate@smart-net.lk",
+                StringComparison.OrdinalIgnoreCase))
+            .Should().Be(1);
+    }
+
     // --- Helpers -----------------------------------------------------------------------------------
 
     private static object Body(string displayName, string emailAddress, string? password, bool enabled = true) =>

@@ -153,6 +153,24 @@ public sealed class MailAccountsController : ControllerBase
         SaveMailAccountRequest request,
         CancellationToken cancellationToken)
     {
+        var email = request.EmailAddress.Trim();
+
+        // One address, one account. Without this the same mailbox could be added twice — and with cPanel on,
+        // the second add hits the host's own "already exists" as a raw 502 that reads like a fault. The
+        // column collation is case-insensitive, so Sales@ and sales@ are the same mailbox here too. (The two
+        // pre-existing mailboxes are being inserted straight into the table; this is what stops a re-add of
+        // them, or of anything, from the screen.)
+        var taken = await _db.MailAccounts
+            .AnyAsync(a => a.EmailAddress == email, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (taken)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: $"{email} is already a mail account.");
+        }
+
         var server = await _db.MailServerSettings.FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
         var cpanel = CpanelCredentialsOrNull(server);
 
