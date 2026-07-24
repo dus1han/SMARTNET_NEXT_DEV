@@ -30,12 +30,13 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { MailFolder, MailHeader, MailboxListItem, MailMessage } from "@smartnet/api-client";
+import type { MailContactSuggestion, MailFolder, MailHeader, MailboxListItem, MailMessage } from "@smartnet/api-client";
 import { ApiError } from "@/lib/api";
 import {
   attachmentUrl,
   deleteMessage,
   listFolders,
+  listMailContacts,
   listMessages,
   listMyMailboxes,
   readMessage,
@@ -76,6 +77,9 @@ export default function MailPage() {
   // Polled so new mail and changing unread counts appear on their own. React Query pauses these while the
   // tab is hidden (refetchIntervalInBackground defaults off), so an idle tab is not hammering IMAP.
   const mailboxes = useQuery({ queryKey: ["my-mailboxes"], queryFn: listMyMailboxes, refetchInterval: 120_000 });
+
+  // The address book for the composer's To/Cc/Bcc suggestions — fetched once, rarely changing.
+  const contacts = useQuery({ queryKey: ["mail-contacts"], queryFn: listMailContacts, staleTime: 5 * 60_000 });
 
   const [picked, setPicked] = useState<number | null>(null);
   const [folder, setFolder] = useState("INBOX");
@@ -324,6 +328,7 @@ export default function MailPage() {
       <ComposeDialog
         draft={compose}
         from={activeMailbox?.emailAddress ?? ""}
+        contacts={contacts.data ?? []}
         pending={send.isPending}
         onChange={setCompose}
         onSend={() => compose && send.mutate(compose)}
@@ -615,9 +620,69 @@ function HtmlMessage({ html }: { html: string }) {
   );
 }
 
-function ComposeDialog({ draft, from, pending, onChange, onSend, onClose }: {
+/** A recipient field with contact autocomplete on the token being typed (after the last comma). */
+function RecipientInput({ value, onChange, contacts, placeholder }: {
+  value: string;
+  onChange: (value: string) => void;
+  contacts: MailContactSuggestion[];
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const token = (value.split(",").pop() ?? "").trim().toLowerCase();
+  const matches =
+    token.length >= 1
+      ? contacts
+          .filter((c) => c.email.toLowerCase().includes(token) || c.name.toLowerCase().includes(token))
+          .slice(0, 8)
+      : [];
+
+  const pick = (email: string) => {
+    const parts = value.split(",");
+    parts[parts.length - 1] = ` ${email}`;
+    onChange(`${parts.join(",").trimStart()}, `);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <input
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        className="h-10 w-full rounded-lg border border-subtle bg-surface px-3 text-sm text-text outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
+      />
+      {open && matches.length > 0 && (
+        <ul className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-subtle bg-surface p-1 shadow-lg">
+          {matches.map((c) => (
+            <li key={c.email}>
+              <button
+                type="button"
+                // Fire before the input's blur closes the list.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(c.email)}
+                className="flex w-full flex-col rounded-md px-2.5 py-1.5 text-left hover:bg-surface-sunken"
+              >
+                <span className="truncate text-sm text-text">{c.name || c.email}</span>
+                {c.name && <span className="truncate text-xs text-muted">{c.email}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ComposeDialog({ draft, from, contacts, pending, onChange, onSend, onClose }: {
   draft: Compose | null;
   from: string;
+  contacts: MailContactSuggestion[];
   pending: boolean;
   onChange: (draft: Compose) => void;
   onSend: () => void;
@@ -660,18 +725,24 @@ function ComposeDialog({ draft, from, pending, onChange, onSend, onClose }: {
                 </button>
               )}
             </div>
-            <input
-              placeholder="name@example.com, another@example.com"
+            <RecipientInput
               value={draft.to}
-              onChange={(e) => onChange({ ...draft, to: e.target.value })}
-              className="h-10 w-full rounded-lg border border-subtle bg-surface px-3 text-sm text-text outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
+              onChange={(to) => onChange({ ...draft, to })}
+              contacts={contacts}
+              placeholder="name@example.com, another@example.com"
             />
           </div>
 
           {showCc && (
             <>
-              <Input label="Cc" value={draft.cc} onChange={(e) => onChange({ ...draft, cc: e.target.value })} />
-              <Input label="Bcc" value={draft.bcc} onChange={(e) => onChange({ ...draft, bcc: e.target.value })} />
+              <div>
+                <span className="mb-1.5 block text-sm font-medium text-text">Cc</span>
+                <RecipientInput value={draft.cc} onChange={(cc) => onChange({ ...draft, cc })} contacts={contacts} />
+              </div>
+              <div>
+                <span className="mb-1.5 block text-sm font-medium text-text">Bcc</span>
+                <RecipientInput value={draft.bcc} onChange={(bcc) => onChange({ ...draft, bcc })} contacts={contacts} />
+              </div>
             </>
           )}
 

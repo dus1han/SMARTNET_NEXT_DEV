@@ -1,13 +1,16 @@
 import { api, API_BASE_URL } from "./api";
-import type { MailboxListItem, MailFolder, MailHeader, MailMessage } from "@smartnet/api-client";
+import type { MailboxListItem, MailFolder, MailHeader, MailMessage, MailContactSuggestion } from "@smartnet/api-client";
 
 // The signed-in user's own mailboxes and their mail. Everything here is scoped server-side to the caller's
 // assigned mailboxes, so none of it takes a user id — the token is the user.
 
-export type { MailboxListItem, MailFolder, MailHeader, MailMessage };
+export type { MailboxListItem, MailFolder, MailHeader, MailMessage, MailContactSuggestion };
 
 /** The switcher: the user's assigned mailboxes, each with its inbox unread count (or an error). */
 export const listMyMailboxes = () => api<MailboxListItem[]>("/api/mail/mailboxes");
+
+/** Recipient suggestions (customer contacts) for the To/Cc/Bcc autocomplete. */
+export const listMailContacts = () => api<MailContactSuggestion[]>("/api/mail/contacts");
 
 /** The folders of one mailbox — Inbox, Sent, Drafts, Trash and any others, each with its unread count. */
 export const listFolders = (mailboxId: number) => api<MailFolder[]>(`/api/mail/${mailboxId}/folders`);

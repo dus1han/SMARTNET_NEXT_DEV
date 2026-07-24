@@ -3984,6 +3984,44 @@
         }
       }
     },
+    "/api/mail/contacts": {
+      "get": {
+        "tags": [
+          "Mail"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailContactSuggestion"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailContactSuggestion"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailContactSuggestion"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mail/{id}/folders": {
       "get": {
         "tags": [
@@ -14116,6 +14154,22 @@
             "type": "string"
           },
           "contentType": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailContactSuggestion": {
+        "required": [
+          "email",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "email": {
             "type": "string"
           }
         },

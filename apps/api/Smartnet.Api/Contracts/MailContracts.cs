@@ -13,6 +13,9 @@ public sealed record MailboxListItem(long Id, string DisplayName, string EmailAd
 /// <summary>A folder in the open mailbox. <paramref name="Role"/> is the well-known kind (Inbox, Sent, …).</summary>
 public sealed record MailFolderResponse(string FullName, string Name, string Role, int Unread);
 
+/// <summary>A suggested recipient — a customer contact — for the To/Cc/Bcc autocomplete.</summary>
+public sealed record MailContactSuggestion(string Name, string Email);
+
 /// <summary>One row in the inbox list — no body, so the list is one cheap fetch.</summary>
 public sealed record MailHeaderResponse(
     uint Uid,

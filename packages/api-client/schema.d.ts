@@ -3226,6 +3226,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mail/contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MailContactSuggestion"][];
+                        "application/json": components["schemas"]["MailContactSuggestion"][];
+                        "text/json": components["schemas"]["MailContactSuggestion"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mail/{id}/folders": {
         parameters: {
             query?: never;
@@ -9005,6 +9042,10 @@ export interface components {
             index: number;
             fileName: string;
             contentType: string;
+        };
+        MailContactSuggestion: {
+            name: string;
+            email: string;
         };
         MailDomainResponse: {
             domain?: string | null;

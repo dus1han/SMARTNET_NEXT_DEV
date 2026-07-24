@@ -92,6 +92,30 @@ public sealed class MailController : ControllerBase
         return Ok(items.ToList());
     }
 
+    /// <summary>
+    /// Recipient suggestions for the composer — the distinct customer-contact emails, for the To/Cc/Bcc
+    /// autocomplete. Not per-mailbox: it is the same address book whichever mailbox is open.
+    /// </summary>
+    [HttpGet("contacts")]
+    public async Task<ActionResult<IReadOnlyList<MailContactSuggestion>>> Contacts(CancellationToken cancellationToken)
+    {
+        var rows = await _db.CustomerContacts
+            .Where(c => c.Email != null && c.Email != "")
+            .Select(c => new { c.Name, c.Email })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // One entry per address (case-insensitively), keeping the first name seen for it, alphabetical.
+        var contacts = rows
+            .GroupBy(c => c.Email!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new MailContactSuggestion(g.Select(c => c.Name).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? string.Empty, g.Key))
+            .OrderBy(c => c.Email, StringComparer.OrdinalIgnoreCase)
+            .Take(1000)
+            .ToList();
+
+        return Ok(contacts);
+    }
+
     /// <summary>The folders of one assigned mailbox, each with its unread count.</summary>
     [HttpGet("{id:long}/folders")]
     public async Task<ActionResult<IReadOnlyList<MailFolderResponse>>> Folders(long id, CancellationToken cancellationToken)
