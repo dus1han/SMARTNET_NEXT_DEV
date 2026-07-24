@@ -140,6 +140,11 @@ builder.Services.AddScoped<ICompanyContext, CompanyContext>();
 // Emailing a document to a customer's contacts — the part job sheets, statements and quotations share.
 builder.Services.AddScoped<Smartnet.Api.Mailing.DocumentMailer>();
 builder.Services.AddSingleton<IMailSender, MailSender>();
+
+// cPanel provisioning — a typed client so a create/re-password reaches the host over HTTPS. Kept short:
+// the mailbox screen waits on it, and a hung cPanel must fail rather than hold the request open.
+builder.Services
+    .AddHttpClient<ICpanelMailProvisioner, CpanelMailProvisioner>(c => c.Timeout = TimeSpan.FromSeconds(20));
 builder.Services.AddSingleton<IExcelExporter, ExcelExporter>();
 
 // Bulk dunning runs off the request thread: an in-process queue (singleton) and a hosted worker that

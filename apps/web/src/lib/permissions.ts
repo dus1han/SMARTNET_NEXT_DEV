@@ -78,6 +78,7 @@ const LABELS: Record<string, PermissionMeta> = {
   users: { label: "User management" },
   "roles.manage": { label: "Role management" },
   "settings.manage": { label: "Settings" },
+  "mail_accounts": { label: "Mail accounts", hint: "Manage the shared mailboxes." },
   "audit.view": { label: "Audit log" },
   "system.dev_admin": {
     label: "Developer",
@@ -117,7 +118,7 @@ const GROUPS: { title: string; keys: string[]; exclusive?: boolean }[] = [
   { title: "Documents & notes", keys: ["docstorage", "notes", "email"] },
   {
     title: "Administration",
-    keys: ["users", "roles.manage", "settings.manage", "audit.view", "system.dev_admin"],
+    keys: ["users", "roles.manage", "settings.manage", "mail_accounts", "audit.view", "system.dev_admin"],
   },
 ];
 

@@ -3946,6 +3946,330 @@
         }
       }
     },
+    "/api/mail-accounts/server-settings": {
+      "get": {
+        "tags": [
+          "MailAccounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailServerSettingsResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailServerSettingsResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailServerSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "MailAccounts"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SaveMailServerSettingsRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SaveMailServerSettingsRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SaveMailServerSettingsRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/mail-accounts/domain": {
+      "get": {
+        "tags": [
+          "MailAccounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailDomainResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailDomainResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailDomainResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mail-accounts": {
+      "get": {
+        "tags": [
+          "MailAccounts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailAccountResponse"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailAccountResponse"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailAccountResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "MailAccounts"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SaveMailAccountRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SaveMailAccountRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SaveMailAccountRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailAccountResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailAccountResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailAccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mail-accounts/{id}": {
+      "put": {
+        "tags": [
+          "MailAccounts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SaveMailAccountRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SaveMailAccountRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SaveMailAccountRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "MailAccounts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/mail-accounts/{id}/test": {
+      "post": {
+        "tags": [
+          "MailAccounts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SendTestEmailRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SendTestEmailRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SendTestEmailRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/notes": {
       "get": {
         "tags": [
@@ -13218,6 +13542,104 @@
         },
         "additionalProperties": false
       },
+      "MailAccountResponse": {
+        "required": [
+          "displayName",
+          "emailAddress",
+          "enabled",
+          "hasPassword",
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "hasPassword": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailDomainResponse": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MailServerSettingsResponse": {
+        "required": [
+          "cpanelPort",
+          "hasCpanelApiToken",
+          "incomingHost",
+          "incomingPort",
+          "incomingProtocol",
+          "incomingUseSsl",
+          "outgoingHost",
+          "outgoingPort",
+          "outgoingUseSsl"
+        ],
+        "type": "object",
+        "properties": {
+          "mailDomain": {
+            "type": "string",
+            "nullable": true
+          },
+          "outgoingHost": {
+            "type": "string"
+          },
+          "outgoingPort": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "outgoingUseSsl": {
+            "type": "boolean"
+          },
+          "incomingProtocol": {
+            "type": "string"
+          },
+          "incomingHost": {
+            "type": "string"
+          },
+          "incomingPort": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "incomingUseSsl": {
+            "type": "boolean"
+          },
+          "cpanelHost": {
+            "type": "string",
+            "nullable": true
+          },
+          "cpanelPort": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cpanelUsername": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasCpanelApiToken": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "MailSettingsResponse": {
         "required": [
           "dailyLimit",
@@ -14902,6 +15324,89 @@
           "expectedRowVersion": {
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SaveMailAccountRequest": {
+        "required": [
+          "displayName",
+          "emailAddress",
+          "enabled"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SaveMailServerSettingsRequest": {
+        "required": [
+          "cpanelPort",
+          "incomingHost",
+          "incomingPort",
+          "incomingProtocol",
+          "incomingUseSsl",
+          "outgoingHost",
+          "outgoingPort",
+          "outgoingUseSsl"
+        ],
+        "type": "object",
+        "properties": {
+          "mailDomain": {
+            "type": "string",
+            "nullable": true
+          },
+          "outgoingHost": {
+            "type": "string"
+          },
+          "outgoingPort": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "outgoingUseSsl": {
+            "type": "boolean"
+          },
+          "incomingProtocol": {
+            "type": "string"
+          },
+          "incomingHost": {
+            "type": "string"
+          },
+          "incomingPort": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "incomingUseSsl": {
+            "type": "boolean"
+          },
+          "cpanelHost": {
+            "type": "string",
+            "nullable": true
+          },
+          "cpanelPort": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cpanelUsername": {
+            "type": "string",
+            "nullable": true
+          },
+          "cpanelApiToken": {
+            "type": "string",
             "nullable": true
           }
         },

@@ -46,6 +46,9 @@ public static class Permissions
     public const string SettingsManage = "settings.manage";
     public const string AuditView = "audit.view";
 
+    /// <summary>Managing the shared mailboxes — the Administration → Mail accounts screen.</summary>
+    public const string MailAccounts = "mail_accounts";
+
     /// <summary>The general ledger / trial balance — a surface the legacy app never had.</summary>
     public const string GeneralLedger = "general_ledger";
 
@@ -74,7 +77,7 @@ public static class Permissions
 
     /// <summary>The new permissions, in the order they should appear in the admin UI.</summary>
     public static readonly IReadOnlyList<string> NewPermissions =
-        [SystemDevAdmin, RolesManage, SettingsManage, AuditView, GeneralLedger, DashboardOperations];
+        [SystemDevAdmin, RolesManage, SettingsManage, MailAccounts, AuditView, GeneralLedger, DashboardOperations];
 
     // --- The 35 legacy flags -----------------------------------------------------------------
 
