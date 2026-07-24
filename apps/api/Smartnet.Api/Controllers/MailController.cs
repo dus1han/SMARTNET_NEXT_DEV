@@ -92,34 +92,48 @@ public sealed class MailController : ControllerBase
         return Ok(items.ToList());
     }
 
-    /// <summary>The inbox of one assigned mailbox, newest first, one page at a time.</summary>
-    [HttpGet("{id:long}/messages")]
-    public async Task<ActionResult<IReadOnlyList<MailHeaderResponse>>> Messages(
-        long id,
-        CancellationToken cancellationToken,
-        int skip = 0,
-        int take = 30)
+    /// <summary>The folders of one assigned mailbox, each with its unread count.</summary>
+    [HttpGet("{id:long}/folders")]
+    public async Task<ActionResult<IReadOnlyList<MailFolderResponse>>> Folders(long id, CancellationToken cancellationToken)
     {
-        var (account, server, error) = await ResolveAsync(id, cancellationToken).ConfigureAwait(false);
+        var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
 
         if (error is not null)
         {
             return error;
         }
 
-        var connection = ConnectionFor(account!, server);
-
-        if (connection is null)
+        try
         {
-            return Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "This mailbox has no password set, or the incoming server is not configured.");
+            var folders = await _reader.ListFoldersAsync(connection!, cancellationToken).ConfigureAwait(false);
+            return Ok(folders.Select(f => new MailFolderResponse(f.FullName, f.Name, f.Role.ToString(), f.Unread)).ToList());
+        }
+        catch (MailboxReadException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: "The mail server refused.", detail: ex.Message);
+        }
+    }
+
+    /// <summary>One folder's messages, newest first, one page at a time.</summary>
+    [HttpGet("{id:long}/messages")]
+    public async Task<ActionResult<IReadOnlyList<MailHeaderResponse>>> Messages(
+        long id,
+        CancellationToken cancellationToken,
+        string folder = "INBOX",
+        int skip = 0,
+        int take = 30)
+    {
+        var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (error is not null)
+        {
+            return error;
         }
 
         try
         {
             var headers = await _reader
-                .ListInboxAsync(connection, Math.Max(0, skip), Math.Clamp(take, 1, 100), cancellationToken)
+                .ListMessagesAsync(connection!, folder, Math.Max(0, skip), Math.Clamp(take, 1, 100), cancellationToken)
                 .ConfigureAwait(false);
 
             return Ok(headers.Select(ToResponse).ToList());
@@ -132,31 +146,79 @@ public sealed class MailController : ControllerBase
 
     /// <summary>One message in full, marked read as it is opened.</summary>
     [HttpGet("{id:long}/messages/{uid:long}")]
-    public async Task<ActionResult<MailMessageResponse>> Message(long id, long uid, CancellationToken cancellationToken)
+    public async Task<ActionResult<MailMessageResponse>> Message(
+        long id,
+        long uid,
+        CancellationToken cancellationToken,
+        string folder = "INBOX")
     {
-        var (account, server, error) = await ResolveAsync(id, cancellationToken).ConfigureAwait(false);
+        var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
 
         if (error is not null)
         {
             return error;
         }
 
-        var connection = ConnectionFor(account!, server);
-
-        if (connection is null)
+        try
         {
-            return Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "This mailbox has no password set, or the incoming server is not configured.");
+            var content = await _reader
+                .ReadMessageAsync(connection!, folder, (uint)uid, markSeen: true, cancellationToken)
+                .ConfigureAwait(false);
+
+            return content is null ? NotFound() : Ok(ToResponse(content));
+        }
+        catch (MailboxReadException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: "The mail server refused.", detail: ex.Message);
+        }
+    }
+
+    /// <summary>Marks a message read or unread.</summary>
+    [HttpPost("{id:long}/messages/{uid:long}/seen")]
+    public async Task<IActionResult> SetSeen(
+        long id,
+        long uid,
+        CancellationToken cancellationToken,
+        string folder = "INBOX",
+        bool seen = true)
+    {
+        var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (error is not null)
+        {
+            return error;
         }
 
         try
         {
-            var content = await _reader
-                .ReadMessageAsync(connection, (uint)uid, markSeen: true, cancellationToken)
-                .ConfigureAwait(false);
+            await _reader.SetSeenAsync(connection!, folder, (uint)uid, seen, cancellationToken).ConfigureAwait(false);
+            return NoContent();
+        }
+        catch (MailboxReadException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: "The mail server refused.", detail: ex.Message);
+        }
+    }
 
-            return content is null ? NotFound() : Ok(ToResponse(content));
+    /// <summary>Deletes a message — to Trash, or for good if it is already there.</summary>
+    [HttpDelete("{id:long}/messages/{uid:long}")]
+    public async Task<IActionResult> Delete(
+        long id,
+        long uid,
+        CancellationToken cancellationToken,
+        string folder = "INBOX")
+    {
+        var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (error is not null)
+        {
+            return error;
+        }
+
+        try
+        {
+            await _reader.DeleteAsync(connection!, folder, (uint)uid, cancellationToken).ConfigureAwait(false);
+            return NoContent();
         }
         catch (MailboxReadException ex)
         {
@@ -220,10 +282,59 @@ public sealed class MailController : ControllerBase
                 detail: result.Error);
         }
 
+        // File a copy in Sent, so sending leaves a record where the user expects one. Best-effort: the
+        // message has already gone, so a mailbox that will not take the copy must not turn a sent message
+        // into a failed one.
+        var connection = ConnectionFor(account, server);
+
+        if (connection is not null)
+        {
+            try
+            {
+                await _reader
+                    .AppendToSentAsync(
+                        connection,
+                        new SentMessage(account.DisplayName, account.EmailAddress, recipients, request.Subject ?? string.Empty, html),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (MailboxReadException)
+            {
+                // No Sent folder, or the append was refused — the mail still went out.
+            }
+        }
+
         return NoContent();
     }
 
     // --- Helpers ---------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Resolves the route mailbox to a ready IMAP/SMTP connection, or the error to return — the caller's own
+    /// mailbox with a password and a configured server, or a 404/400 saying which of those is missing.
+    /// </summary>
+    private async Task<(MailboxConnection? Connection, ObjectResult? Error)> ConnectionOrErrorAsync(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var (account, server, error) = await ResolveAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (error is not null)
+        {
+            return (null, error);
+        }
+
+        var connection = ConnectionFor(account!, server);
+
+        if (connection is null)
+        {
+            return (null, (ObjectResult)Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "This mailbox has no password set, or the incoming server is not configured."));
+        }
+
+        return (connection, null);
+    }
 
     /// <summary>The signed-in user's enabled, assigned mailboxes — the switcher's list.</summary>
     private Task<List<MailAccount>> AssignedMailboxesAsync(CancellationToken cancellationToken) => _db.UserMailAccounts

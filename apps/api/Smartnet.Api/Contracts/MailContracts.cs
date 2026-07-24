@@ -9,6 +9,9 @@ namespace Smartnet.Api.Contracts;
 /// <param name="Unread">Null when the count could not be read; <paramref name="Error"/> says why.</param>
 public sealed record MailboxListItem(long Id, string DisplayName, string EmailAddress, int? Unread, string? Error);
 
+/// <summary>A folder in the open mailbox. <paramref name="Role"/> is the well-known kind (Inbox, Sent, …).</summary>
+public sealed record MailFolderResponse(string FullName, string Name, string Role, int Unread);
+
 /// <summary>One row in the inbox list — no body, so the list is one cheap fetch.</summary>
 public sealed record MailHeaderResponse(
     uint Uid,

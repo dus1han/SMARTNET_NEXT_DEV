@@ -50,6 +50,7 @@ export type EmailTemplate = Schemas["EmailTemplateDto"];
 
 // The user-facing mail screen.
 export type MailboxListItem = Schemas["MailboxListItem"];
+export type MailFolder = Schemas["MailFolderResponse"];
 export type MailHeader = Schemas["MailHeaderResponse"];
 export type MailMessage = Schemas["MailMessageResponse"];
 export type SendMailRequest = Schemas["SendMailRequest"];

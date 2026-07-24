@@ -3,23 +3,33 @@
 /**
  * Mail — the signed-in user's own mailboxes, worked from inside the app.
  *
- * Reading is over IMAP; sending — compose and reply — is over SMTP as that mailbox. Everything is scoped
- * server-side to the caller's assigned mailboxes, so this screen never names a user id.
- *
- * Layout: a compact mailbox picker (a dropdown, not a column, so the mail gets the width), an inbox list,
- * and — when a message is opened — a full-width reading view with a Back. The page scrolls like every other
- * screen; nothing here traps the scroll in a fixed-height pane.
- *
- * This is the read + send core. Folders, attachments, delete, search and flags are follow-up slices.
+ * A compact mailbox picker (a dropdown, not a column), a folder bar, an inbox list, and — when a message is
+ * opened — a full-width reading view with reply / forward / mark-unread / delete. Reading is over IMAP;
+ * sending is over SMTP as that mailbox, with a copy filed in Sent. Everything is scoped server-side to the
+ * caller's assigned mailboxes, so this screen never names a user id. The page scrolls like every other one.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { AlertTriangle, ArrowLeft, ChevronDown, Inbox, Mail, Paperclip, PenSquare, RefreshCw, Reply, Send } from "lucide-react";
-import type { MailHeader, MailboxListItem, MailMessage } from "@smartnet/api-client";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ChevronDown,
+  Forward,
+  Inbox,
+  Mail,
+  MailOpen,
+  Paperclip,
+  PenSquare,
+  RefreshCw,
+  Reply,
+  Send,
+  Trash2,
+} from "lucide-react";
+import type { MailFolder, MailHeader, MailboxListItem, MailMessage } from "@smartnet/api-client";
 import { ApiError } from "@/lib/api";
-import { listInbox, listMyMailboxes, readMessage, sendMail } from "@/lib/mail";
+import { deleteMessage, listFolders, listMessages, listMyMailboxes, readMessage, sendMail, setSeen } from "@/lib/mail";
 import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/shell/app-shell";
 import { Button, Dialog, ErrorBanner, FadeIn, Input, Skeleton, Textarea, toast } from "@/components/ui";
@@ -48,6 +58,7 @@ export default function MailPage() {
   const mailboxes = useQuery({ queryKey: ["my-mailboxes"], queryFn: listMyMailboxes });
 
   const [picked, setPicked] = useState<number | null>(null);
+  const [folder, setFolder] = useState("INBOX");
   const [uid, setUid] = useState<number | null>(null);
   const [compose, setCompose] = useState<Compose | null>(null);
 
@@ -55,30 +66,45 @@ export default function MailPage() {
   const mailboxId = picked ?? mailboxes.data?.[0]?.id ?? null;
   const activeMailbox = mailboxes.data?.find((m) => m.id === mailboxId) ?? null;
 
-  const inbox = useQuery({
-    queryKey: ["inbox", mailboxId],
-    queryFn: () => listInbox(mailboxId!),
+  const folders = useQuery({
+    queryKey: ["folders", mailboxId],
+    queryFn: () => listFolders(mailboxId!),
     enabled: mailboxId !== null,
   });
 
-  const open = useQuery({
-    queryKey: ["message", mailboxId, uid],
-    queryFn: () => readMessage(mailboxId!, uid!),
+  const messages = useQuery({
+    queryKey: ["messages", mailboxId, folder],
+    queryFn: () => listMessages(mailboxId!, folder),
+    enabled: mailboxId !== null,
+  });
+
+  const openMsg = useQuery({
+    queryKey: ["message", mailboxId, folder, uid],
+    queryFn: () => readMessage(mailboxId!, folder, uid!),
     enabled: mailboxId !== null && uid !== null,
     staleTime: Infinity, // a read message does not change, and opening it already marked it seen
   });
 
-  // Opening a message marks it read on the server — reflect that in the badge and the inbox row.
+  const refreshLists = () => {
+    void queryClient.invalidateQueries({ queryKey: ["my-mailboxes"] });
+    void queryClient.invalidateQueries({ queryKey: ["folders", mailboxId] });
+    void queryClient.invalidateQueries({ queryKey: ["messages", mailboxId] });
+  };
+
+  // Opening a message marks it read on the server — reflect that in the badges and the list.
   useEffect(() => {
-    if (open.data) {
-      void queryClient.invalidateQueries({ queryKey: ["my-mailboxes"] });
-      void queryClient.invalidateQueries({ queryKey: ["inbox", mailboxId] });
-    }
+    if (openMsg.data) refreshLists();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open.data?.uid]);
+  }, [openMsg.data?.uid]);
 
   const selectMailbox = (id: number) => {
     setPicked(id);
+    setFolder("INBOX");
+    setUid(null);
+  };
+
+  const selectFolder = (full: string) => {
+    setFolder(full);
     setUid(null);
   };
 
@@ -87,6 +113,27 @@ export default function MailPage() {
     onSuccess: () => {
       toast.success("Message sent.");
       setCompose(null);
+      refreshLists();
+    },
+    onError: (error: unknown) => toast.error(message(error)),
+  });
+
+  const markUnread = useMutation({
+    mutationFn: () => setSeen(mailboxId!, folder, uid!, false),
+    onSuccess: () => {
+      toast.success("Marked unread.");
+      setUid(null);
+      refreshLists();
+    },
+    onError: (error: unknown) => toast.error(message(error)),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => deleteMessage(mailboxId!, folder, uid!),
+    onSuccess: () => {
+      toast.success("Message deleted.");
+      setUid(null);
+      refreshLists();
     },
     onError: (error: unknown) => toast.error(message(error)),
   });
@@ -94,8 +141,17 @@ export default function MailPage() {
   const startReply = (msg: MailMessage) =>
     setCompose({
       to: msg.fromAddress,
-      subject: msg.subject.toLowerCase().startsWith("re:") ? msg.subject : `Re: ${msg.subject}`,
-      body: `\n\n----- On ${when(msg.date)}, ${msg.fromName || msg.fromAddress} wrote -----\n`,
+      subject: prefixed(msg.subject, "re:", "Re: "),
+      body: `\n\n----- On ${when(msg.date)}, ${msg.fromName || msg.fromAddress} wrote -----\n${quote(msg)}`,
+    });
+
+  const startForward = (msg: MailMessage) =>
+    setCompose({
+      to: "",
+      subject: prefixed(msg.subject, "fwd:", "Fwd: "),
+      body: `\n\n----- Forwarded message -----\nFrom: ${msg.fromName || msg.fromAddress}\nDate: ${new Date(
+        msg.date,
+      ).toLocaleString()}\nSubject: ${msg.subject}\nTo: ${msg.to}\n\n${quote(msg)}`,
     });
 
   if (mailboxes.error) {
@@ -139,21 +195,31 @@ export default function MailPage() {
               onSelect={selectMailbox}
             />
             {uid === null && (
-              <Button variant="ghost" size="icon" onClick={() => inbox.refetch()} aria-label="Refresh inbox">
+              <Button variant="ghost" size="icon" onClick={() => messages.refetch()} aria-label="Refresh">
                 <RefreshCw className="size-4" />
               </Button>
             )}
           </div>
 
+          {uid === null && <FolderBar folders={folders.data} selected={folder} onSelect={selectFolder} />}
+
           {uid === null ? (
-            <InboxList
-              headers={inbox.data}
-              loading={inbox.isPending && mailboxId !== null}
-              error={inbox.error as ApiError | null}
+            <MessageList
+              headers={messages.data}
+              loading={messages.isPending && mailboxId !== null}
+              error={messages.error as ApiError | null}
               onSelect={setUid}
             />
           ) : (
-            <MessageView query={open} onBack={() => setUid(null)} onReply={startReply} />
+            <MessageView
+              query={openMsg}
+              onBack={() => setUid(null)}
+              onReply={startReply}
+              onForward={startForward}
+              onMarkUnread={() => markUnread.mutate()}
+              onDelete={() => remove.mutate()}
+              busy={markUnread.isPending || remove.isPending}
+            />
           )}
         </>
       )}
@@ -168,6 +234,19 @@ export default function MailPage() {
       />
     </FadeIn>
   );
+}
+
+function prefixed(subject: string, lower: string, prefix: string) {
+  return subject.toLowerCase().startsWith(lower) ? subject : `${prefix}${subject}`;
+}
+
+/** A quotable copy of the original — the text, or a short note when it is HTML we won't paste as markup. */
+function quote(msg: MailMessage) {
+  if (msg.isHtml) return "[Original message is formatted — see it in the mailbox.]";
+  return msg.body
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n");
 }
 
 /** A dropdown, so the mailboxes cost a button's width rather than a whole column. */
@@ -240,7 +319,46 @@ function unreadPill(box: MailboxListItem | null) {
   return null;
 }
 
-function InboxList({ headers, loading, error, onSelect }: {
+function FolderBar({ folders, selected, onSelect }: {
+  folders: MailFolder[] | undefined;
+  selected: string;
+  onSelect: (fullName: string) => void;
+}) {
+  if (!folders || folders.length <= 1) return null;
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {folders.map((f) => {
+        const active = f.fullName === selected;
+        return (
+          <button
+            key={f.fullName}
+            type="button"
+            onClick={() => onSelect(f.fullName)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
+              active ? "bg-primary text-white" : "border border-subtle bg-surface text-text hover:bg-surface-sunken",
+            )}
+          >
+            {f.name}
+            {f.unread > 0 && (
+              <span
+                className={cn(
+                  "rounded-full px-1.5 text-xs font-semibold tabular-nums",
+                  active ? "bg-white/25 text-white" : "bg-primary text-white",
+                )}
+              >
+                {f.unread}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MessageList({ headers, loading, error, onSelect }: {
   headers: MailHeader[] | undefined;
   loading: boolean;
   error: ApiError | null;
@@ -250,7 +368,7 @@ function InboxList({ headers, loading, error, onSelect }: {
   if (error) return <ErrorBanner message={error.message} correlationId={error.correlationId} />;
 
   if (headers && headers.length === 0) {
-    return <p className="rounded-xl border border-subtle bg-surface p-10 text-center text-sm text-muted">This inbox is empty.</p>;
+    return <p className="rounded-xl border border-subtle bg-surface p-10 text-center text-sm text-muted">This folder is empty.</p>;
   }
 
   return (
@@ -270,9 +388,7 @@ function InboxList({ headers, loading, error, onSelect }: {
           <span className={cn("w-44 shrink-0 truncate text-sm", h.seen ? "text-text" : "font-semibold text-text")}>
             {h.fromName || h.fromAddress}
           </span>
-          <span className={cn("min-w-0 flex-1 truncate text-sm", h.seen ? "text-muted" : "text-text")}>
-            {h.subject}
-          </span>
+          <span className={cn("min-w-0 flex-1 truncate text-sm", h.seen ? "text-muted" : "text-text")}>{h.subject}</span>
           {h.hasAttachments && <Paperclip className="size-3.5 shrink-0 text-muted" aria-hidden />}
           <span className="shrink-0 text-xs text-muted">{when(h.date)}</span>
         </button>
@@ -281,16 +397,20 @@ function InboxList({ headers, loading, error, onSelect }: {
   );
 }
 
-function MessageView({ query, onBack, onReply }: {
+function MessageView({ query, onBack, onReply, onForward, onMarkUnread, onDelete, busy }: {
   query: { data?: MailMessage; isPending: boolean; error: unknown };
   onBack: () => void;
   onReply: (msg: MailMessage) => void;
+  onForward: (msg: MailMessage) => void;
+  onMarkUnread: () => void;
+  onDelete: () => void;
+  busy: boolean;
 }) {
   return (
     <div className="space-y-3">
       <Button variant="ghost" size="sm" onClick={onBack}>
         <ArrowLeft className="size-4" />
-        Back to inbox
+        Back
       </Button>
 
       {query.error ? (
@@ -303,12 +423,26 @@ function MessageView({ query, onBack, onReply }: {
       ) : (
         <div className="rounded-xl border border-subtle bg-surface">
           <div className="border-b border-subtle p-4">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <h2 className="text-lg font-semibold text-text">{query.data.subject}</h2>
-              <Button variant="secondary" size="sm" onClick={() => onReply(query.data!)}>
-                <Reply className="size-4" />
-                Reply
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" size="sm" onClick={() => onReply(query.data!)}>
+                  <Reply className="size-4" />
+                  Reply
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => onForward(query.data!)}>
+                  <Forward className="size-4" />
+                  Forward
+                </Button>
+                <Button variant="ghost" size="sm" onClick={onMarkUnread} disabled={busy}>
+                  <MailOpen className="size-4" />
+                  Unread
+                </Button>
+                <Button variant="ghost" size="sm" onClick={onDelete} disabled={busy} className="text-danger">
+                  <Trash2 className="size-4" />
+                  Delete
+                </Button>
+              </div>
             </div>
             <p className="mt-2 text-sm text-text">
               <span className="font-medium">{query.data.fromName || query.data.fromAddress}</span>{" "}
@@ -349,7 +483,6 @@ function HtmlMessage({ html }: { html: string }) {
   };
 
   useEffect(() => {
-    // Images that load after the frame does grow the document — re-measure a few times to catch them.
     const timers = [200, 700, 1600].map((delay) => window.setTimeout(measure, delay));
     return () => timers.forEach(window.clearTimeout);
   }, [html]);

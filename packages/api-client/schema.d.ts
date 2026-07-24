@@ -3226,6 +3226,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mail/{id}/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MailFolderResponse"][];
+                        "application/json": components["schemas"]["MailFolderResponse"][];
+                        "text/json": components["schemas"]["MailFolderResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mail/{id}/messages": {
         parameters: {
             query?: never;
@@ -3236,6 +3275,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
+                    folder?: string;
                     skip?: number;
                     take?: number;
                 };
@@ -3277,7 +3317,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    folder?: string;
+                };
                 header?: never;
                 path: {
                     id: number;
@@ -3302,6 +3344,67 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    folder?: string;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                    uid: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/{id}/messages/{uid}/seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: {
+                    folder?: string;
+                    seen?: boolean;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                    uid: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -8854,6 +8957,13 @@ export interface components {
         };
         MailDomainResponse: {
             domain?: string | null;
+        };
+        MailFolderResponse: {
+            fullName: string;
+            name: string;
+            role: string;
+            /** Format: int32 */
+            unread: number;
         };
         MailHeaderResponse: {
             /** Format: int32 */
