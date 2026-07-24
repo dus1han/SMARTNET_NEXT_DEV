@@ -12,6 +12,8 @@ namespace Smartnet.Tests.Http;
 [Collection(nameof(ApiCollection))]
 public sealed class UserMailboxesTests
 {
+    private static readonly string[] EmailAndDashboard = ["email", "dashboard"];
+
     private readonly ApiFixture _api;
 
     public UserMailboxesTests(ApiFixture api) => _api = api;
@@ -23,6 +25,7 @@ public sealed class UserMailboxesTests
 
         var mailboxId = await CreateMailboxAsync(client, "assign-me@smart-net.lk");
         var userId = await CreateUserAsync(client, "mailbox.tester");
+        await GrantEmailAsync(client, userId);
 
         // --- Assign ---
         (await SetMailboxesAsync(client, userId, mailboxId)).StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -46,8 +49,28 @@ public sealed class UserMailboxesTests
     {
         var client = _api.SignedIn;
         var userId = await CreateUserAsync(client, "mailbox.badref");
+        await GrantEmailAsync(client, userId);
 
         (await SetMailboxesAsync(client, userId, 987654321)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Assigning_to_a_user_without_the_email_permission_is_refused()
+    {
+        var client = _api.SignedIn;
+        var mailboxId = await CreateMailboxAsync(client, "gated@smart-net.lk");
+        var userId = await CreateUserAsync(client, "mailbox.noemail"); // created with no permissions
+
+        // Blocked until Email is granted...
+        (await SetMailboxesAsync(client, userId, mailboxId)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // ...but clearing is always allowed (so Email can be revoked, then the mailboxes cleared).
+        (await SetMailboxesAsync(client, userId)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        // Grant Email, and the same assignment now goes through.
+        await GrantEmailAsync(client, userId);
+        (await SetMailboxesAsync(client, userId, mailboxId)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await MailboxIdsOf(client, userId)).Should().Contain(mailboxId);
     }
 
     // --- Helpers -----------------------------------------------------------------------------------
@@ -70,6 +93,23 @@ public sealed class UserMailboxesTests
             "/api/users", new { username, name = "Mailbox Tester", roleIds = Array.Empty<long>() });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt64();
+    }
+
+    private static async Task GrantEmailAsync(HttpClient client, long userId)
+    {
+        // SetPermissions refuses a blind write, so read the user's current version first. One dashboard is
+        // mandatory in a permission set, so the request carries the management one alongside Email.
+        var users = await client.GetFromJsonAsync<JsonElement>("/api/users");
+        var rowVersion = users.EnumerateArray()
+            .Single(u => u.GetProperty("id").GetInt64() == userId)
+            .GetProperty("rowVersion").GetInt32();
+
+        using var request = new HttpRequestMessage(HttpMethod.Put, $"/api/users/{userId}/permissions")
+        {
+            Content = JsonContent.Create(new { permissions = EmailAndDashboard, expectedRowVersion = rowVersion }),
+        };
+        request.Headers.Add("X-Change-Reason", "Granting Email for the mailbox tests.");
+        (await client.SendAsync(request)).EnsureSuccessStatusCode();
     }
 
     private static async Task<HttpResponseMessage> SetMailboxesAsync(HttpClient client, long userId, params long[] mailAccountIds)

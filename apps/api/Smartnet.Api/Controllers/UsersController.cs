@@ -507,10 +507,26 @@ public sealed class UsersController : ControllerBase
 
         var desired = request.MailAccountIds.ToHashSet();
 
-        // Assigning a mailbox that does not exist is a caller mistake, not a silent no-op. The lookup is
-        // query-filtered, so a soft-deleted mailbox counts as gone.
         if (desired.Count > 0)
         {
+            // A mailbox is only reachable from the mail screen, which the Email permission gates. Handing a
+            // mailbox to someone who cannot open it is a dead end, so Email must come first — the screen
+            // enforces the same order by disabling the action. Clearing (an empty set) is always allowed, so
+            // taking Email away and then the mailboxes is not blocked. Dev_Admin holds everything by
+            // definition and is never in the way.
+            var effective = await _permissions
+                .GetEffectivePermissionsAsync(id, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!effective.Contains(Permissions.Email) && !effective.Contains(Permissions.SystemDevAdmin))
+            {
+                return Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: "Give this user the Email permission before assigning mailboxes.");
+            }
+
+            // Assigning a mailbox that does not exist is a caller mistake, not a silent no-op. The lookup is
+            // query-filtered, so a soft-deleted mailbox counts as gone.
             var known = await _db.MailAccounts
                 .Where(m => desired.Contains(m.Id))
                 .Select(m => m.Id)

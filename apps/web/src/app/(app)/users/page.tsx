@@ -212,9 +212,20 @@ export default function UsersPage() {
                   Edit permissions
                 </Menu.Item>
 
-                <Menu.Item className={menuItem} onSelect={() => setAssigning(user)}>
+                <Menu.Item
+                  className={cn(menuItem, "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-45")}
+                  disabled={!user.effectivePermissions.includes("email")}
+                  onSelect={() => setAssigning(user)}
+                >
                   <Mail className="size-4 text-muted" aria-hidden />
-                  Assign mailboxes
+                  {/* A mailbox is only usable from the Email screen, which the Email permission gates —
+                      so it is granted before a mailbox can be assigned. */}
+                  <span className="flex flex-col">
+                    Assign mailboxes
+                    {!user.effectivePermissions.includes("email") && (
+                      <span className="text-xs text-muted">Grant the Email permission first</span>
+                    )}
+                  </span>
                 </Menu.Item>
 
                 <Menu.Item className={menuItem} onSelect={() => setInspecting(user)}>
