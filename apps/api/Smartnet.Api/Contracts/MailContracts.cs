@@ -19,6 +19,15 @@ public sealed record MailContactSuggestion(string Name, string Email);
 /// <summary>Creates a folder.</summary>
 public sealed record CreateFolderRequest(string Name);
 
+/// <summary>Mark a set of messages (by uid, in a folder) read or unread.</summary>
+public sealed record BulkSeenRequest(string Folder, bool Seen, IReadOnlyList<long> Uids);
+
+/// <summary>Delete a set of messages (by uid, in a folder).</summary>
+public sealed record BulkDeleteRequest(string Folder, IReadOnlyList<long> Uids);
+
+/// <summary>Move a set of messages (by uid) from a folder to another.</summary>
+public sealed record BulkMoveRequest(string Folder, string To, IReadOnlyList<long> Uids);
+
 /// <summary>One row in the inbox list — no body, so the list is one cheap fetch.</summary>
 public sealed record MailHeaderResponse(
     uint Uid,

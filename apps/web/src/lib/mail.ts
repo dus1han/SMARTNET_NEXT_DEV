@@ -31,19 +31,17 @@ export const readMessage = (mailboxId: number, folder: string, uid: number) =>
 export const attachmentUrl = (mailboxId: number, folder: string, uid: number, index: number) =>
   `${API_BASE_URL}/api/mail/${mailboxId}/messages/${uid}/attachments/${index}?${folderQuery(folder)}`;
 
-/** Mark a message read or unread. */
-export const setSeen = (mailboxId: number, folder: string, uid: number, seen: boolean) =>
-  api<void>(`/api/mail/${mailboxId}/messages/${uid}/seen?${folderQuery(folder)}&seen=${seen}`, { method: "POST" });
+/** Mark one or more messages read or unread. */
+export const setSeen = (mailboxId: number, folder: string, uids: number[], seen: boolean) =>
+  api<void>(`/api/mail/${mailboxId}/messages/seen`, { method: "POST", body: { folder, seen, uids } });
 
-/** Delete a message — to Trash, or for good if it is already in Trash. */
-export const deleteMessage = (mailboxId: number, folder: string, uid: number) =>
-  api<void>(`/api/mail/${mailboxId}/messages/${uid}?${folderQuery(folder)}`, { method: "DELETE" });
+/** Delete one or more messages — to Trash, or for good if already in Trash. */
+export const deleteMessages = (mailboxId: number, folder: string, uids: number[]) =>
+  api<void>(`/api/mail/${mailboxId}/messages/delete`, { method: "POST", body: { folder, uids } });
 
-/** Move a message from one folder to another. */
-export const moveMessage = (mailboxId: number, folder: string, uid: number, to: string) =>
-  api<void>(`/api/mail/${mailboxId}/messages/${uid}/move?${folderQuery(folder)}&to=${encodeURIComponent(to)}`, {
-    method: "POST",
-  });
+/** Move one or more messages from one folder to another. */
+export const moveMessages = (mailboxId: number, folder: string, uids: number[], to: string) =>
+  api<void>(`/api/mail/${mailboxId}/messages/move`, { method: "POST", body: { folder, to, uids } });
 
 /** Create a new folder in the mailbox. */
 export const createFolder = (mailboxId: number, name: string) =>

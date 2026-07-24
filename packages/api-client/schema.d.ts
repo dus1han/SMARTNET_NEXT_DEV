@@ -3428,35 +3428,13 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete: {
-            parameters: {
-                query?: {
-                    folder?: string;
-                };
-                header?: never;
-                path: {
-                    id: number;
-                    uid: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/mail/{id}/messages/{uid}/seen": {
+    "/api/mail/{id}/messages/seen": {
         parameters: {
             query?: never;
             header?: never;
@@ -3467,18 +3445,20 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: {
-                    folder?: string;
-                    seen?: boolean;
-                };
+                query?: never;
                 header?: never;
                 path: {
                     id: number;
-                    uid: number;
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["BulkSeenRequest"];
+                    "text/json": components["schemas"]["BulkSeenRequest"];
+                    "application/*+json": components["schemas"]["BulkSeenRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -3495,7 +3475,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/mail/{id}/messages/{uid}/move": {
+    "/api/mail/{id}/messages/delete": {
         parameters: {
             query?: never;
             header?: never;
@@ -3506,18 +3486,61 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: {
-                    folder?: string;
-                    to?: string;
-                };
+                query?: never;
                 header?: never;
                 path: {
                     id: number;
-                    uid: number;
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["BulkDeleteRequest"];
+                    "text/json": components["schemas"]["BulkDeleteRequest"];
+                    "application/*+json": components["schemas"]["BulkDeleteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/mail/{id}/messages/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["BulkMoveRequest"];
+                    "text/json": components["schemas"]["BulkMoveRequest"];
+                    "application/*+json": components["schemas"]["BulkMoveRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -7792,6 +7815,20 @@ export interface components {
         };
         BackupTakenResponse: {
             name: string;
+        };
+        BulkDeleteRequest: {
+            folder: string;
+            uids: number[];
+        };
+        BulkMoveRequest: {
+            folder: string;
+            to: string;
+            uids: number[];
+        };
+        BulkSeenRequest: {
+            folder: string;
+            seen: boolean;
+            uids: number[];
         };
         BusinessRule: {
             key: string;

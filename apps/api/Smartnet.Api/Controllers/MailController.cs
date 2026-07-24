@@ -200,14 +200,9 @@ public sealed class MailController : ControllerBase
         }
     }
 
-    /// <summary>Marks a message read or unread.</summary>
-    [HttpPost("{id:long}/messages/{uid:long}/seen")]
-    public async Task<IActionResult> SetSeen(
-        long id,
-        long uid,
-        CancellationToken cancellationToken,
-        string folder = "INBOX",
-        bool seen = true)
+    /// <summary>Marks one or more messages read or unread.</summary>
+    [HttpPost("{id:long}/messages/seen")]
+    public async Task<IActionResult> SetSeen(long id, BulkSeenRequest request, CancellationToken cancellationToken)
     {
         var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
 
@@ -218,7 +213,7 @@ public sealed class MailController : ControllerBase
 
         try
         {
-            await _reader.SetSeenAsync(connection!, folder, (uint)uid, seen, cancellationToken).ConfigureAwait(false);
+            await _reader.SetSeenAsync(connection!, FolderOf(request.Folder), Uids(request.Uids), request.Seen, cancellationToken).ConfigureAwait(false);
             return NoContent();
         }
         catch (MailboxReadException ex)
@@ -227,13 +222,9 @@ public sealed class MailController : ControllerBase
         }
     }
 
-    /// <summary>Deletes a message — to Trash, or for good if it is already there.</summary>
-    [HttpDelete("{id:long}/messages/{uid:long}")]
-    public async Task<IActionResult> Delete(
-        long id,
-        long uid,
-        CancellationToken cancellationToken,
-        string folder = "INBOX")
+    /// <summary>Deletes one or more messages — to Trash, or for good if already there.</summary>
+    [HttpPost("{id:long}/messages/delete")]
+    public async Task<IActionResult> Delete(long id, BulkDeleteRequest request, CancellationToken cancellationToken)
     {
         var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
 
@@ -244,7 +235,7 @@ public sealed class MailController : ControllerBase
 
         try
         {
-            await _reader.DeleteAsync(connection!, folder, (uint)uid, cancellationToken).ConfigureAwait(false);
+            await _reader.DeleteAsync(connection!, FolderOf(request.Folder), Uids(request.Uids), cancellationToken).ConfigureAwait(false);
             return NoContent();
         }
         catch (MailboxReadException ex)
@@ -253,16 +244,11 @@ public sealed class MailController : ControllerBase
         }
     }
 
-    /// <summary>Moves a message to another folder.</summary>
-    [HttpPost("{id:long}/messages/{uid:long}/move")]
-    public async Task<IActionResult> Move(
-        long id,
-        long uid,
-        CancellationToken cancellationToken,
-        string folder = "INBOX",
-        string to = "")
+    /// <summary>Moves one or more messages to another folder.</summary>
+    [HttpPost("{id:long}/messages/move")]
+    public async Task<IActionResult> Move(long id, BulkMoveRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(to))
+        if (string.IsNullOrWhiteSpace(request.To))
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "No destination folder was given.");
         }
@@ -276,7 +262,7 @@ public sealed class MailController : ControllerBase
 
         try
         {
-            await _reader.MoveAsync(connection!, folder, (uint)uid, to, cancellationToken).ConfigureAwait(false);
+            await _reader.MoveAsync(connection!, FolderOf(request.Folder), Uids(request.Uids), request.To, cancellationToken).ConfigureAwait(false);
             return NoContent();
         }
         catch (MailboxReadException ex)
@@ -557,6 +543,11 @@ public sealed class MailController : ControllerBase
     private static List<string> SplitAddresses(string raw) => raw
         .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .ToList();
+
+    private static string FolderOf(string? folder) => string.IsNullOrWhiteSpace(folder) ? "INBOX" : folder;
+
+    private static List<uint> Uids(IReadOnlyList<long>? uids) =>
+        uids is null ? [] : uids.Select(uid => (uint)uid).ToList();
 
     private static MailHeaderResponse ToResponse(MailHeader h) =>
         new(h.Uid, h.FromName, h.FromAddress, h.Subject, h.Date, h.Seen, h.HasAttachments);

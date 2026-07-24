@@ -317,52 +317,67 @@ public sealed class ImapMailboxReader : IMailboxReader
         return html;
     }
 
-    public async Task SetSeenAsync(MailboxConnection connection, string folder, uint uid, bool seen, CancellationToken cancellationToken = default)
+    public async Task SetSeenAsync(MailboxConnection connection, string folder, IReadOnlyCollection<uint> uids, bool seen, CancellationToken cancellationToken = default)
     {
+        if (uids.Count == 0)
+        {
+            return;
+        }
+
         using var client = new ImapClient { Timeout = TimeoutMs };
         await ConnectAsync(client, connection, cancellationToken).ConfigureAwait(false);
 
         var mailFolder = await OpenAsync(client, folder, FolderAccess.ReadWrite, cancellationToken).ConfigureAwait(false);
-        var id = new UniqueId(uid);
+        var ids = uids.Select(uid => new UniqueId(uid)).ToList();
 
         if (seen)
         {
-            await mailFolder.AddFlagsAsync(id, MessageFlags.Seen, silent: true, cancellationToken).ConfigureAwait(false);
+            await mailFolder.AddFlagsAsync(ids, MessageFlags.Seen, silent: true, cancellationToken).ConfigureAwait(false);
         }
         else
         {
-            await mailFolder.RemoveFlagsAsync(id, MessageFlags.Seen, silent: true, cancellationToken).ConfigureAwait(false);
+            await mailFolder.RemoveFlagsAsync(ids, MessageFlags.Seen, silent: true, cancellationToken).ConfigureAwait(false);
         }
 
         await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task DeleteAsync(MailboxConnection connection, string folder, uint uid, CancellationToken cancellationToken = default)
+    public async Task DeleteAsync(MailboxConnection connection, string folder, IReadOnlyCollection<uint> uids, CancellationToken cancellationToken = default)
     {
+        if (uids.Count == 0)
+        {
+            return;
+        }
+
         using var client = new ImapClient { Timeout = TimeoutMs };
         await ConnectAsync(client, connection, cancellationToken).ConfigureAwait(false);
 
         var mailFolder = await OpenAsync(client, folder, FolderAccess.ReadWrite, cancellationToken).ConfigureAwait(false);
-        var id = new UniqueId(uid);
+        var ids = uids.Select(uid => new UniqueId(uid)).ToList();
 
         var trash = await SpecialAsync(client, MailFolderRole.Trash, cancellationToken).ConfigureAwait(false);
 
         // In Trash already (or no Trash exists) means gone for good; otherwise it is a move to Trash.
         if (RoleOf(mailFolder) == MailFolderRole.Trash || trash is null || trash.FullName == mailFolder.FullName)
         {
-            await mailFolder.AddFlagsAsync(id, MessageFlags.Deleted, silent: true, cancellationToken).ConfigureAwait(false);
-            await mailFolder.ExpungeAsync(cancellationToken).ConfigureAwait(false);
+            await mailFolder.AddFlagsAsync(ids, MessageFlags.Deleted, silent: true, cancellationToken).ConfigureAwait(false);
+            await mailFolder.ExpungeAsync(ids, cancellationToken).ConfigureAwait(false);
         }
         else
         {
-            await mailFolder.MoveToAsync(id, trash, cancellationToken).ConfigureAwait(false);
+            await mailFolder.MoveToAsync(ids, trash, cancellationToken).ConfigureAwait(false);
         }
 
         await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task MoveAsync(MailboxConnection connection, string fromFolder, uint uid, string toFolder, CancellationToken cancellationToken = default)
+    public async Task MoveAsync(MailboxConnection connection, string fromFolder, IReadOnlyCollection<uint> uids, string toFolder, CancellationToken cancellationToken = default)
     {
+        if (uids.Count == 0)
+        {
+            return;
+        }
+
         using var client = new ImapClient { Timeout = TimeoutMs };
         await ConnectAsync(client, connection, cancellationToken).ConfigureAwait(false);
 
@@ -380,7 +395,7 @@ public sealed class ImapMailboxReader : IMailboxReader
             throw new MailboxReadException($"The folder '{toFolder}' does not exist in this mailbox.");
         }
 
-        await source.MoveToAsync(new UniqueId(uid), destination, cancellationToken).ConfigureAwait(false);
+        await source.MoveToAsync(uids.Select(uid => new UniqueId(uid)).ToList(), destination, cancellationToken).ConfigureAwait(false);
         await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
     }
 

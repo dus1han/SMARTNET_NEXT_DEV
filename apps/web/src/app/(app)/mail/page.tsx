@@ -39,12 +39,12 @@ import {
   attachmentUrl,
   createFolder,
   deleteFolder,
-  deleteMessage,
+  deleteMessages,
   listFolders,
   listMailContacts,
   listMessages,
   listMyMailboxes,
-  moveMessage,
+  moveMessages,
   readMessage,
   sendMail,
   setSeen,
@@ -95,6 +95,7 @@ export default function MailPage() {
   const [applied, setApplied] = useState(""); // the search actually running
   const [compose, setCompose] = useState<Compose | null>(null);
   const [newFolder, setNewFolder] = useState<string | null>(null); // the new-folder dialog's field, or null when closed
+  const [selected, setSelected] = useState<Set<number>>(new Set()); // multi-selected message uids in the list
 
   // Selected mailbox, defaulting to the first once the list arrives — derived, not set from an effect.
   const mailboxId = picked ?? mailboxes.data?.[0]?.id ?? null;
@@ -138,6 +139,23 @@ export default function MailPage() {
     setTake(PAGE);
     setQuery("");
     setApplied("");
+    setSelected(new Set());
+  };
+
+  const toggleSelected = (uid: number) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+
+  // After any move/delete/flag — from the reading view or the list — drop the selection, leave the open
+  // message, and refresh the counts and lists.
+  const afterAction = () => {
+    setSelected(new Set());
+    setUid(null);
+    refreshLists();
   };
 
   const selectMailbox = (id: number) => {
@@ -161,35 +179,36 @@ export default function MailPage() {
     onError: (error: unknown) => toast.error(message(error)),
   });
 
-  const markUnread = useMutation({
-    mutationFn: () => setSeen(mailboxId!, folder, uid!, false),
-    onSuccess: () => {
-      toast.success("Marked unread.");
-      setUid(null);
-      refreshLists();
+  // These take an explicit uid list, so the reading view (one message) and the list's multi-select (many)
+  // share them.
+  const seenMut = useMutation({
+    mutationFn: (v: { uids: number[]; seen: boolean }) => setSeen(mailboxId!, folder, v.uids, v.seen),
+    onSuccess: (_r, v) => {
+      toast.success(v.seen ? "Marked read." : "Marked unread.");
+      afterAction();
     },
     onError: (error: unknown) => toast.error(message(error)),
   });
 
-  const remove = useMutation({
-    mutationFn: () => deleteMessage(mailboxId!, folder, uid!),
+  const deleteMut = useMutation({
+    mutationFn: (uids: number[]) => deleteMessages(mailboxId!, folder, uids),
     onSuccess: () => {
-      toast.success("Message deleted.");
-      setUid(null);
-      refreshLists();
+      toast.success("Deleted.");
+      afterAction();
     },
     onError: (error: unknown) => toast.error(message(error)),
   });
 
-  const move = useMutation({
-    mutationFn: (to: string) => moveMessage(mailboxId!, folder, uid!, to),
+  const moveMut = useMutation({
+    mutationFn: (v: { uids: number[]; to: string }) => moveMessages(mailboxId!, folder, v.uids, v.to),
     onSuccess: () => {
-      toast.success("Message moved.");
-      setUid(null);
-      refreshLists();
+      toast.success("Moved.");
+      afterAction();
     },
     onError: (error: unknown) => toast.error(message(error)),
   });
+
+  const busy = seenMut.isPending || deleteMut.isPending || moveMut.isPending;
 
   const addFolder = useMutation({
     mutationFn: (name: string) => createFolder(mailboxId!, name),
@@ -351,11 +370,30 @@ export default function MailPage() {
                   Results for “{applied}”. <button type="button" className="text-primary hover:underline" onClick={() => { setQuery(""); setApplied(""); }}>Clear</button>
                 </p>
               )}
+
+              {(messages.data?.length ?? 0) > 0 && (
+                <BulkBar
+                  total={messages.data!.length}
+                  selectedCount={selected.size}
+                  allSelected={selected.size > 0 && messages.data!.every((h) => selected.has(h.uid))}
+                  onToggleAll={(on) => setSelected(on ? new Set(messages.data!.map((h) => h.uid)) : new Set())}
+                  folders={folders.data}
+                  currentFolder={folder}
+                  busy={busy}
+                  onMarkRead={() => seenMut.mutate({ uids: [...selected], seen: true })}
+                  onMarkUnread={() => seenMut.mutate({ uids: [...selected], seen: false })}
+                  onMove={(to) => moveMut.mutate({ uids: [...selected], to })}
+                  onDelete={() => deleteMut.mutate([...selected])}
+                />
+              )}
+
               <MessageList
                 headers={messages.data}
                 loading={messages.isPending && mailboxId !== null}
                 error={messages.error as ApiError | null}
-                onSelect={setUid}
+                selected={selected}
+                onToggle={toggleSelected}
+                onOpen={setUid}
               />
               {messages.data && messages.data.length >= take && take < MAX_MESSAGES && (
                 <div className="flex justify-center">
@@ -379,10 +417,10 @@ export default function MailPage() {
               onBack={() => setUid(null)}
               onReply={startReply}
               onForward={startForward}
-              onMarkUnread={() => markUnread.mutate()}
-              onMove={(to) => move.mutate(to)}
-              onDelete={() => remove.mutate()}
-              busy={markUnread.isPending || remove.isPending || move.isPending}
+              onMarkUnread={() => seenMut.mutate({ uids: [uid], seen: false })}
+              onMove={(to) => moveMut.mutate({ uids: [uid], to })}
+              onDelete={() => deleteMut.mutate([uid])}
+              busy={busy}
             />
           )}
         </>
@@ -555,11 +593,13 @@ function FolderBar({ folders, selected, onSelect, onCreate }: {
   );
 }
 
-function MessageList({ headers, loading, error, onSelect }: {
+function MessageList({ headers, loading, error, selected, onToggle, onOpen }: {
   headers: MailHeader[] | undefined;
   loading: boolean;
   error: ApiError | null;
-  onSelect: (uid: number) => void;
+  selected: Set<number>;
+  onToggle: (uid: number) => void;
+  onOpen: (uid: number) => void;
 }) {
   if (loading) return <Skeleton className="h-64" />;
   if (error) return <ErrorBanner message={error.message} correlationId={error.correlationId} />;
@@ -570,26 +610,120 @@ function MessageList({ headers, loading, error, onSelect }: {
 
   return (
     <div className="overflow-hidden rounded-xl border border-subtle bg-surface">
-      {headers?.map((h) => (
-        <button
-          key={h.uid}
-          type="button"
-          onClick={() => onSelect(h.uid)}
-          className="flex w-full items-center gap-3 border-b border-subtle px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-sunken"
-        >
-          {h.seen ? (
-            <span className="size-2 shrink-0" aria-hidden />
-          ) : (
-            <span className="size-2 shrink-0 rounded-full bg-primary" aria-label="Unread" />
+      {headers?.map((h) => {
+        const checked = selected.has(h.uid);
+        return (
+          <div
+            key={h.uid}
+            className={cn(
+              "flex items-center gap-3 border-b border-subtle px-4 py-3 transition-colors last:border-b-0",
+              checked ? "bg-primary-ghost" : "hover:bg-surface-sunken",
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={() => onToggle(h.uid)}
+              aria-label={`Select message from ${h.fromName || h.fromAddress}`}
+              className="size-4 shrink-0 rounded border-subtle text-primary focus-visible:ring-2 focus-visible:ring-ring/25"
+            />
+            <button
+              type="button"
+              onClick={() => onOpen(h.uid)}
+              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            >
+              {h.seen ? (
+                <span className="size-2 shrink-0" aria-hidden />
+              ) : (
+                <span className="size-2 shrink-0 rounded-full bg-primary" aria-label="Unread" />
+              )}
+              <span className={cn("w-44 shrink-0 truncate text-sm", h.seen ? "text-text" : "font-semibold text-text")}>
+                {h.fromName || h.fromAddress}
+              </span>
+              <span className={cn("min-w-0 flex-1 truncate text-sm", h.seen ? "text-muted" : "text-text")}>{h.subject}</span>
+              {h.hasAttachments && <Paperclip className="size-3.5 shrink-0 text-muted" aria-hidden />}
+              <span className="shrink-0 text-xs text-muted">{when(h.date)}</span>
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Select-all plus the bulk actions that appear once something is ticked. */
+function BulkBar({ total, selectedCount, allSelected, onToggleAll, folders, currentFolder, busy, onMarkRead, onMarkUnread, onMove, onDelete }: {
+  total: number;
+  selectedCount: number;
+  allSelected: boolean;
+  onToggleAll: (on: boolean) => void;
+  folders: MailFolder[] | undefined;
+  currentFolder: string;
+  busy: boolean;
+  onMarkRead: () => void;
+  onMarkUnread: () => void;
+  onMove: (to: string) => void;
+  onDelete: () => void;
+}) {
+  const moveTargets = folders?.filter((f) => f.fullName !== currentFolder) ?? [];
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-subtle bg-surface px-3 py-2">
+      <label className="flex items-center gap-2 text-sm text-muted">
+        <input
+          type="checkbox"
+          checked={allSelected}
+          onChange={(e) => onToggleAll(e.target.checked)}
+          aria-label="Select all"
+          className="size-4 rounded border-subtle text-primary focus-visible:ring-2 focus-visible:ring-ring/25"
+        />
+        {selectedCount > 0 ? `${selectedCount} selected` : `${total} message${total === 1 ? "" : "s"}`}
+      </label>
+
+      {selectedCount > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button variant="ghost" size="sm" onClick={onMarkRead} disabled={busy}>
+            <MailOpen className="size-4" />
+            Read
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onMarkUnread} disabled={busy}>
+            <Mail className="size-4" />
+            Unread
+          </Button>
+          {moveTargets.length > 0 && (
+            <Menu.Root>
+              <Menu.Trigger asChild>
+                <Button variant="ghost" size="sm" disabled={busy}>
+                  <FolderInput className="size-4" />
+                  Move
+                </Button>
+              </Menu.Trigger>
+              <Menu.Portal>
+                <Menu.Content
+                  align="start"
+                  sideOffset={4}
+                  className="z-50 max-h-72 w-48 overflow-y-auto rounded-lg border border-subtle bg-surface p-1 shadow-lg data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+                >
+                  {moveTargets.map((f) => (
+                    <Menu.Item
+                      key={f.fullName}
+                      onSelect={() => onMove(f.fullName)}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm outline-none data-[highlighted]:bg-surface-sunken"
+                    >
+                      <FolderInput className="size-4 text-muted" aria-hidden />
+                      {f.name}
+                    </Menu.Item>
+                  ))}
+                </Menu.Content>
+              </Menu.Portal>
+            </Menu.Root>
           )}
-          <span className={cn("w-44 shrink-0 truncate text-sm", h.seen ? "text-text" : "font-semibold text-text")}>
-            {h.fromName || h.fromAddress}
-          </span>
-          <span className={cn("min-w-0 flex-1 truncate text-sm", h.seen ? "text-muted" : "text-text")}>{h.subject}</span>
-          {h.hasAttachments && <Paperclip className="size-3.5 shrink-0 text-muted" aria-hidden />}
-          <span className="shrink-0 text-xs text-muted">{when(h.date)}</span>
-        </button>
-      ))}
+          <Button variant="ghost" size="sm" onClick={onDelete} disabled={busy} className="text-danger">
+            <Trash2 className="size-4" />
+            Delete
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

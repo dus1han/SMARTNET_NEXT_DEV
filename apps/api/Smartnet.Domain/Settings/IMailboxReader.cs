@@ -109,26 +109,26 @@ public interface IMailboxReader
         int index,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Marks a message read or unread.</summary>
+    /// <summary>Marks one or more messages read or unread.</summary>
     Task SetSeenAsync(
         MailboxConnection connection,
         string folder,
-        uint uid,
+        IReadOnlyCollection<uint> uids,
         bool seen,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Moves a message to Trash — or, if it is already in Trash, deletes it for good.</summary>
+    /// <summary>Deletes one or more messages — to Trash, or for good if already in Trash.</summary>
     Task DeleteAsync(
         MailboxConnection connection,
         string folder,
-        uint uid,
+        IReadOnlyCollection<uint> uids,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Moves a message from one folder to another.</summary>
+    /// <summary>Moves one or more messages from one folder to another.</summary>
     Task MoveAsync(
         MailboxConnection connection,
         string fromFolder,
-        uint uid,
+        IReadOnlyCollection<uint> uids,
         string toFolder,
         CancellationToken cancellationToken = default);
 
