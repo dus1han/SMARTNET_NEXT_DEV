@@ -3,16 +3,20 @@
 /**
  * Mail — the signed-in user's own mailboxes, worked from inside the app.
  *
- * Three panes: the mailboxes assigned to this user (with unread badges), the selected mailbox's inbox, and
- * the open message. Reading is over IMAP; sending — compose and reply — is over SMTP as that mailbox. The
- * server scopes everything to the caller's assigned mailboxes, so this screen never names a user id.
+ * Reading is over IMAP; sending — compose and reply — is over SMTP as that mailbox. Everything is scoped
+ * server-side to the caller's assigned mailboxes, so this screen never names a user id.
  *
- * This is the read + send core. Folders, attachments on the way out, delete, search and flags come later.
+ * Layout: a compact mailbox picker (a dropdown, not a column, so the mail gets the width), an inbox list,
+ * and — when a message is opened — a full-width reading view with a Back. The page scrolls like every other
+ * screen; nothing here traps the scroll in a fixed-height pane.
+ *
+ * This is the read + send core. Folders, attachments, delete, search and flags are follow-up slices.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Inbox, Mail, Paperclip, PenSquare, RefreshCw, Reply, Send } from "lucide-react";
+import * as Menu from "@radix-ui/react-dropdown-menu";
+import { AlertTriangle, ArrowLeft, ChevronDown, Inbox, Mail, Paperclip, PenSquare, RefreshCw, Reply, Send } from "lucide-react";
 import type { MailHeader, MailboxListItem, MailMessage } from "@smartnet/api-client";
 import { ApiError } from "@/lib/api";
 import { listInbox, listMyMailboxes, readMessage, sendMail } from "@/lib/mail";
@@ -26,8 +30,7 @@ function message(error: unknown) {
 
 function when(iso: string) {
   const date = new Date(iso);
-  const today = new Date();
-  const sameDay = date.toDateString() === today.toDateString();
+  const sameDay = date.toDateString() === new Date().toDateString();
   return sameDay
     ? date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
     : date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
@@ -48,9 +51,9 @@ export default function MailPage() {
   const [uid, setUid] = useState<number | null>(null);
   const [compose, setCompose] = useState<Compose | null>(null);
 
-  // The selected mailbox, defaulting to the first once the list arrives — derived during render rather
-  // than set from an effect, so landing on it costs no extra render.
+  // Selected mailbox, defaulting to the first once the list arrives — derived, not set from an effect.
   const mailboxId = picked ?? mailboxes.data?.[0]?.id ?? null;
+  const activeMailbox = mailboxes.data?.find((m) => m.id === mailboxId) ?? null;
 
   const inbox = useQuery({
     queryKey: ["inbox", mailboxId],
@@ -62,11 +65,10 @@ export default function MailPage() {
     queryKey: ["message", mailboxId, uid],
     queryFn: () => readMessage(mailboxId!, uid!),
     enabled: mailboxId !== null && uid !== null,
-    // A message does not change once read; opening it already marked it seen, so never refetch it.
-    staleTime: Infinity,
+    staleTime: Infinity, // a read message does not change, and opening it already marked it seen
   });
 
-  // Opening a message marks it read on the server — reflect that in the unread badge and the inbox row.
+  // Opening a message marks it read on the server — reflect that in the badge and the inbox row.
   useEffect(() => {
     if (open.data) {
       void queryClient.invalidateQueries({ queryKey: ["my-mailboxes"] });
@@ -109,7 +111,7 @@ export default function MailPage() {
   const noMailboxes = mailboxes.data && mailboxes.data.length === 0;
 
   return (
-    <FadeIn className="space-y-6">
+    <FadeIn className="space-y-4">
       <PageHeader
         title="Mail"
         description="The mailboxes assigned to you. Read, reply and compose."
@@ -128,34 +130,37 @@ export default function MailPage() {
           <p className="mt-1 text-sm text-muted">An administrator assigns mailboxes on the Users screen.</p>
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[15rem_20rem_1fr]">
-          <MailboxSwitcher
-            mailboxes={mailboxes.data}
-            loading={mailboxes.isPending}
-            selected={mailboxId}
-            onSelect={selectMailbox}
-          />
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <MailboxPicker
+              mailboxes={mailboxes.data}
+              loading={mailboxes.isPending}
+              active={activeMailbox}
+              onSelect={selectMailbox}
+            />
+            {uid === null && (
+              <Button variant="ghost" size="icon" onClick={() => inbox.refetch()} aria-label="Refresh inbox">
+                <RefreshCw className="size-4" />
+              </Button>
+            )}
+          </div>
 
-          <InboxList
-            headers={inbox.data}
-            loading={inbox.isPending && mailboxId !== null}
-            error={inbox.error as ApiError | null}
-            selected={uid}
-            onSelect={setUid}
-            onRefresh={() => inbox.refetch()}
-          />
-
-          <ReadingPane
-            query={open}
-            hasSelection={uid !== null}
-            onReply={startReply}
-          />
-        </div>
+          {uid === null ? (
+            <InboxList
+              headers={inbox.data}
+              loading={inbox.isPending && mailboxId !== null}
+              error={inbox.error as ApiError | null}
+              onSelect={setUid}
+            />
+          ) : (
+            <MessageView query={open} onBack={() => setUid(null)} onReply={startReply} />
+          )}
+        </>
       )}
 
       <ComposeDialog
         draft={compose}
-        from={mailboxes.data?.find((m) => m.id === mailboxId)?.emailAddress ?? ""}
+        from={activeMailbox?.emailAddress ?? ""}
         pending={send.isPending}
         onChange={setCompose}
         onSend={() => compose && send.mutate(compose)}
@@ -165,174 +170,200 @@ export default function MailPage() {
   );
 }
 
-function MailboxSwitcher({ mailboxes, loading, selected, onSelect }: {
+/** A dropdown, so the mailboxes cost a button's width rather than a whole column. */
+function MailboxPicker({ mailboxes, loading, active, onSelect }: {
   mailboxes: MailboxListItem[] | undefined;
   loading: boolean;
-  selected: number | null;
+  active: MailboxListItem | null;
   onSelect: (id: number) => void;
 }) {
+  if (loading) return <Skeleton className="h-10 w-64" />;
+
   return (
-    <div className="space-y-1 rounded-xl border border-subtle bg-surface p-2">
-      <p className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Mailboxes</p>
-
-      {loading && <Skeleton className="h-20" />}
-
-      {mailboxes?.map((box) => {
-        const active = box.id === selected;
-        return (
-          <button
-            key={box.id}
-            type="button"
-            onClick={() => onSelect(box.id)}
-            className={cn(
-              "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors",
-              active ? "bg-primary-ghost" : "hover:bg-surface-sunken",
-            )}
-          >
-            <Inbox className={cn("size-4 shrink-0", active ? "text-primary" : "text-muted")} aria-hidden />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium text-text">{box.displayName}</span>
-              <span className="block truncate text-xs text-muted">{box.emailAddress}</span>
-            </span>
-            {box.error ? (
-              <span title={box.error} className="shrink-0">
-                <AlertTriangle className="size-4 text-warning-text" aria-label={box.error} />
+    <Menu.Root>
+      <Menu.Trigger asChild>
+        <button
+          type="button"
+          className="flex min-w-64 items-center gap-2 rounded-lg border border-subtle bg-surface px-3 py-2 text-left transition-colors hover:bg-surface-sunken"
+        >
+          <Inbox className="size-4 shrink-0 text-primary" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium text-text">{active?.displayName ?? "Select a mailbox"}</span>
+            <span className="block truncate text-xs text-muted">{active?.emailAddress}</span>
+          </span>
+          {unreadPill(active)}
+          <ChevronDown className="size-4 shrink-0 text-muted" aria-hidden />
+        </button>
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Content
+          align="start"
+          sideOffset={4}
+          className="z-50 max-h-96 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-lg border border-subtle bg-surface p-1.5 shadow-lg data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+        >
+          {mailboxes?.map((box) => (
+            <Menu.Item
+              key={box.id}
+              onSelect={() => onSelect(box.id)}
+              className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 outline-none data-[highlighted]:bg-surface-sunken"
+            >
+              <Inbox className="size-4 shrink-0 text-muted" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-text">{box.displayName}</span>
+                <span className="block truncate text-xs text-muted">{box.emailAddress}</span>
               </span>
-            ) : box.unread ? (
-              <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold tabular-nums text-white">
-                {box.unread}
-              </span>
-            ) : null}
-          </button>
-        );
-      })}
-    </div>
+              {unreadPill(box)}
+            </Menu.Item>
+          ))}
+        </Menu.Content>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 
-function InboxList({ headers, loading, error, selected, onSelect, onRefresh }: {
+function unreadPill(box: MailboxListItem | null) {
+  if (!box) return null;
+  if (box.error) {
+    return (
+      <span title={box.error} className="shrink-0">
+        <AlertTriangle className="size-4 text-warning-text" aria-label={box.error} />
+      </span>
+    );
+  }
+  if (box.unread) {
+    return (
+      <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-xs font-semibold tabular-nums text-white">
+        {box.unread}
+      </span>
+    );
+  }
+  return null;
+}
+
+function InboxList({ headers, loading, error, onSelect }: {
   headers: MailHeader[] | undefined;
   loading: boolean;
   error: ApiError | null;
-  selected: number | null;
   onSelect: (uid: number) => void;
-  onRefresh: () => void;
 }) {
+  if (loading) return <Skeleton className="h-64" />;
+  if (error) return <ErrorBanner message={error.message} correlationId={error.correlationId} />;
+
+  if (headers && headers.length === 0) {
+    return <p className="rounded-xl border border-subtle bg-surface p-10 text-center text-sm text-muted">This inbox is empty.</p>;
+  }
+
   return (
-    <div className="flex min-h-[60vh] flex-col rounded-xl border border-subtle bg-surface">
-      <div className="flex items-center justify-between border-b border-subtle px-3 py-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted">Inbox</span>
-        <Button variant="ghost" size="icon" onClick={onRefresh} aria-label="Refresh inbox">
-          <RefreshCw className="size-4" />
-        </Button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {loading && <div className="p-3"><Skeleton className="h-40" /></div>}
-
-        {error && <div className="p-3"><ErrorBanner message={error.message} correlationId={error.correlationId} /></div>}
-
-        {headers && headers.length === 0 && (
-          <p className="p-6 text-center text-sm text-muted">This inbox is empty.</p>
-        )}
-
-        {headers?.map((h) => {
-          const active = h.uid === selected;
-          return (
-            <button
-              key={h.uid}
-              type="button"
-              onClick={() => onSelect(h.uid)}
-              className={cn(
-                "flex w-full flex-col gap-0.5 border-b border-subtle px-3 py-2.5 text-left transition-colors",
-                active ? "bg-primary-ghost" : "hover:bg-surface-sunken",
-              )}
-            >
-              <div className="flex items-center gap-2">
-                {!h.seen && <span className="size-2 shrink-0 rounded-full bg-primary" aria-label="Unread" />}
-                <span className={cn("min-w-0 flex-1 truncate text-sm", h.seen ? "text-text" : "font-semibold text-text")}>
-                  {h.fromName || h.fromAddress}
-                </span>
-                {h.hasAttachments && <Paperclip className="size-3.5 shrink-0 text-muted" aria-hidden />}
-                <span className="shrink-0 text-xs text-muted">{when(h.date)}</span>
-              </div>
-              <span className={cn("truncate text-xs", h.seen ? "text-muted" : "text-text")}>{h.subject}</span>
-            </button>
-          );
-        })}
-      </div>
+    <div className="overflow-hidden rounded-xl border border-subtle bg-surface">
+      {headers?.map((h) => (
+        <button
+          key={h.uid}
+          type="button"
+          onClick={() => onSelect(h.uid)}
+          className="flex w-full items-center gap-3 border-b border-subtle px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-surface-sunken"
+        >
+          {h.seen ? (
+            <span className="size-2 shrink-0" aria-hidden />
+          ) : (
+            <span className="size-2 shrink-0 rounded-full bg-primary" aria-label="Unread" />
+          )}
+          <span className={cn("w-44 shrink-0 truncate text-sm", h.seen ? "text-text" : "font-semibold text-text")}>
+            {h.fromName || h.fromAddress}
+          </span>
+          <span className={cn("min-w-0 flex-1 truncate text-sm", h.seen ? "text-muted" : "text-text")}>
+            {h.subject}
+          </span>
+          {h.hasAttachments && <Paperclip className="size-3.5 shrink-0 text-muted" aria-hidden />}
+          <span className="shrink-0 text-xs text-muted">{when(h.date)}</span>
+        </button>
+      ))}
     </div>
   );
 }
 
-function ReadingPane({ query, hasSelection, onReply }: {
+function MessageView({ query, onBack, onReply }: {
   query: { data?: MailMessage; isPending: boolean; error: unknown };
-  hasSelection: boolean;
+  onBack: () => void;
   onReply: (msg: MailMessage) => void;
 }) {
-  if (!hasSelection) {
-    return (
-      <div className="grid min-h-[60vh] place-items-center rounded-xl border border-subtle bg-surface-sunken/30 text-center">
-        <div>
-          <Mail className="mx-auto size-8 text-muted" aria-hidden />
-          <p className="mt-2 text-sm text-muted">Select a message to read it.</p>
-        </div>
-      </div>
-    );
-  }
+  return (
+    <div className="space-y-3">
+      <Button variant="ghost" size="sm" onClick={onBack}>
+        <ArrowLeft className="size-4" />
+        Back to inbox
+      </Button>
 
-  if (query.error) {
-    const e = query.error as ApiError;
-    return (
-      <div className="min-h-[60vh] rounded-xl border border-subtle bg-surface p-4">
-        <ErrorBanner message={e.message} correlationId={e.correlationId} />
-      </div>
-    );
-  }
-
-  if (query.isPending || !query.data) {
-    return (
-      <div className="min-h-[60vh] rounded-xl border border-subtle bg-surface p-4">
+      {query.error ? (
+        <ErrorBanner
+          message={(query.error as ApiError).message}
+          correlationId={(query.error as ApiError).correlationId}
+        />
+      ) : query.isPending || !query.data ? (
         <Skeleton className="h-64" />
-      </div>
-    );
-  }
+      ) : (
+        <div className="rounded-xl border border-subtle bg-surface">
+          <div className="border-b border-subtle p-4">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-lg font-semibold text-text">{query.data.subject}</h2>
+              <Button variant="secondary" size="sm" onClick={() => onReply(query.data!)}>
+                <Reply className="size-4" />
+                Reply
+              </Button>
+            </div>
+            <p className="mt-2 text-sm text-text">
+              <span className="font-medium">{query.data.fromName || query.data.fromAddress}</span>{" "}
+              {query.data.fromName && <span className="text-muted">&lt;{query.data.fromAddress}&gt;</span>}
+            </p>
+            <p className="text-xs text-muted">
+              To: {query.data.to || "—"} · {new Date(query.data.date).toLocaleString()}
+            </p>
+          </div>
 
-  const msg = query.data;
+          <div className="p-1">
+            {query.data.isHtml ? (
+              <HtmlMessage html={query.data.body} />
+            ) : (
+              <pre className="whitespace-pre-wrap p-4 font-sans text-sm text-text">{query.data.body}</pre>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * An email's HTML, in an iframe that grows to its content so the page scrolls as one — not a box that
+ * scrolls inside the page. `sandbox="allow-same-origin"` (and crucially no `allow-scripts`) means the
+ * message cannot run JavaScript, while the parent can still read its height to size the frame.
+ */
+function HtmlMessage({ html }: { html: string }) {
+  const ref = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState(320);
+
+  const measure = () => {
+    const doc = ref.current?.contentDocument;
+    if (doc?.body) {
+      setHeight(Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight) + 16);
+    }
+  };
+
+  useEffect(() => {
+    // Images that load after the frame does grow the document — re-measure a few times to catch them.
+    const timers = [200, 700, 1600].map((delay) => window.setTimeout(measure, delay));
+    return () => timers.forEach(window.clearTimeout);
+  }, [html]);
 
   return (
-    <div className="flex min-h-[60vh] flex-col rounded-xl border border-subtle bg-surface">
-      <div className="border-b border-subtle p-4">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-base font-semibold text-text">{msg.subject}</h2>
-          <Button variant="secondary" size="sm" onClick={() => onReply(msg)}>
-            <Reply className="size-4" />
-            Reply
-          </Button>
-        </div>
-        <p className="mt-2 text-sm text-text">
-          <span className="font-medium">{msg.fromName || msg.fromAddress}</span>{" "}
-          {msg.fromName && <span className="text-muted">&lt;{msg.fromAddress}&gt;</span>}
-        </p>
-        <p className="text-xs text-muted">
-          To: {msg.to || "—"} · {new Date(msg.date).toLocaleString()}
-        </p>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-hidden p-1">
-        {msg.isHtml ? (
-          // Sandboxed with no allowances — the message cannot run scripts, submit forms or reach our origin.
-          <iframe
-            title="Message"
-            sandbox=""
-            srcDoc={msg.body}
-            className="h-full min-h-[50vh] w-full rounded-lg border border-subtle bg-white"
-          />
-        ) : (
-          <pre className="h-full overflow-auto whitespace-pre-wrap p-3 font-sans text-sm text-text">{msg.body}</pre>
-        )}
-      </div>
-    </div>
+    <iframe
+      ref={ref}
+      title="Message"
+      sandbox="allow-same-origin"
+      srcDoc={html}
+      onLoad={measure}
+      style={{ height }}
+      className="w-full rounded-lg border-0 bg-white"
+    />
   );
 }
 
