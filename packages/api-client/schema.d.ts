@@ -8987,6 +8987,7 @@ export interface components {
             date: string;
             body: string;
             isHtml: boolean;
+            text: string;
         };
         MailServerSettingsResponse: {
             mailDomain?: string | null;

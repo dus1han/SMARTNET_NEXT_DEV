@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using MailKit;
 using MailKit.Net.Imap;
 using MailKit.Security;
@@ -147,8 +148,14 @@ public sealed class ImapMailboxReader : IMailboxReader
 
         await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
 
-        var html = message.HtmlBody;
+        var html = BuildHtmlBody(message);
         var from = message.From.Mailboxes.FirstOrDefault();
+
+        // For quoting into a reply or forward: the plain-text alternative if the sender included one, else
+        // the HTML flattened to text. Taken from the raw HTML, not the image-inlined one, so a signature's
+        // logo does not become a wall of base64 in the quote.
+        var text = message.TextBody
+            ?? (message.HtmlBody is { } raw ? StripHtml(raw) : string.Empty);
 
         return new MailContent(
             uid,
@@ -158,7 +165,61 @@ public sealed class ImapMailboxReader : IMailboxReader
             string.IsNullOrWhiteSpace(message.Subject) ? "(no subject)" : message.Subject,
             message.Date,
             html ?? message.TextBody ?? string.Empty,
-            IsHtml: html is not null);
+            IsHtml: html is not null,
+            Text: text);
+    }
+
+    /// <summary>A rough plain-text rendering of an HTML body — enough to quote, not a faithful conversion.</summary>
+    private static string StripHtml(string html)
+    {
+        // Drop style/script content outright, turn block ends into line breaks, then strip the rest.
+        var text = Regex.Replace(html, "<(style|script)[^>]*>.*?</\\1>", " ", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, "<br\\s*/?>", "\n", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, "</(p|div|tr|li|h[1-6])>", "\n", RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, "<[^>]+>", string.Empty);
+        text = System.Net.WebUtility.HtmlDecode(text);
+        text = Regex.Replace(text, "[ \\t]+", " ");
+        text = Regex.Replace(text, "\\n{3,}", "\n\n");
+        return text.Trim();
+    }
+
+    /// <summary>
+    /// The message's HTML with its inline images embedded, or null when there is no HTML part.
+    /// </summary>
+    /// <remarks>
+    /// Real mail — signatures, logos, newsletters — embeds images as separate MIME parts and points at them
+    /// from the HTML with <c>src="cid:…"</c>. A <c>cid:</c> URL means nothing to a browser, so those images
+    /// come through blank. Here each referenced image part is inlined as a <c>data:</c> URI, so the message
+    /// renders whole inside the sandboxed frame without the frame ever reaching out to the network for them.
+    /// (Ordinary <c>https</c> images in the HTML are left as-is; the frame loads those itself.)
+    /// </remarks>
+    private static string? BuildHtmlBody(MimeMessage message)
+    {
+        var html = message.HtmlBody;
+
+        if (html is null)
+        {
+            return null;
+        }
+
+        foreach (var part in message.BodyParts.OfType<MimePart>())
+        {
+            if (string.IsNullOrEmpty(part.ContentId) || part.Content is null || !part.ContentType.IsMimeType("image", "*"))
+            {
+                continue;
+            }
+
+            using var stream = new MemoryStream();
+            part.Content.DecodeTo(stream);
+
+            var dataUri = $"data:{part.ContentType.MimeType};base64,{Convert.ToBase64String(stream.ToArray())}";
+            var cid = part.ContentId.Trim('<', '>');
+
+            // Some senders quote the reference (src="cid:x"), some do not — replacing the bare token covers both.
+            html = html.Replace($"cid:{cid}", dataUri, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return html;
     }
 
     public async Task SetSeenAsync(MailboxConnection connection, string folder, uint uid, bool seen, CancellationToken cancellationToken = default)

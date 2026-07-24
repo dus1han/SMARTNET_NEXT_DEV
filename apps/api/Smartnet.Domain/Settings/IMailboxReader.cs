@@ -33,6 +33,10 @@ public sealed record MailHeader(
     bool HasAttachments);
 
 /// <summary>A single message opened for reading. <see cref="IsHtml"/> says how to render <see cref="Body"/>.</summary>
+/// <param name="Text">
+/// A plain-text rendering of the same message, for quoting into a reply or forward — the compose box is
+/// plain text, so the formatted body cannot be dropped into it as-is.
+/// </param>
 public sealed record MailContent(
     uint Uid,
     string FromName,
@@ -41,7 +45,8 @@ public sealed record MailContent(
     string Subject,
     DateTimeOffset Date,
     string Body,
-    bool IsHtml);
+    bool IsHtml,
+    string Text);
 
 /// <summary>What to append to the Sent folder after a message goes out.</summary>
 public sealed record SentMessage(

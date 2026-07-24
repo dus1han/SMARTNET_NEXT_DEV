@@ -55,7 +55,9 @@ interface Compose {
 export default function MailPage() {
   const queryClient = useQueryClient();
 
-  const mailboxes = useQuery({ queryKey: ["my-mailboxes"], queryFn: listMyMailboxes });
+  // Polled so new mail and changing unread counts appear on their own. React Query pauses these while the
+  // tab is hidden (refetchIntervalInBackground defaults off), so an idle tab is not hammering IMAP.
+  const mailboxes = useQuery({ queryKey: ["my-mailboxes"], queryFn: listMyMailboxes, refetchInterval: 120_000 });
 
   const [picked, setPicked] = useState<number | null>(null);
   const [folder, setFolder] = useState("INBOX");
@@ -70,12 +72,14 @@ export default function MailPage() {
     queryKey: ["folders", mailboxId],
     queryFn: () => listFolders(mailboxId!),
     enabled: mailboxId !== null,
+    refetchInterval: 120_000,
   });
 
   const messages = useQuery({
     queryKey: ["messages", mailboxId, folder],
     queryFn: () => listMessages(mailboxId!, folder),
     enabled: mailboxId !== null,
+    refetchInterval: 60_000,
   });
 
   const openMsg = useQuery({
@@ -240,10 +244,9 @@ function prefixed(subject: string, lower: string, prefix: string) {
   return subject.toLowerCase().startsWith(lower) ? subject : `${prefix}${subject}`;
 }
 
-/** A quotable copy of the original — the text, or a short note when it is HTML we won't paste as markup. */
+/** The original quoted with "> " prefixes — the server's plain-text rendering, so a formatted mail quotes too. */
 function quote(msg: MailMessage) {
-  if (msg.isHtml) return "[Original message is formatted — see it in the mailbox.]";
-  return msg.body
+  return (msg.text || msg.body)
     .split("\n")
     .map((line) => `> ${line}`)
     .join("\n");

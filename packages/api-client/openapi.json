@@ -14103,6 +14103,7 @@
           "fromName",
           "isHtml",
           "subject",
+          "text",
           "to",
           "uid"
         ],
@@ -14133,6 +14134,9 @@
           },
           "isHtml": {
             "type": "boolean"
+          },
+          "text": {
+            "type": "string"
           }
         },
         "additionalProperties": false

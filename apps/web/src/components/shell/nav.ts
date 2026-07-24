@@ -91,7 +91,8 @@ export const NAVIGATION: NavSection[] = [
     ],
   },
   {
-    title: "Documents",
+    // Documents, Notes and Mail — the day-to-day workspace, as opposed to the ledger and the reports.
+    title: "Workspace",
     items: [
       { href: "/documents", label: "Documents", icon: Paperclip, permission: "docstorage" },
       { href: "/notes", label: "Notes", icon: NotebookPen, permission: "notes" },

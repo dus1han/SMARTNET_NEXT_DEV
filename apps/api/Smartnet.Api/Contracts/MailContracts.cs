@@ -23,6 +23,7 @@ public sealed record MailHeaderResponse(
     bool HasAttachments);
 
 /// <summary>A message opened for reading. <see cref="IsHtml"/> says how the client should render the body.</summary>
+/// <param name="Text">A plain-text rendering, for quoting into a reply or forward.</param>
 public sealed record MailMessageResponse(
     uint Uid,
     string FromName,
@@ -31,7 +32,8 @@ public sealed record MailMessageResponse(
     string Subject,
     DateTimeOffset Date,
     string Body,
-    bool IsHtml);
+    bool IsHtml,
+    string Text);
 
 /// <summary>Compose or reply. <paramref name="To"/> may be several addresses, comma- or semicolon-separated.</summary>
 public sealed record SendMailRequest(string To, string Subject, string Body);

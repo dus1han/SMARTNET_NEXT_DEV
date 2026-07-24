@@ -393,5 +393,5 @@ public sealed class MailController : ControllerBase
         new(h.Uid, h.FromName, h.FromAddress, h.Subject, h.Date, h.Seen, h.HasAttachments);
 
     private static MailMessageResponse ToResponse(MailContent c) =>
-        new(c.Uid, c.FromName, c.FromAddress, c.To, c.Subject, c.Date, c.Body, c.IsHtml);
+        new(c.Uid, c.FromName, c.FromAddress, c.To, c.Subject, c.Date, c.Body, c.IsHtml, c.Text);
 }
