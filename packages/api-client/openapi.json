@@ -8971,6 +8971,98 @@
           }
         }
       }
+    },
+    "/api/users/mailboxes": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailboxSummary"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailboxSummary"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailboxSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}/mailboxes": {
+      "put": {
+        "tags": [
+          "Users"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SetUserMailboxesRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SetUserMailboxesRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SetUserMailboxesRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13694,6 +13786,27 @@
         },
         "additionalProperties": false
       },
+      "MailboxSummary": {
+        "required": [
+          "displayName",
+          "emailAddress",
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "MeResponse": {
         "required": [
           "mustChangePassword",
@@ -15612,6 +15725,22 @@
         },
         "additionalProperties": false
       },
+      "SetUserMailboxesRequest": {
+        "required": [
+          "mailAccountIds"
+        ],
+        "type": "object",
+        "properties": {
+          "mailAccountIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "SetUserPermissionsRequest": {
         "required": [
           "permissions"
@@ -16652,6 +16781,7 @@
           "id",
           "isDisabled",
           "isLockedOut",
+          "mailboxes",
           "mustChangePassword",
           "name",
           "roles",
@@ -16689,6 +16819,12 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "mailboxes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MailboxSummary"
             }
           },
           "rowVersion": {

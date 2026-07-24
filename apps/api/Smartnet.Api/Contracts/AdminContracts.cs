@@ -14,9 +14,17 @@ public sealed record UserSummary(
     bool IsLockedOut,
     IReadOnlyList<RoleSummary> Roles,
     IReadOnlyList<string> EffectivePermissions,
+    // The shared mailboxes assigned to this user, shown as a column on the list.
+    IReadOnlyList<MailboxSummary> Mailboxes,
     // Echoed back on save so two administrators editing one account cannot overwrite each other —
     // which, on a screen that grants permissions, is a security question and not just a lost edit.
     int RowVersion = 0);
+
+/// <summary>A mailbox as it appears in the user list and the assign dialog — no secrets.</summary>
+public sealed record MailboxSummary(long Id, string DisplayName, string EmailAddress);
+
+/// <summary>The complete set of mailboxes a user should hold — the assignment is made to equal it.</summary>
+public sealed record SetUserMailboxesRequest(long[] MailAccountIds);
 
 public sealed record CreateUserRequest(string Username, string Name, long[] RoleIds);
 

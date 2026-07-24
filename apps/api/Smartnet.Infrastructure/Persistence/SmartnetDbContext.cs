@@ -44,6 +44,8 @@ public class SmartnetDbContext : DbContext
 
     public DbSet<UserPermissionOverride> UserPermissionOverrides => Set<UserPermissionOverride>();
 
+    public DbSet<UserMailAccount> UserMailAccounts => Set<UserMailAccount>();
+
     // --- Settings (Slice 4) -------------------------------------------------------------------
 
     /// <summary>The legacy <c>companies_m</c>, adopted and extended with the document header.</summary>

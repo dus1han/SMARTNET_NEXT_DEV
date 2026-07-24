@@ -1,5 +1,6 @@
 import type {
   CreateUserResponse,
+  MailboxSummary,
   PermissionCatalogueEntry,
   ResetPasswordResponse,
   RoleSummary,
@@ -8,9 +9,16 @@ import type {
 import { api } from "./api";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
-export type { PermissionCatalogueEntry, RoleSummary, UserSummary };
+export type { MailboxSummary, PermissionCatalogueEntry, RoleSummary, UserSummary };
 
 export const listUsers = () => api<UserSummary[]>("/api/users");
+
+/** The mailboxes an administrator may assign — served under `users`, so no `mail_accounts` needed. */
+export const listAssignableMailboxes = () => api<MailboxSummary[]>("/api/users/mailboxes");
+
+/** Sets a user's whole mailbox set to exactly these ids. */
+export const setUserMailboxes = (id: number, mailAccountIds: number[]) =>
+  api<void>(`/api/users/${id}/mailboxes`, { method: "PUT", body: { mailAccountIds } });
 
 export const listRoles = () => api<RoleSummary[]>("/api/roles");
 

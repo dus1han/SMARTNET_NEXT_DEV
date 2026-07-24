@@ -79,6 +79,33 @@ public class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
     }
 }
 
+public class UserMailAccountConfiguration : IEntityTypeConfiguration<UserMailAccount>
+{
+    public void Configure(EntityTypeBuilder<UserMailAccount> builder)
+    {
+        builder.ToTable("user_mail_accounts");
+
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("id");
+        builder.Property(a => a.UserId).HasColumnName("user_id");
+        builder.Property(a => a.MailAccountId).HasColumnName("mail_account_id");
+
+        builder.Property(a => a.CreatedBy).HasColumnName("created_by");
+        builder.Property(a => a.CreatedAt).HasColumnName("created_at");
+        builder.Property(a => a.UpdatedBy).HasColumnName("updated_by");
+        builder.Property(a => a.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(a => a.DeletedBy).HasColumnName("deleted_by");
+        builder.Property(a => a.DeletedAt).HasColumnName("deleted_at");
+        builder.Property(a => a.RowVersion).HasColumnName("row_version").IsConcurrencyToken();
+
+        // One row per (user, mailbox). A soft-deleted row keeps the pair, so a re-assign restores it
+        // rather than inserting a duplicate the index would refuse.
+        builder.HasIndex(a => new { a.UserId, a.MailAccountId }).IsUnique();
+
+        builder.HasQueryFilter(a => a.DeletedAt == null);
+    }
+}
+
 public class UserPermissionOverrideConfiguration : IEntityTypeConfiguration<UserPermissionOverride>
 {
     public void Configure(EntityTypeBuilder<UserPermissionOverride> builder)

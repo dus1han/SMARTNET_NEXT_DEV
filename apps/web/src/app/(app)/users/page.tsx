@@ -21,9 +21,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ChevronDown,
   Copy,
   History as HistoryIcon,
   KeyRound,
+  Mail,
   MoreHorizontal,
   ShieldCheck,
   ShieldOff,
@@ -36,10 +38,13 @@ import { ApiError } from "@/lib/api";
 import {
   createUser,
   disableUser,
+  listAssignableMailboxes,
   listPermissions,
   listUsers,
   resetPassword,
+  setUserMailboxes,
   setUserPermissions,
+  type MailboxSummary,
   type UserSummary,
 } from "@/lib/admin";
 import { groupPermissions } from "@/lib/permissions";
@@ -83,8 +88,12 @@ export default function UsersPage() {
   const permissions = useQuery({ queryKey: ["permissions"], queryFn: listPermissions });
   const groups = permissions.data ? groupPermissions(permissions.data) : [];
 
+  // The mailbox catalogue for the assign dialog — served under `users`, so this needs no extra permission.
+  const mailboxes = useQuery({ queryKey: ["assignable-mailboxes"], queryFn: listAssignableMailboxes });
+
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<UserSummary | null>(null);
+  const [assigning, setAssigning] = useState<UserSummary | null>(null);
   const [inspecting, setInspecting] = useState<UserSummary | null>(null);
 
   /** Shown exactly once: the server keeps only an Argon2id hash and cannot show it again. */
@@ -134,6 +143,41 @@ export default function UsersPage() {
       },
     },
     {
+      id: "mailboxes",
+      header: "Mailboxes",
+      enableSorting: false,
+      // Same shape as the customer list's Contacts column: a count that opens to the list on demand,
+      // rather than a wall of addresses in the row.
+      cell: ({ row }) => {
+        const list = row.original.mailboxes;
+        if (list.length === 0) return <span className="text-muted">—</span>;
+        return (
+          <Menu.Root>
+            <Menu.Trigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5">
+                {list.length} mailbox{list.length === 1 ? "" : "es"}
+                <ChevronDown className="size-3.5 text-muted" aria-hidden />
+              </Button>
+            </Menu.Trigger>
+            <Menu.Portal>
+              <Menu.Content
+                align="start"
+                sideOffset={4}
+                className="z-50 max-h-80 w-72 overflow-y-auto rounded-lg border border-subtle bg-surface p-1.5 shadow-lg data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+              >
+                {list.map((m) => (
+                  <div key={m.id} className="rounded-md px-2 py-1.5">
+                    <div className="truncate text-sm font-medium text-text">{m.displayName}</div>
+                    <div className="truncate text-xs text-muted">{m.emailAddress}</div>
+                  </div>
+                ))}
+              </Menu.Content>
+            </Menu.Portal>
+          </Menu.Root>
+        );
+      },
+    },
+    {
       id: "status",
       header: "Status",
       accessorFn: (row) => status(row).label,
@@ -166,6 +210,11 @@ export default function UsersPage() {
                 <Menu.Item className={menuItem} onSelect={() => setEditing(user)}>
                   <ShieldCheck className="size-4 text-muted" aria-hidden />
                   Edit permissions
+                </Menu.Item>
+
+                <Menu.Item className={menuItem} onSelect={() => setAssigning(user)}>
+                  <Mail className="size-4 text-muted" aria-hidden />
+                  Assign mailboxes
                 </Menu.Item>
 
                 <Menu.Item className={menuItem} onSelect={() => setInspecting(user)}>
@@ -295,6 +344,13 @@ export default function UsersPage() {
         onClose={() => setEditing(null)}
         onSaved={invalidate}
         ask={reason.ask}
+      />
+
+      <AssignMailboxesDialog
+        user={assigning}
+        catalogue={mailboxes.data ?? []}
+        onClose={() => setAssigning(null)}
+        onSaved={invalidate}
       />
 
       {/* 6. The History tab. The same component every document module gets in Phase 5 — here it
@@ -639,6 +695,99 @@ function EditPermissionsDialog({ user, groups, onClose, onSaved, ask }: {
           );
         })}
       </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Assigns shared mailboxes to a user — the boxes are the truth, and on save the user holds exactly
+ * what is ticked. A mailbox can be ticked for several users; sharing "sales@" is the normal case, not
+ * an error. No reason is asked: this associates mailboxes, it does not change what the person may do.
+ */
+function AssignMailboxesDialog({ user, catalogue, onClose, onSaved }: {
+  user: UserSummary | null;
+  catalogue: MailboxSummary[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [loaded, setLoaded] = useState<number | null>(null);
+
+  // Seed the ticks from whichever user was opened — their current mailboxes — during render.
+  if (user && loaded !== user.id) {
+    setSelected(new Set(user.mailboxes.map((m) => m.id)));
+    setLoaded(user.id);
+  }
+
+  const toggle = (id: number, on: boolean) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
+  const save = useMutation({
+    mutationFn: () => setUserMailboxes(user!.id, [...selected]),
+    onSuccess: () => {
+      toast.success("Mailboxes updated.");
+      onSaved();
+      onClose();
+    },
+    onError: (error: unknown) => toast.error(message(error)),
+  });
+
+  return (
+    <Dialog
+      open={user !== null}
+      onOpenChange={(next) => !next && onClose()}
+      size="lg"
+      title={user ? `Mailboxes for ${user.username}` : ""}
+      description="Assign one or more shared mailboxes to this user. A mailbox can be shared by several users."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button pending={save.isPending} onClick={() => save.mutate()}>
+            Save mailboxes
+          </Button>
+        </>
+      }
+    >
+      {catalogue.length === 0 ? (
+        <p className="text-sm text-muted">
+          No mailboxes exist yet. Add them on the Mail accounts screen first.
+        </p>
+      ) : (
+        <div className="max-h-[55vh] space-y-1 overflow-y-auto pr-1">
+          <p className="mb-2 text-xs text-muted">
+            {selected.size} of {catalogue.length} assigned.
+          </p>
+
+          {catalogue.map((m) => {
+            const on = selected.has(m.id);
+
+            return (
+              <label
+                key={m.id}
+                className="flex cursor-pointer items-start gap-2.5 rounded-md px-1.5 py-2 hover:bg-surface-sunken"
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 rounded border-subtle text-primary focus-visible:ring-2 focus-visible:ring-ring/25"
+                  checked={on}
+                  onChange={(e) => toggle(m.id, e.target.checked)}
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm text-text">{m.displayName}</span>
+                  <span className="block truncate text-xs text-muted">{m.emailAddress}</span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
     </Dialog>
   );
 }

@@ -468,6 +468,104 @@ public sealed class UsersController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Every mailbox that can be assigned — the catalogue the assign dialog is built from.
+    /// </summary>
+    /// <remarks>
+    /// Served from here, under the <c>users</c> permission, rather than from the Mail accounts endpoint,
+    /// so a user administrator can assign mailboxes without also holding <c>mail_accounts</c>.
+    /// </remarks>
+    [HttpGet("mailboxes")]
+    public async Task<ActionResult<IReadOnlyList<MailboxSummary>>> AssignableMailboxes(CancellationToken cancellationToken)
+    {
+        var mailboxes = await _db.MailAccounts
+            .OrderBy(m => m.EmailAddress)
+            .Select(m => new MailboxSummary(m.Id, m.DisplayName, m.EmailAddress))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return Ok(mailboxes);
+    }
+
+    /// <summary>
+    /// Sets which mailboxes a user holds — the request carries the whole set, and the assignment is made
+    /// to equal it. A mailbox already held stays held; one dropped from the list is unassigned; one added
+    /// is assigned, restoring a previously-unassigned row rather than duplicating it.
+    /// </summary>
+    [HttpPut("{id:long}/mailboxes")]
+    public async Task<IActionResult> SetMailboxes(
+        long id,
+        SetUserMailboxesRequest request,
+        CancellationToken cancellationToken)
+    {
+        var user = await Find(id, cancellationToken).ConfigureAwait(false);
+
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        var desired = request.MailAccountIds.ToHashSet();
+
+        // Assigning a mailbox that does not exist is a caller mistake, not a silent no-op. The lookup is
+        // query-filtered, so a soft-deleted mailbox counts as gone.
+        if (desired.Count > 0)
+        {
+            var known = await _db.MailAccounts
+                .Where(m => desired.Contains(m.Id))
+                .Select(m => m.Id)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var unknown = desired.Except(known).ToList();
+
+            if (unknown.Count > 0)
+            {
+                return Problem(
+                    statusCode: StatusCodes.Status400BadRequest,
+                    title: $"Mailbox {unknown[0]} does not exist.");
+            }
+        }
+
+        // Every row for this user, including soft-deleted ones — a re-assign must find and revive the old
+        // row instead of inserting a second that trips the unique index.
+        var existing = await _db.UserMailAccounts
+            .IgnoreQueryFilters()
+            .Where(link => link.UserId == id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var link in existing)
+        {
+            var wanted = desired.Remove(link.MailAccountId);
+
+            if (wanted)
+            {
+                // Was unassigned, now wanted again: bring the row back (the interceptor logs a Restore).
+                if (link.DeletedAt is not null)
+                {
+                    link.DeletedAt = null;
+                    link.DeletedBy = null;
+                }
+            }
+            else if (link.DeletedAt is null)
+            {
+                // Held but no longer wanted: soft-delete, so who-had-it-when survives.
+                _db.UserMailAccounts.Remove(link);
+            }
+        }
+
+        // Whatever is left in `desired` has no row at all — a genuinely new assignment.
+        foreach (var mailAccountId in desired)
+        {
+            _db.UserMailAccounts.Add(new UserMailAccount { UserId = id, MailAccountId = mailAccountId });
+        }
+
+        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return NoContent();
+    }
+
     // --- helpers -----------------------------------------------------------------------------
 
     private Task<User?> Find(long id, CancellationToken cancellationToken) => _db.Users
@@ -517,6 +615,20 @@ public sealed class UsersController : ControllerBase
             .GetEffectivePermissionsAsync(user.Id, cancellationToken)
             .ConfigureAwait(false);
 
+        // The join filters out unassigned rows; the inner join to MailAccounts (query-filtered) drops any
+        // mailbox that has since been removed, so a stale assignment never shows a deleted mailbox.
+        var mailboxes = await _db.UserMailAccounts
+            .Where(link => link.UserId == user.Id)
+            .Join(
+                _db.MailAccounts,
+                link => link.MailAccountId,
+                account => account.Id,
+                (_, account) => account)
+            .OrderBy(account => account.EmailAddress)
+            .Select(account => new MailboxSummary(account.Id, account.DisplayName, account.EmailAddress))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         return new UserSummary(
             user.Id,
             user.Username ?? string.Empty,
@@ -526,6 +638,7 @@ public sealed class UsersController : ControllerBase
             user.IsLockedOut(_time.GetUtcNow().UtcDateTime),
             roles,
             [.. effective.Order(StringComparer.Ordinal)],
+            mailboxes,
             // The version the edit screen echoes back, so two administrators cannot overwrite each other.
             user.RowVersion);
     }

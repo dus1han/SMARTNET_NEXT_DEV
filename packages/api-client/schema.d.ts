@@ -7219,6 +7219,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/users/mailboxes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["MailboxSummary"][];
+                        "application/json": components["schemas"]["MailboxSummary"][];
+                        "text/json": components["schemas"]["MailboxSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{id}/mailboxes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SetUserMailboxesRequest"];
+                    "text/json": components["schemas"]["SetUserMailboxesRequest"];
+                    "application/*+json": components["schemas"]["SetUserMailboxesRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -8649,6 +8727,12 @@ export interface components {
             /** Format: int32 */
             dailyLimit: number;
         };
+        MailboxSummary: {
+            /** Format: int64 */
+            id: number;
+            displayName: string;
+            emailAddress: string;
+        };
         MeResponse: {
             /** Format: int64 */
             userId: number;
@@ -9228,6 +9312,9 @@ export interface components {
             /** Format: int32 */
             expectedRowVersion?: number | null;
         };
+        SetUserMailboxesRequest: {
+            mailAccountIds: number[];
+        };
         SetUserPermissionsRequest: {
             permissions: string[];
             /** Format: int32 */
@@ -9556,6 +9643,7 @@ export interface components {
             isLockedOut: boolean;
             roles: components["schemas"]["RoleSummary"][];
             effectivePermissions: string[];
+            mailboxes: components["schemas"]["MailboxSummary"][];
             /** Format: int32 */
             rowVersion: number;
         };

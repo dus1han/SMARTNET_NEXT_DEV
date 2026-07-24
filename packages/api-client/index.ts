@@ -21,6 +21,8 @@ export type ChangePasswordRequest = Schemas["ChangePasswordRequest"];
 // --- Users & roles ---------------------------------------------------------------------------
 
 export type UserSummary = Schemas["UserSummary"];
+export type MailboxSummary = Schemas["MailboxSummary"];
+export type SetUserMailboxesRequest = Schemas["SetUserMailboxesRequest"];
 export type CreateUserRequest = Schemas["CreateUserRequest"];
 export type CreateUserResponse = Schemas["CreateUserResponse"];
 export type UpdateUserRequest = Schemas["UpdateUserRequest"];
