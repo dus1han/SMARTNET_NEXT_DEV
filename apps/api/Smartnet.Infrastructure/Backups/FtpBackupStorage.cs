@@ -78,7 +78,10 @@ public sealed class FtpBackupStorage : IBackupStorage
 
     public async Task<Stream?> OpenReadAsync(string name, CancellationToken cancellationToken = default)
     {
-        if (!BackupNaming.IsBackupName(name))
+        // The key ring companion is a fixed constant we wrote, not a caller-supplied name, so it is safe to
+        // open alongside the rotation's .sql.gz files — a restore fetches it to put the ring back.
+        if (!BackupNaming.IsBackupName(name)
+            && !string.Equals(name, BackupNaming.KeyRingName, StringComparison.Ordinal))
         {
             return null;
         }

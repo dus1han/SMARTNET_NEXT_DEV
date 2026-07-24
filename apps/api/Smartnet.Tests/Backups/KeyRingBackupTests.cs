@@ -81,6 +81,54 @@ public sealed class KeyRingBackupTests
         storage.Uploaded.Should().NotContain(BackupNaming.KeyRingName);                          // ring didn't land
     }
 
+    [Fact]
+    public async Task Snapshot_then_restore_round_trips_the_key_files()
+    {
+        var source = Directory.CreateTempSubdirectory("keyring-src-");
+        var target = Directory.CreateTempSubdirectory("keyring-dst-");
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(source.FullName, "key-a.xml"), "<key>a</key>");
+
+            using var archive = new MemoryStream();
+            await new KeyRingBackup(source.FullName).SnapshotToAsync(archive);
+            archive.Position = 0;
+            await new KeyRingBackup(target.FullName).RestoreFromAsync(archive);
+
+            (await File.ReadAllTextAsync(Path.Combine(target.FullName, "key-a.xml")))
+                .Should().Be("<key>a</key>");
+        }
+        finally
+        {
+            source.Delete(recursive: true);
+            target.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Restoring_a_stored_backup_also_restores_the_key_ring()
+    {
+        var storage = new FakeStorage { KeyRingPresent = true };
+        var keyRing = new FakeKeyRing();
+
+        await NewRestorableService(storage, keyRing).RestoreAsync("smartnet-manual-20260724-000000.sql.gz");
+
+        keyRing.Restored.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Restoring_a_backup_with_no_key_ring_companion_still_succeeds()
+    {
+        var storage = new FakeStorage { KeyRingPresent = false };
+        var keyRing = new FakeKeyRing();
+
+        // A backup taken before the ring was shipped with it has no companion — the database restore stands.
+        var act = () => NewRestorableService(storage, keyRing).RestoreAsync("smartnet-manual-20260724-000000.sql.gz");
+
+        await act.Should().NotThrowAsync();
+        keyRing.Restored.Should().BeFalse();
+    }
+
     // --- Helpers -----------------------------------------------------------------------------------
 
     private static BackupService NewService(FakeStorage storage, FakeKeyRing keyRing) =>
@@ -88,6 +136,13 @@ public sealed class KeyRingBackupTests
             new MemoryCache(new MemoryCacheOptions()),
             Options.Create(new BackupOptions()), TimeProvider.System,
             NullLogger<BackupService>.Instance);
+
+    // Restore refuses to run without a privileged connection string, so the restore tests supply one.
+    private static BackupService NewRestorableService(FakeStorage storage, FakeKeyRing keyRing) =>
+        new(storage, new FakeDatabaseBackup(), keyRing, new FakeDestinations(),
+            new MemoryCache(new MemoryCacheOptions()),
+            Options.Create(new BackupOptions { RestoreConnectionString = "server=x;database=y;user=z;password=w" }),
+            TimeProvider.System, NullLogger<BackupService>.Instance);
 
     private static async Task<List<string>> ReadTarGzEntryNamesAsync(Stream archive)
     {
@@ -109,6 +164,9 @@ public sealed class KeyRingBackupTests
     {
         public List<string> Uploaded { get; } = [];
 
+        /// <summary>Whether a key ring companion is present on the store, for the restore tests.</summary>
+        public bool KeyRingPresent { get; init; }
+
         public Task<IReadOnlyList<BackupFile>> ListAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<BackupFile>>([]);
 
@@ -118,8 +176,16 @@ public sealed class KeyRingBackupTests
             return Task.CompletedTask;
         }
 
-        public Task<Stream?> OpenReadAsync(string name, CancellationToken cancellationToken = default) =>
-            Task.FromResult<Stream?>(null);
+        public Task<Stream?> OpenReadAsync(string name, CancellationToken cancellationToken = default)
+        {
+            if (string.Equals(name, BackupNaming.KeyRingName, StringComparison.Ordinal))
+            {
+                return Task.FromResult<Stream?>(KeyRingPresent ? new MemoryStream([1]) : null);
+            }
+
+            // Any database backup name resolves to a dump stream — the fake dump's contents are ignored.
+            return Task.FromResult<Stream?>(new MemoryStream([1, 2, 3]));
+        }
 
         public Task DeleteAsync(string name, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
@@ -137,6 +203,8 @@ public sealed class KeyRingBackupTests
     {
         public bool Called { get; private set; }
 
+        public bool Restored { get; private set; }
+
         public Task SnapshotToAsync(Stream destination, CancellationToken cancellationToken = default)
         {
             Called = true;
@@ -147,6 +215,12 @@ public sealed class KeyRingBackupTests
             }
 
             return destination.WriteAsync(new byte[] { 9 }, cancellationToken).AsTask();
+        }
+
+        public Task RestoreFromAsync(Stream archive, CancellationToken cancellationToken = default)
+        {
+            Restored = true;
+            return Task.CompletedTask;
         }
     }
 

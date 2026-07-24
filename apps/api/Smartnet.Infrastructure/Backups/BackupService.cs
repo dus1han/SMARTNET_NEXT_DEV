@@ -162,10 +162,21 @@ public sealed partial class BackupService : IBackupService
         var stored = await _storage.OpenReadAsync(name, cancellationToken).ConfigureAwait(false)
             ?? throw new BackupNotFoundException(name);
 
+        RestoreOutcome outcome;
         await using (stored)
         {
-            return await RestoreAsync(stored, cancellationToken).ConfigureAwait(false);
+            outcome = await RestoreAsync(stored, cancellationToken).ConfigureAwait(false);
         }
+
+        // Put the key ring back too, so the restored data's ciphertext passwords are readable again — the
+        // whole reason it is shipped with the backup. The companion is the current ring (a superset of any
+        // older one), merged in without dropping a key already present. Failure-isolated and graceful when
+        // absent (a backup taken before the ring was shipped simply has none): the database restore has
+        // already committed and stands regardless. Only the stored-name path has a companion to fetch — an
+        // uploaded dump carries nothing but itself, so RestoreAsync(Stream) has no ring step.
+        await TryRestoreKeyRingAsync(cancellationToken).ConfigureAwait(false);
+
+        return outcome;
     }
 
     public async Task<RestoreOutcome> RestoreAsync(
@@ -227,6 +238,40 @@ public sealed partial class BackupService : IBackupService
         }
     }
 
+    /// <summary>
+    /// Restores the key ring from the store after a database restore. Failure-isolated and graceful when
+    /// there is no companion on the store: the database restore has already committed by the time this runs,
+    /// and a missing or unreadable ring must not undo it — it is logged so it can be put right by hand.
+    /// </summary>
+    /// <remarks>
+    /// A running application caches its key ring; keys written here become active on the next refresh or,
+    /// reliably, a restart — which a restore is normally accompanied by anyway.
+    /// </remarks>
+    private async Task TryRestoreKeyRingAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var archive = await _storage.OpenReadAsync(BackupNaming.KeyRingName, cancellationToken).ConfigureAwait(false);
+
+            if (archive is null)
+            {
+                LogNoKeyRingToRestore(_logger);
+                return;
+            }
+
+            await using (archive)
+            {
+                await _keyRing.RestoreFromAsync(archive, cancellationToken).ConfigureAwait(false);
+            }
+
+            LogKeyRingRestored(_logger);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogKeyRingRestoreFailed(_logger, ex);
+        }
+    }
+
     private async Task PruneAsync(CancellationToken cancellationToken)
     {
         var destination = await _destinations.CurrentAsync(cancellationToken).ConfigureAwait(false);
@@ -275,6 +320,23 @@ public sealed partial class BackupService : IBackupService
             + "decrypts the stored SMTP and FTP passwords, so a restore taken now would come up unable to "
             + "read them — fix this before the ring next rolls over.")]
     private static partial void LogKeyRingBackupFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 7, Level = LogLevel.Information, Message = "Key ring restored from the store alongside the database.")]
+    private static partial void LogKeyRingRestored(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 8,
+        Level = LogLevel.Information,
+        Message = "No key ring companion was on the store; the database was restored and the key ring left "
+            + "as it is. A backup taken before the ring was shipped with it has none — expected for older files.")]
+    private static partial void LogNoKeyRingToRestore(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 9,
+        Level = LogLevel.Warning,
+        Message = "The key ring could not be restored from the store, though the database was restored. "
+            + "Stored passwords may be unreadable until the key ring is put back by hand.")]
+    private static partial void LogKeyRingRestoreFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(
         EventId = 3,
