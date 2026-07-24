@@ -1,5 +1,5 @@
-import { api } from "./api";
-import type { MailboxListItem, MailFolder, MailHeader, MailMessage, SendMailRequest } from "@smartnet/api-client";
+import { api, API_BASE_URL } from "./api";
+import type { MailboxListItem, MailFolder, MailHeader, MailMessage } from "@smartnet/api-client";
 
 // The signed-in user's own mailboxes and their mail. Everything here is scoped server-side to the caller's
 // assigned mailboxes, so none of it takes a user id — the token is the user.
@@ -15,12 +15,16 @@ export const listFolders = (mailboxId: number) => api<MailFolder[]>(`/api/mail/$
 const folderQuery = (folder: string) => `folder=${encodeURIComponent(folder)}`;
 
 /** One folder's messages, newest first. */
-export const listMessages = (mailboxId: number, folder: string, skip = 0, take = 40) =>
-  api<MailHeader[]>(`/api/mail/${mailboxId}/messages?${folderQuery(folder)}&skip=${skip}&take=${take}`);
+export const listMessages = (mailboxId: number, folder: string, take = 40) =>
+  api<MailHeader[]>(`/api/mail/${mailboxId}/messages?${folderQuery(folder)}&skip=0&take=${take}`);
 
 /** One message in full. Opening it marks it read on the server. */
 export const readMessage = (mailboxId: number, folder: string, uid: number) =>
   api<MailMessage>(`/api/mail/${mailboxId}/messages/${uid}?${folderQuery(folder)}`);
+
+/** The direct download URL of one attachment — used as a link href, so the browser downloads it. */
+export const attachmentUrl = (mailboxId: number, folder: string, uid: number, index: number) =>
+  `${API_BASE_URL}/api/mail/${mailboxId}/messages/${uid}/attachments/${index}?${folderQuery(folder)}`;
 
 /** Mark a message read or unread. */
 export const setSeen = (mailboxId: number, folder: string, uid: number, seen: boolean) =>
@@ -30,6 +34,19 @@ export const setSeen = (mailboxId: number, folder: string, uid: number, seen: bo
 export const deleteMessage = (mailboxId: number, folder: string, uid: number) =>
   api<void>(`/api/mail/${mailboxId}/messages/${uid}?${folderQuery(folder)}`, { method: "DELETE" });
 
-/** Compose, reply or forward — send as this mailbox, and file a copy in Sent. */
-export const sendMail = (mailboxId: number, body: SendMailRequest) =>
-  api<void>(`/api/mail/${mailboxId}/send`, { method: "POST", body });
+export interface OutgoingMail {
+  to: string;
+  subject: string;
+  body: string;
+  files: File[];
+}
+
+/** Compose, reply or forward — send as this mailbox (multipart, so files ride along), and copy to Sent. */
+export const sendMail = (mailboxId: number, mail: OutgoingMail) => {
+  const form = new FormData();
+  form.append("to", mail.to);
+  form.append("subject", mail.subject);
+  form.append("body", mail.body);
+  for (const file of mail.files) form.append("files", file);
+  return api<void>(`/api/mail/${mailboxId}/send`, { method: "POST", body: form });
+};

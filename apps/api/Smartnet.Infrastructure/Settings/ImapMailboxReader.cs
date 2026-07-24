@@ -157,6 +157,11 @@ public sealed class ImapMailboxReader : IMailboxReader
         var text = message.TextBody
             ?? (message.HtmlBody is { } raw ? StripHtml(raw) : string.Empty);
 
+        var attachments = message.Attachments
+            .OfType<MimePart>()
+            .Select((part, index) => new MailAttachmentInfo(index, part.FileName ?? "attachment", part.ContentType.MimeType))
+            .ToList();
+
         return new MailContent(
             uid,
             from?.Name ?? string.Empty,
@@ -166,7 +171,49 @@ public sealed class ImapMailboxReader : IMailboxReader
             message.Date,
             html ?? message.TextBody ?? string.Empty,
             IsHtml: html is not null,
-            Text: text);
+            Text: text,
+            Attachments: attachments);
+    }
+
+    public async Task<MailAttachment?> GetAttachmentAsync(
+        MailboxConnection connection,
+        string folder,
+        uint uid,
+        int index,
+        CancellationToken cancellationToken = default)
+    {
+        using var client = new ImapClient { Timeout = TimeoutMs };
+        await ConnectAsync(client, connection, cancellationToken).ConfigureAwait(false);
+
+        var mailFolder = await OpenAsync(client, folder, FolderAccess.ReadOnly, cancellationToken).ConfigureAwait(false);
+
+        MimeMessage message;
+        try
+        {
+            message = await mailFolder.GetMessageAsync(new UniqueId(uid), cancellationToken).ConfigureAwait(false);
+        }
+        catch (MessageNotFoundException)
+        {
+            await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
+            return null;
+        }
+
+        await client.DisconnectAsync(quit: true, cancellationToken).ConfigureAwait(false);
+
+        // Same order the read used, so the index the client holds still points at the same file.
+        var parts = message.Attachments.OfType<MimePart>().ToList();
+
+        if (index < 0 || index >= parts.Count || parts[index].Content is null)
+        {
+            return null;
+        }
+
+        var part = parts[index];
+
+        using var stream = new MemoryStream();
+        await part.Content!.DecodeToAsync(stream, cancellationToken).ConfigureAwait(false);
+
+        return new MailAttachment(part.FileName ?? "attachment", part.ContentType.MimeType, stream.ToArray());
     }
 
     /// <summary>A rough plain-text rendering of an HTML body — enough to quote, not a faithful conversion.</summary>
@@ -285,8 +332,30 @@ public sealed class ImapMailboxReader : IMailboxReader
             }
 
             mime.Subject = message.Subject;
-            mime.Body = new TextPart("html") { Text = message.HtmlBody };
             mime.Date = DateTimeOffset.Now;
+
+            MimeEntity body = new TextPart("html") { Text = message.HtmlBody };
+
+            // The Sent copy must carry the same files the recipient got, or it is not a copy.
+            if (message.Attachments.Count > 0)
+            {
+                var multipart = new Multipart("mixed") { body };
+
+                foreach (var file in message.Attachments)
+                {
+                    multipart.Add(new MimePart(ContentType.Parse(file.ContentType))
+                    {
+                        Content = new MimeContent(new MemoryStream(file.Content)),
+                        ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+                        ContentTransferEncoding = ContentEncoding.Base64,
+                        FileName = file.FileName,
+                    });
+                }
+
+                body = multipart;
+            }
+
+            mime.Body = body;
 
             await sent.AppendAsync(mime, MessageFlags.Seen, cancellationToken).ConfigureAwait(false);
         }

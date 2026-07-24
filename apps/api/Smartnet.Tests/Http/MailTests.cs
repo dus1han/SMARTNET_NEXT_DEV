@@ -29,9 +29,16 @@ public sealed class MailTests
         (await client.GetAsync($"/api/mail/{mailboxId}/messages")).StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await client.GetAsync($"/api/mail/{mailboxId}/messages/1")).StatusCode.Should().Be(HttpStatusCode.NotFound);
 
+        // Send is multipart/form-data (files ride along); a well-formed one still 404s for a mailbox that
+        // is not the caller's.
         using var send = new HttpRequestMessage(HttpMethod.Post, $"/api/mail/{mailboxId}/send")
         {
-            Content = JsonContent.Create(new { to = "someone@example.com", subject = "Hi", body = "Hi" }),
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["to"] = "someone@example.com",
+                ["subject"] = "Hi",
+                ["body"] = "Hi",
+            }),
         };
         (await client.SendAsync(send)).StatusCode.Should().Be(HttpStatusCode.NotFound);
 

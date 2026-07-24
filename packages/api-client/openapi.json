@@ -4251,6 +4251,55 @@
         }
       }
     },
+    "/api/mail/{id}/messages/{uid}/attachments/{index}": {
+      "get": {
+        "tags": [
+          "Mail"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "INBOX"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/mail/{id}/send": {
       "post": {
         "tags": [
@@ -4269,31 +4318,41 @@
         ],
         "requestBody": {
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/SendMailRequest"
+                "type": "object",
+                "properties": {
+                  "To": {
+                    "type": "string"
+                  },
+                  "Subject": {
+                    "type": "string"
+                  },
+                  "Body": {
+                    "type": "string"
+                  },
+                  "Files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
                   }
-                ]
-              }
-            },
-            "text/json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/SendMailRequest"
-                  }
-                ]
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/SendMailRequest"
-                  }
-                ]
+                }
+              },
+              "encoding": {
+                "To": {
+                  "style": "form"
+                },
+                "Subject": {
+                  "style": "form"
+                },
+                "Body": {
+                  "style": "form"
+                },
+                "Files": {
+                  "style": "form"
+                }
               }
             }
           }
@@ -14022,6 +14081,27 @@
         },
         "additionalProperties": false
       },
+      "MailAttachmentResponse": {
+        "required": [
+          "contentType",
+          "fileName",
+          "index"
+        ],
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "MailDomainResponse": {
         "type": "object",
         "properties": {
@@ -14097,6 +14177,7 @@
       },
       "MailMessageResponse": {
         "required": [
+          "attachments",
           "body",
           "date",
           "fromAddress",
@@ -14137,6 +14218,12 @@
           },
           "text": {
             "type": "string"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MailAttachmentResponse"
+            }
           }
         },
         "additionalProperties": false
@@ -16143,26 +16230,6 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "SendMailRequest": {
-        "required": [
-          "body",
-          "subject",
-          "to"
-        ],
-        "type": "object",
-        "properties": {
-          "to": {
-            "type": "string"
-          },
-          "subject": {
-            "type": "string"
-          },
-          "body": {
-            "type": "string"
           }
         },
         "additionalProperties": false

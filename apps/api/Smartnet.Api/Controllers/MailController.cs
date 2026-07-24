@@ -133,7 +133,7 @@ public sealed class MailController : ControllerBase
         try
         {
             var headers = await _reader
-                .ListMessagesAsync(connection!, folder, Math.Max(0, skip), Math.Clamp(take, 1, 100), cancellationToken)
+                .ListMessagesAsync(connection!, folder, Math.Max(0, skip), Math.Clamp(take, 1, 200), cancellationToken)
                 .ConfigureAwait(false);
 
             return Ok(headers.Select(ToResponse).ToList());
@@ -226,9 +226,41 @@ public sealed class MailController : ControllerBase
         }
     }
 
-    /// <summary>Sends a message as one of the caller's mailboxes — compose or reply.</summary>
+    /// <summary>Downloads one attachment of a message, by the index the read response gave it.</summary>
+    [HttpGet("{id:long}/messages/{uid:long}/attachments/{index:int}")]
+    public async Task<IActionResult> Attachment(
+        long id,
+        long uid,
+        int index,
+        CancellationToken cancellationToken,
+        string folder = "INBOX")
+    {
+        var (connection, error) = await ConnectionOrErrorAsync(id, cancellationToken).ConfigureAwait(false);
+
+        if (error is not null)
+        {
+            return error;
+        }
+
+        try
+        {
+            var attachment = await _reader
+                .GetAttachmentAsync(connection!, folder, (uint)uid, index, cancellationToken)
+                .ConfigureAwait(false);
+
+            return attachment is null
+                ? NotFound()
+                : File(attachment.Content, attachment.ContentType, attachment.FileName);
+        }
+        catch (MailboxReadException ex)
+        {
+            return Problem(statusCode: StatusCodes.Status502BadGateway, title: "The mail server refused.", detail: ex.Message);
+        }
+    }
+
+    /// <summary>Sends a message as one of the caller's mailboxes — compose, reply or forward, with files.</summary>
     [HttpPost("{id:long}/send")]
-    public async Task<IActionResult> Send(long id, SendMailRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Send(long id, [FromForm] SendMailForm form, CancellationToken cancellationToken)
     {
         var (account, server, error) = await ResolveAsync(id, cancellationToken).ConfigureAwait(false);
 
@@ -244,11 +276,23 @@ public sealed class MailController : ControllerBase
                 title: "The mail server is not configured yet.");
         }
 
-        var recipients = SplitAddresses(request.To);
+        var recipients = SplitAddresses(form.To);
 
         if (recipients.Count == 0)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Enter at least one recipient.");
+        }
+
+        var attachments = new List<MailAttachment>(form.Files.Count);
+
+        foreach (var file in form.Files)
+        {
+            using var buffer = new MemoryStream();
+            await file.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
+            attachments.Add(new MailAttachment(
+                file.FileName,
+                string.IsNullOrEmpty(file.ContentType) ? "application/octet-stream" : file.ContentType,
+                buffer.ToArray()));
         }
 
         var password = string.IsNullOrEmpty(account!.PasswordEncrypted)
@@ -268,10 +312,10 @@ public sealed class MailController : ControllerBase
         };
 
         // The body is typed as plain text — encode it and keep the line breaks the writer put in.
-        var html = System.Net.WebUtility.HtmlEncode(request.Body ?? string.Empty).Replace("\n", "<br>", StringComparison.Ordinal);
+        var html = System.Net.WebUtility.HtmlEncode(form.Body ?? string.Empty).Replace("\n", "<br>", StringComparison.Ordinal);
 
         var result = await _sender
-            .SendAsync(settings, password, recipients, request.Subject ?? string.Empty, html, attachments: null, cancellationToken)
+            .SendAsync(settings, password, recipients, form.Subject ?? string.Empty, html, attachments.Count > 0 ? attachments : null, cancellationToken)
             .ConfigureAwait(false);
 
         if (!result.Sent)
@@ -294,7 +338,7 @@ public sealed class MailController : ControllerBase
                 await _reader
                     .AppendToSentAsync(
                         connection,
-                        new SentMessage(account.DisplayName, account.EmailAddress, recipients, request.Subject ?? string.Empty, html),
+                        new SentMessage(account.DisplayName, account.EmailAddress, recipients, form.Subject ?? string.Empty, html, attachments),
                         cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -393,5 +437,7 @@ public sealed class MailController : ControllerBase
         new(h.Uid, h.FromName, h.FromAddress, h.Subject, h.Date, h.Seen, h.HasAttachments);
 
     private static MailMessageResponse ToResponse(MailContent c) =>
-        new(c.Uid, c.FromName, c.FromAddress, c.To, c.Subject, c.Date, c.Body, c.IsHtml, c.Text);
+        new(
+            c.Uid, c.FromName, c.FromAddress, c.To, c.Subject, c.Date, c.Body, c.IsHtml, c.Text,
+            c.Attachments.Select(a => new MailAttachmentResponse(a.Index, a.FileName, a.ContentType)).ToList());
 }

@@ -3411,6 +3411,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/mail/{id}/messages/{uid}/attachments/{index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    folder?: string;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                    uid: number;
+                    index: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/mail/{id}/send": {
         parameters: {
             query?: never;
@@ -3431,9 +3470,12 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["SendMailRequest"];
-                    "text/json": components["schemas"]["SendMailRequest"];
-                    "application/*+json": components["schemas"]["SendMailRequest"];
+                    "multipart/form-data": {
+                        To?: string;
+                        Subject?: string;
+                        Body?: string;
+                        Files?: string[];
+                    };
                 };
             };
             responses: {
@@ -8955,6 +8997,12 @@ export interface components {
             hasPassword: boolean;
             enabled: boolean;
         };
+        MailAttachmentResponse: {
+            /** Format: int32 */
+            index: number;
+            fileName: string;
+            contentType: string;
+        };
         MailDomainResponse: {
             domain?: string | null;
         };
@@ -8988,6 +9036,7 @@ export interface components {
             body: string;
             isHtml: boolean;
             text: string;
+            attachments: components["schemas"]["MailAttachmentResponse"][];
         };
         MailServerSettingsResponse: {
             mailDomain?: string | null;
@@ -9592,11 +9641,6 @@ export interface components {
             vatNumber?: string | null;
             /** Format: int32 */
             expectedRowVersion?: number | null;
-        };
-        SendMailRequest: {
-            to: string;
-            subject: string;
-            body: string;
         };
         SendTestEmailRequest: {
             to: string;

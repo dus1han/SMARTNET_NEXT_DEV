@@ -32,6 +32,9 @@ public sealed record MailHeader(
     bool Seen,
     bool HasAttachments);
 
+/// <summary>An attachment as it appears on an opened message — enough to list and to download by index.</summary>
+public sealed record MailAttachmentInfo(int Index, string FileName, string ContentType);
+
 /// <summary>A single message opened for reading. <see cref="IsHtml"/> says how to render <see cref="Body"/>.</summary>
 /// <param name="Text">
 /// A plain-text rendering of the same message, for quoting into a reply or forward — the compose box is
@@ -46,7 +49,8 @@ public sealed record MailContent(
     DateTimeOffset Date,
     string Body,
     bool IsHtml,
-    string Text);
+    string Text,
+    IReadOnlyList<MailAttachmentInfo> Attachments);
 
 /// <summary>What to append to the Sent folder after a message goes out.</summary>
 public sealed record SentMessage(
@@ -54,7 +58,8 @@ public sealed record SentMessage(
     string FromAddress,
     IReadOnlyCollection<string> To,
     string Subject,
-    string HtmlBody);
+    string HtmlBody,
+    IReadOnlyCollection<MailAttachment> Attachments);
 
 /// <summary>The IMAP server refused or could not be reached. The message is the server's, for the user.</summary>
 public sealed class MailboxReadException(string message) : Exception(message);
@@ -85,6 +90,14 @@ public interface IMailboxReader
         string folder,
         uint uid,
         bool markSeen,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>One attachment of a message, by its index, decoded for download. Null if the index is gone.</summary>
+    Task<MailAttachment?> GetAttachmentAsync(
+        MailboxConnection connection,
+        string folder,
+        uint uid,
+        int index,
         CancellationToken cancellationToken = default);
 
     /// <summary>Marks a message read or unread.</summary>

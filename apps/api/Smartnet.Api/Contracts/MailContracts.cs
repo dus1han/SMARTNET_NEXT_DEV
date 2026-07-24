@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.AspNetCore.Http;
 
 namespace Smartnet.Api.Contracts;
 
@@ -22,6 +23,9 @@ public sealed record MailHeaderResponse(
     bool Seen,
     bool HasAttachments);
 
+/// <summary>An attachment on an opened message — listed by index; the bytes come from the download route.</summary>
+public sealed record MailAttachmentResponse(int Index, string FileName, string ContentType);
+
 /// <summary>A message opened for reading. <see cref="IsHtml"/> says how the client should render the body.</summary>
 /// <param name="Text">A plain-text rendering, for quoting into a reply or forward.</param>
 public sealed record MailMessageResponse(
@@ -33,14 +37,24 @@ public sealed record MailMessageResponse(
     DateTimeOffset Date,
     string Body,
     bool IsHtml,
-    string Text);
+    string Text,
+    IReadOnlyList<MailAttachmentResponse> Attachments);
 
-/// <summary>Compose or reply. <paramref name="To"/> may be several addresses, comma- or semicolon-separated.</summary>
-public sealed record SendMailRequest(string To, string Subject, string Body);
-
-public sealed class SendMailRequestValidator : AbstractValidator<SendMailRequest>
+/// <summary>
+/// Compose, reply or forward. Sent as multipart/form-data so files can ride along; <see cref="To"/> may be
+/// several addresses, comma- or semicolon-separated.
+/// </summary>
+public sealed class SendMailForm
 {
-    public SendMailRequestValidator()
+    public string To { get; set; } = string.Empty;
+    public string Subject { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public List<IFormFile> Files { get; set; } = [];
+}
+
+public sealed class SendMailFormValidator : AbstractValidator<SendMailForm>
+{
+    public SendMailFormValidator()
     {
         RuleFor(r => r.To).NotEmpty().WithMessage("Enter at least one recipient.");
         RuleFor(r => r.Subject).MaximumLength(255);

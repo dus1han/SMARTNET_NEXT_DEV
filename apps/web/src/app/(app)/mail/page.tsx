@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ChevronDown,
+  Download,
   Forward,
   Inbox,
   Mail,
@@ -26,10 +27,20 @@ import {
   Reply,
   Send,
   Trash2,
+  X,
 } from "lucide-react";
 import type { MailFolder, MailHeader, MailboxListItem, MailMessage } from "@smartnet/api-client";
 import { ApiError } from "@/lib/api";
-import { deleteMessage, listFolders, listMessages, listMyMailboxes, readMessage, sendMail, setSeen } from "@/lib/mail";
+import {
+  attachmentUrl,
+  deleteMessage,
+  listFolders,
+  listMessages,
+  listMyMailboxes,
+  readMessage,
+  sendMail,
+  setSeen,
+} from "@/lib/mail";
 import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/shell/app-shell";
 import { Button, Dialog, ErrorBanner, FadeIn, Input, Skeleton, Textarea, toast } from "@/components/ui";
@@ -50,7 +61,11 @@ interface Compose {
   to: string;
   subject: string;
   body: string;
+  files: File[];
 }
+
+const PAGE = 40;
+const MAX_MESSAGES = 200;
 
 export default function MailPage() {
   const queryClient = useQueryClient();
@@ -62,6 +77,7 @@ export default function MailPage() {
   const [picked, setPicked] = useState<number | null>(null);
   const [folder, setFolder] = useState("INBOX");
   const [uid, setUid] = useState<number | null>(null);
+  const [take, setTake] = useState(PAGE);
   const [compose, setCompose] = useState<Compose | null>(null);
 
   // Selected mailbox, defaulting to the first once the list arrives — derived, not set from an effect.
@@ -76,8 +92,8 @@ export default function MailPage() {
   });
 
   const messages = useQuery({
-    queryKey: ["messages", mailboxId, folder],
-    queryFn: () => listMessages(mailboxId!, folder),
+    queryKey: ["messages", mailboxId, folder, take],
+    queryFn: () => listMessages(mailboxId!, folder, take),
     enabled: mailboxId !== null,
     refetchInterval: 60_000,
   });
@@ -105,11 +121,13 @@ export default function MailPage() {
     setPicked(id);
     setFolder("INBOX");
     setUid(null);
+    setTake(PAGE);
   };
 
   const selectFolder = (full: string) => {
     setFolder(full);
     setUid(null);
+    setTake(PAGE);
   };
 
   const send = useMutation({
@@ -147,6 +165,7 @@ export default function MailPage() {
       to: msg.fromAddress,
       subject: prefixed(msg.subject, "re:", "Re: "),
       body: `\n\n----- On ${when(msg.date)}, ${msg.fromName || msg.fromAddress} wrote -----\n${quote(msg)}`,
+      files: [],
     });
 
   const startForward = (msg: MailMessage) =>
@@ -156,6 +175,7 @@ export default function MailPage() {
       body: `\n\n----- Forwarded message -----\nFrom: ${msg.fromName || msg.fromAddress}\nDate: ${new Date(
         msg.date,
       ).toLocaleString()}\nSubject: ${msg.subject}\nTo: ${msg.to}\n\n${quote(msg)}`,
+      files: [],
     });
 
   if (mailboxes.error) {
@@ -176,7 +196,7 @@ export default function MailPage() {
         title="Mail"
         description="The mailboxes assigned to you. Read, reply and compose."
         actions={
-          <Button onClick={() => setCompose({ to: "", subject: "", body: "" })} disabled={mailboxId === null}>
+          <Button onClick={() => setCompose({ to: "", subject: "", body: "", files: [] })} disabled={mailboxId === null}>
             <PenSquare />
             Compose
           </Button>
@@ -208,15 +228,31 @@ export default function MailPage() {
           {uid === null && <FolderBar folders={folders.data} selected={folder} onSelect={selectFolder} />}
 
           {uid === null ? (
-            <MessageList
-              headers={messages.data}
-              loading={messages.isPending && mailboxId !== null}
-              error={messages.error as ApiError | null}
-              onSelect={setUid}
-            />
+            <>
+              <MessageList
+                headers={messages.data}
+                loading={messages.isPending && mailboxId !== null}
+                error={messages.error as ApiError | null}
+                onSelect={setUid}
+              />
+              {messages.data && messages.data.length >= take && take < MAX_MESSAGES && (
+                <div className="flex justify-center">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    pending={messages.isFetching}
+                    onClick={() => setTake((t) => Math.min(t + PAGE, MAX_MESSAGES))}
+                  >
+                    Load more
+                  </Button>
+                </div>
+              )}
+            </>
           ) : (
             <MessageView
               query={openMsg}
+              mailboxId={mailboxId!}
+              folder={folder}
               onBack={() => setUid(null)}
               onReply={startReply}
               onForward={startForward}
@@ -400,8 +436,10 @@ function MessageList({ headers, loading, error, onSelect }: {
   );
 }
 
-function MessageView({ query, onBack, onReply, onForward, onMarkUnread, onDelete, busy }: {
+function MessageView({ query, mailboxId, folder, onBack, onReply, onForward, onMarkUnread, onDelete, busy }: {
   query: { data?: MailMessage; isPending: boolean; error: unknown };
+  mailboxId: number;
+  folder: string;
   onBack: () => void;
   onReply: (msg: MailMessage) => void;
   onForward: (msg: MailMessage) => void;
@@ -454,6 +492,23 @@ function MessageView({ query, onBack, onReply, onForward, onMarkUnread, onDelete
             <p className="text-xs text-muted">
               To: {query.data.to || "—"} · {new Date(query.data.date).toLocaleString()}
             </p>
+
+            {query.data.attachments.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {query.data.attachments.map((a) => (
+                  <a
+                    key={a.index}
+                    href={attachmentUrl(mailboxId, folder, query.data!.uid, a.index)}
+                    download={a.fileName}
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-subtle bg-surface-sunken px-2.5 py-1.5 text-xs text-text transition-colors hover:bg-surface-sunken/70"
+                  >
+                    <Paperclip className="size-3.5 shrink-0 text-muted" aria-hidden />
+                    <span className="truncate">{a.fileName}</span>
+                    <Download className="size-3.5 shrink-0 text-muted" aria-hidden />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="p-1">
@@ -551,6 +606,46 @@ function ComposeDialog({ draft, from, pending, onChange, onSend, onClose }: {
             value={draft.body}
             onChange={(e) => onChange({ ...draft, body: e.target.value })}
           />
+
+          <div>
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-subtle bg-surface px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface-sunken">
+              <Paperclip className="size-4 text-muted" aria-hidden />
+              Attach files
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const chosen = Array.from(e.target.files ?? []);
+                  if (chosen.length) onChange({ ...draft, files: [...draft.files, ...chosen] });
+                  e.target.value = ""; // let the same file be picked again after removal
+                }}
+              />
+            </label>
+
+            {draft.files.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {draft.files.map((file, i) => (
+                  <li
+                    key={`${file.name}-${i}`}
+                    className="flex items-center gap-2 rounded-md bg-surface-sunken px-2.5 py-1.5 text-xs text-text"
+                  >
+                    <Paperclip className="size-3.5 shrink-0 text-muted" aria-hidden />
+                    <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                    <span className="shrink-0 text-muted">{Math.ceil(file.size / 1024)} KB</span>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${file.name}`}
+                      className="shrink-0 text-muted hover:text-danger"
+                      onClick={() => onChange({ ...draft, files: draft.files.filter((_, idx) => idx !== i) })}
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
     </Dialog>
