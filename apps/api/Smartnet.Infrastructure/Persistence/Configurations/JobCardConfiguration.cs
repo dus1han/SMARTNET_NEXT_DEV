@@ -108,6 +108,10 @@ public class JobCardLineConfiguration : IEntityTypeConfiguration<JobCardLine>
 
         builder.ConfigureAuditColumns();
 
+        // A line the editor dropped is soft-deleted, not erased — see InvoiceLineConfiguration for why this
+        // filter exists and why the IgnoreQueryFilters call sites still filter DeletedAt themselves.
+        builder.HasQueryFilter(l => l.DeletedAt == null);
+
         builder.HasIndex(l => l.JobCardId);
     }
 }

@@ -223,6 +223,71 @@ public sealed class QuotationEditDeleteTests
             .UseMySql(_fixture.ConnectionString, SmartnetServerVersion.Value)
             .Options);
 
+    /// <summary>
+    /// A quote that was edited before it was converted becomes an invoice of the lines it still has. The
+    /// converter loads the quote with <c>IgnoreQueryFilters</c> so a legacy one loads too, which drops the
+    /// line soft-delete filter with it — so it used to copy the lines the edit had removed into the new
+    /// invoice, and the invoice was raised (and charged) for more than the quote said.
+    /// </summary>
+    [Fact]
+    public async Task Converting_an_edited_quotation_carries_only_the_lines_it_still_has()
+    {
+        var (companyId, customerId, itemId, itemCode) = await Seed();
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId, Reason = "Customer dropped an item" };
+
+        // Two lines: 2 × 100 (item) and 1 × 50 (service).
+        QuotationCreated created;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            created = await new QuotationCreator(
+                db, new TaxEngine(), new DocumentNumberAllocator(db), new DocumentVersionWriter(db, change, Clock),
+                new BusinessRuleReader(db), change, Clock)
+                .CreateAsync(new NewQuotation(
+                    companyId, customerId, new DateOnly(2026, 7, 15), "Mr Khan", "30 Days",
+                    [
+                        new NewQuotationLine(itemId, itemCode, "Widget", 2m, 100m, 0m, Cost: 120m),
+                        new NewQuotationLine(null, null, "Installation", 1m, 50m, 0m, Cost: null),
+                    ]));
+        }
+
+        long itemLineId;
+        int rowVersion;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            var q = await db.Quotations.Include(x => x.Lines).FirstAsync(x => x.Id == created.Id);
+            itemLineId = q.Lines.Single(l => l.ItemId == itemId).Id;
+            rowVersion = q.RowVersion;
+        }
+
+        // Drop the service line — it is soft-deleted, not erased.
+        await using (var db = _fixture.CreateContext(change))
+        {
+            await EditorFor(db, change).EditAsync(created.Id, new EditQuotation(
+                rowVersion, ContactPerson: "Mr Khan", Validity: "30 Days", DocumentDiscountPercent: 0m,
+                [new EditQuotationLine(itemLineId, itemId, itemCode, "Widget", 2m, 100m, 0m, Cost: 120m)]));
+        }
+
+        InvoiceCreated invoice;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            invoice = await ConverterFor(db, change).ConvertAsync(
+                created.Id,
+                new ConvertQuotation(InvoiceType.Credit, new DateOnly(2026, 8, 1), "PO-7", null));
+        }
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            var raised = await db.Invoices.Include(i => i.Lines).FirstAsync(i => i.Id == invoice.Id);
+
+            raised.Lines.Should().ContainSingle().Which.Description.Should().Be("Widget");
+            raised.Subtotal.Should().Be(200m);  // not 250 — the dropped 1 × 50 does not come back
+            raised.Total.Should().Be(236m);     // 200 net × 18%
+
+            // And the customer is charged for the invoice that was actually raised.
+            (await new ReceivablesLedger(db).BalanceForCustomerAsync(customerId)).Should().Be(236m);
+        }
+    }
+
     private async Task<QuotationCreated> CreateQuotation(FakeChangeContext change, long companyId, long customerId, long itemId, string itemCode)
     {
         await using var db = _fixture.CreateContext(change);

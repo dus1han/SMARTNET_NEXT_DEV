@@ -21,4 +21,7 @@ public partial class QuotationL
     public string? Total { get; set; }
 
     public string Itemcode { get; set; } = null!;
+
+    /// <summary>Set when the new app's editor dropped this line — see <see cref="InvoiceL.DeletedAt"/>.</summary>
+    public DateTime? DeletedAt { get; set; }
 }

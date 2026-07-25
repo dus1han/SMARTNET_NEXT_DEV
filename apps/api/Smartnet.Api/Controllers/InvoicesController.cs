@@ -872,15 +872,18 @@ public sealed class InvoicesController : ControllerBase
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var newKind = invoice.Lines.Any(l => l.ItemId is not null) ? "Item" : "Service";
-
         // Show the lines as they stood at void; if the header and lines were soft-deleted together, fall
-        // back to all of them rather than an empty list.
+        // back to all of them rather than an empty list. (This query uses IgnoreQueryFilters to reach the
+        // soft-deleted header, which drops the line filter too — hence the explicit clause.)
         var voidLines = invoice.Lines.Where(l => l.DeletedAt == null).ToList();
         if (voidLines.Count == 0)
         {
             voidLines = invoice.Lines.ToList();
         }
+
+        // From the same lines the view shows, so a void whose editor had removed lines is not called an
+        // item invoice on the strength of a line that was gone before it was voided.
+        var newKind = voidLines.Any(l => l.ItemId is not null) ? "Item" : "Service";
 
         return Ok(new DeletedInvoiceDetail(
             invoice.Number,

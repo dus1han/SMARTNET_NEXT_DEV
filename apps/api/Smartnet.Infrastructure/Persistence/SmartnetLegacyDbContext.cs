@@ -729,6 +729,14 @@ public partial class SmartnetLegacyDbContext : DbContext
             // The surrogate id the Phase 5 adoption added — so the edit screen can round-trip a legacy
             // line's id and the reconcile can update it in place rather than replace it.
             entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
+
+            // A line the new app's editor dropped stays in this table, soft-deleted, so the removal is
+            // attributable and recoverable. Every legacy-side reader here wants the invoice as it now
+            // stands, so the removed rows are filtered out: without this the Data Exceptions report sums
+            // them into its line total and reports an edited invoice as a header/lines mismatch, and the
+            // legacy PDF fallback would print lines the invoice no longer has.
+            entity.HasQueryFilter(e => e.DeletedAt == null);
             entity.Property(e => e.Desc)
                 .HasColumnType("text")
                 .HasColumnName("desc")
@@ -1103,6 +1111,10 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .HasNoKey()
                 .ToTable("po_l");
 
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
+
+            // Soft-deleted lines are excluded for the same reason as invoice_l above.
+            entity.HasQueryFilter(e => e.DeletedAt == null);
             entity.Property(e => e.Desc)
                 .HasColumnType("text")
                 .HasColumnName("desc");
@@ -1243,6 +1255,10 @@ public partial class SmartnetLegacyDbContext : DbContext
                 .ToTable("quotation_l");
 
             entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
+
+            // Soft-deleted lines are excluded for the same reason as invoice_l above.
+            entity.HasQueryFilter(e => e.DeletedAt == null);
             entity.Property(e => e.Desc)
                 .HasColumnType("text")
                 .HasColumnName("desc");

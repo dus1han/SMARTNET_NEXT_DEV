@@ -107,7 +107,12 @@ public sealed class QuotationConverter : IQuotationConverter
         // cost rather than inventing one. Capturing both would mean asking for a service cost on a mixed
         // conversion and adding it to the derived total — a bigger change than this one, and a decision the
         // business has not been asked for.
-        var hasItem = quotation.Lines.Any(l => l.ItemId is not null);
+        // Live lines only. The quote was loaded with IgnoreQueryFilters (so a legacy row loads), which drops
+        // QuotationLineConfiguration's soft-delete filter with it — so a quote that was edited before being
+        // converted would otherwise carry the lines that edit removed into the invoice it becomes.
+        var lines = quotation.Lines.Where(l => l.DeletedAt is null).ToList();
+
+        var hasItem = lines.Any(l => l.ItemId is not null);
 
         return new NewInvoice(
             companyId,
@@ -116,7 +121,7 @@ public sealed class QuotationConverter : IQuotationConverter
             request.Date,
             request.PurchaseOrderNo,
             request.ContactPerson ?? quotation.ContactPerson,
-            [.. quotation.Lines.Select(l => new NewInvoiceLine(
+            [.. lines.Select(l => new NewInvoiceLine(
                 l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
             quotation.DiscountPercent,
             DocumentCost: hasItem ? null : ServiceCostRequired(quotation, request));

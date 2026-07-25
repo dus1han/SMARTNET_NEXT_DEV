@@ -174,6 +174,16 @@ public class InvoiceLineConfiguration : IEntityTypeConfiguration<InvoiceLine>
 
         builder.ConfigureAuditColumns();
 
+        // A line the editor dropped is soft-deleted, not erased (InvoiceEditor.ReconcileLines), so without
+        // this filter every read of invoice.Lines returns the removed lines too — and the read view's lines
+        // then add up to more than the header it is shown beside. No data_origin clause: unlike the header,
+        // a line has no such column; a legacy line is reached through its legacy read-model instead.
+        //
+        // The write paths that load a document with IgnoreQueryFilters (to reach a legacy row) still filter
+        // DeletedAt themselves — IgnoreQueryFilters drops this one along with the header's, so those
+        // explicit clauses are load-bearing, not redundant.
+        builder.HasQueryFilter(l => l.DeletedAt == null);
+
         // The line is read as part of its invoice — always by parent.
         builder.HasIndex(l => l.InvoiceId);
     }

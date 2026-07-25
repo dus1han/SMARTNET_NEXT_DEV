@@ -249,7 +249,13 @@ public sealed class InvoiceEditTests
 
         await using (var db = _fixture.CreateContext(change))
         {
-            var lines = await db.InvoiceLines.Where(l => l.InvoiceId == created.Id).ToListAsync();
+            // IgnoreQueryFilters: this assertion is about the dropped row still being *there*, which is
+            // exactly what the soft-delete filter hides. Everything that reads an invoice to show it
+            // goes through the filter — see the test below.
+            var lines = await db.InvoiceLines
+                .IgnoreQueryFilters()
+                .Where(l => l.InvoiceId == created.Id)
+                .ToListAsync();
 
             // The item line survived with its id (updated, not replaced); the dropped service line is
             // soft-deleted (recoverable, attributable); the new line was added.
@@ -257,6 +263,49 @@ public sealed class InvoiceEditTests
             lines.Single(l => l.Id == serviceLineId).DeletedAt.Should().NotBeNull();
             lines.Where(l => l.DeletedAt == null).Should().HaveCount(2);
             lines.Should().Contain(l => l.Description == "Installation" && l.DeletedAt == null);
+        }
+    }
+
+    /// <summary>
+    /// The read side of the edit above: a line the edit dropped must not come back when the invoice is
+    /// read to be shown. It used to — <c>invoice_l</c> had no soft-delete query filter, so
+    /// <c>Include(i =&gt; i.Lines)</c> handed the detail view the removed lines as well, and the lines on
+    /// screen added up to more than the header they were shown beside (26JUL_SNIN_1582: twelve live lines
+    /// totalling 82,183 displayed as twenty-one totalling 106,398).
+    /// </summary>
+    [Fact]
+    public async Task A_dropped_line_is_gone_from_the_invoice_that_is_read_back()
+    {
+        var (companyId, customerId, itemId) = await SeedCompanyCustomerItemAndSeries();
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId, Reason = "Reworking the line items" };
+
+        var created = await CreateInvoice(change, companyId, customerId, itemId);
+
+        int rowVersion;
+        long itemLineId;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            var invoice = await db.Invoices.Include(i => i.Lines).FirstAsync(i => i.Id == created.Id);
+            rowVersion = invoice.RowVersion;
+            itemLineId = invoice.Lines.Single(l => l.ItemId == itemId).Id;
+        }
+
+        // Drop the service line, keep the item line.
+        await using (var db = _fixture.CreateContext(change))
+        {
+            await EditorFor(db, change).EditAsync(created.Id, new EditInvoice(
+                rowVersion, null, null, 0m,
+                Lines: [new EditInvoiceLine(itemLineId, itemId, "I-1", "Widget", 4m, 100m, 0m, Cost: 240m)]));
+        }
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            var invoice = await db.Invoices.Include(i => i.Lines).FirstAsync(i => i.Id == created.Id);
+
+            invoice.Lines.Should().ContainSingle().Which.Id.Should().Be(itemLineId);
+
+            // The point of the whole exercise: what is shown adds up to what the header says.
+            invoice.Lines.Sum(l => l.Gross).Should().Be(invoice.Subtotal);
         }
     }
 

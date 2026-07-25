@@ -16,4 +16,7 @@ public partial class PoL
     public string? Rate { get; set; }
 
     public string? Total { get; set; }
+
+    /// <summary>Set when the new app's editor dropped this line — see <see cref="InvoiceL.DeletedAt"/>.</summary>
+    public DateTime? DeletedAt { get; set; }
 }

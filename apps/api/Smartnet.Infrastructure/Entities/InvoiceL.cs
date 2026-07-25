@@ -21,4 +21,12 @@ public partial class InvoiceL
     public string? Tot { get; set; }
 
     public string? Itemcode { get; set; }
+
+    /// <summary>
+    /// Set when the new app's editor dropped this line (Phase 5 added the column). The row stays so the
+    /// removal is attributable and recoverable, which means every legacy-side reader of <c>invoice_l</c>
+    /// has to skip it or it counts a line the invoice no longer has — see the query filter in
+    /// <c>SmartnetLegacyDbContext</c>.
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
 }
