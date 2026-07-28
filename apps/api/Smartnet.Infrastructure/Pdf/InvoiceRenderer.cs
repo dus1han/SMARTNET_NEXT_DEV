@@ -287,9 +287,20 @@ public sealed class InvoiceRenderer : IInvoiceRenderer
             ? null
             : new BankDetails(c.BankName.Trim(), Trim(c.BankBranch), Trim(c.BankAccountName), Trim(c.BankAccountNumber));
 
+    /// <summary>
+    /// The date as the printed invoice states it: <c>MM/dd/yyyy</c> — month first, as asked for
+    /// 2026-07-28. Both templates share it, so a tax invoice and a plain one date the same way, and the
+    /// tax invoice's Date of Supply matches its Date.
+    /// </summary>
+    /// <remarks>
+    /// InvariantCulture on purpose. The server's culture must not decide what a tax document says, and
+    /// <c>MM/dd/yyyy</c> under a culture whose date separator is not "/" would print something else
+    /// entirely. Unparseable input is passed through untouched rather than guessed at — a legacy
+    /// <c>indate</c> holds whatever the old app allowed, including values no calendar accepts.
+    /// </remarks>
     private static string FormatDate(string? raw) =>
         DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
-            ? d.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+            ? d.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture)
             : Trim(raw);
 
     private static string Trim(string? s) => s?.Trim() ?? string.Empty;
