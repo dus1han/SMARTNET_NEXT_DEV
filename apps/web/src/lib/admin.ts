@@ -61,10 +61,36 @@ export const createUser = (username: string, name: string, roleIds: number[]) =>
     body: { username, name, roleIds },
   });
 
-// No `updateUser` here on purpose. `PUT /api/users/{id}` (name + roles) exists and is protected, but
-// nothing in this app calls it: the users screen assigns access through `setUserPermissions` below,
-// which is permission assignment without the ceremony of roles. A client wrapper with no call site is
-// a thing that rots — it was still passing the old argument list long after the endpoint changed.
+/**
+ * Renames a user — their full name, and their username while that is still allowed.
+ *
+ * `roleIds` is not a detail to be defaulted: `PUT /api/users/{id}` sets the user's whole role set to
+ * whatever it is given, so a rename must send back the roles they already hold or it strips them on
+ * the way past. Callers pass `user.roles.map((r) => r.id)`.
+ *
+ * `username` is omitted to leave it alone. The server accepts one only while the account has raised
+ * nothing — `user.hasTransactions` says whether to offer the field, and the server decides for real.
+ *
+ * `expectedRowVersion` is the version the editor opened on. Stale is a 409 for the same reason as
+ * `setUserPermissions`: this request can move roles, so overwriting somebody else's save is a
+ * privilege question and not merely a lost edit.
+ */
+export const updateUser = (
+  id: number,
+  values: { name: string; username?: string; roleIds: number[] },
+  reason: string,
+  expectedRowVersion: number,
+) =>
+  api<void>(`/api/users/${id}`, {
+    method: "PUT",
+    body: {
+      name: values.name,
+      roleIds: values.roleIds,
+      username: values.username,
+      expectedRowVersion,
+    },
+    reason,
+  });
 
 export const resetPassword = (id: number, reason: string) =>
   api<ResetPasswordResponse>(`/api/users/${id}/reset-password`, {
@@ -74,6 +100,18 @@ export const resetPassword = (id: number, reason: string) =>
 
 export const disableUser = (id: number, reason: string) =>
   api<void>(`/api/users/${id}`, { method: "DELETE", reason });
+
+/** The inverse of {@link disableUser}: they can sign in again, with the password they had. */
+export const enableUser = (id: number, reason: string) =>
+  api<void>(`/api/users/${id}/enable`, { method: "POST", reason });
+
+/**
+ * Removes the account outright, rather than disabling it — the server allows this only while the
+ * account has raised nothing (`user.hasTransactions` is false), because after that the documents it
+ * raised are attributed to it. Not undoable: {@link disableUser} is the reversible one.
+ */
+export const deleteUserPermanently = (id: number, reason: string) =>
+  api<void>(`/api/users/${id}/permanent`, { method: "DELETE", reason });
 
 /** Mirrors AUDIT.md §5: a reason under this length is not a reason. */
 export const MINIMUM_REASON_LENGTH = 10;

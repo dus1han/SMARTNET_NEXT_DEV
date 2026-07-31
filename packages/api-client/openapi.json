@@ -9456,6 +9456,52 @@
         }
       }
     },
+    "/api/users/{id}/enable": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/users/{id}/permanent": {
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/users/{id}/reset-password": {
       "post": {
         "tags": [
@@ -17666,6 +17712,10 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -17673,6 +17723,7 @@
       "UserSummary": {
         "required": [
           "effectivePermissions",
+          "hasTransactions",
           "id",
           "isDisabled",
           "isLockedOut",
@@ -17725,6 +17776,9 @@
           "rowVersion": {
             "type": "integer",
             "format": "int32"
+          },
+          "hasTransactions": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

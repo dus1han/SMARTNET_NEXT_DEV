@@ -55,11 +55,14 @@ public sealed class UsersController : ControllerBase
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // Once for the whole list — the edit dialog is opened from a row, so the row has to carry it.
+        var transacted = await UsersWithTransactionsAsync(cancellationToken).ConfigureAwait(false);
+
         var summaries = new List<UserSummary>(users.Count);
 
         foreach (var user in users)
         {
-            summaries.Add(await Summarise(user, cancellationToken).ConfigureAwait(false));
+            summaries.Add(await Summarise(user, cancellationToken, transacted).ConfigureAwait(false));
         }
 
         return Ok(summaries);
@@ -125,9 +128,14 @@ public sealed class UsersController : ControllerBase
     {
         var user = await Find(id, cancellationToken).ConfigureAwait(false);
 
-        return user is null
-            ? NotFound()
-            : Ok(await Summarise(user, cancellationToken).ConfigureAwait(false));
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        var transacted = await UsersWithTransactionsAsync(cancellationToken).ConfigureAwait(false);
+
+        return Ok(await Summarise(user, cancellationToken, transacted).ConfigureAwait(false));
     }
 
     [HttpPost]
@@ -197,6 +205,44 @@ public sealed class UsersController : ControllerBase
             return stale;
         }
 
+        // A username correction, when one is asked for. Ordinal: a username is a credential, so "Admin"
+        // and "admin" are two different logins and changing between them is a real change.
+        if (request.Username is { } username
+            && !string.Equals(username, user.Username, StringComparison.Ordinal))
+        {
+            // The window closes the moment the account raises anything. A username is what the person is
+            // called in the legacy app's login and across the audit trail; once documents exist that were
+            // raised under it, renaming makes every one of them read as somebody who never existed.
+            // Re-checked here and not merely on the screen: CanChangeUsername tells the form what to
+            // offer, and this is what actually decides.
+            if ((await UsersWithTransactionsAsync(cancellationToken).ConfigureAwait(false)).Contains(id))
+            {
+                return Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    title:
+                        $"{user.Username} has already raised documents, so their username can no longer "
+                        + "be changed. Their full name can.");
+            }
+
+            // IgnoreQueryFilters: a disabled account still owns its username, and handing it to somebody
+            // else would give two rows the same login. User has no soft-delete filter today, so this
+            // changes nothing — it is here so that adding one cannot turn this check into a way to
+            // collide with a disabled account.
+            var taken = await _db.Users
+                .IgnoreQueryFilters()
+                .AnyAsync(u => u.Username == username && u.Id != id, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (taken)
+            {
+                return Conflict(Problem(
+                    statusCode: StatusCodes.Status409Conflict,
+                    title: $"The username '{username}' is already in use."));
+            }
+
+            user.Username = username;
+        }
+
         user.Name = request.Name;
 
         try
@@ -245,6 +291,167 @@ public sealed class UsersController : ControllerBase
         user.Ustat = "Inactive";
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// The exact inverse of <see cref="Disable"/>: the account can sign in again.
+    /// </summary>
+    /// <remarks>
+    /// <para>Until now a disabled account was a one-way door — the only way back was a hand-written
+    /// UPDATE against the live database. Disable writes two things (the soft delete, and <c>ustat</c>
+    /// for the legacy app, which has no notion of one), so this undoes exactly those two and nothing
+    /// else.</para>
+    ///
+    /// <para><b>Not touched: the lockout.</b> <c>LockedUntil</c> and the failed-login count are a
+    /// different state with a different cause — too many wrong passwords — and it expires by itself.
+    /// Clearing it here would mean "enable" quietly forgave an attack in progress. A user who is both
+    /// disabled and locked out comes back still locked out, which is what each of those two facts
+    /// separately says should happen.</para>
+    ///
+    /// <para><b>Not touched: the password.</b> They return with the credentials they had. Reset
+    /// Password is its own audited action for when that is not wanted.</para>
+    /// </remarks>
+    [HttpPost("{id:long}/enable")]
+    [RequireChangeReason]
+    public async Task<IActionResult> Enable(long id, CancellationToken cancellationToken)
+    {
+        // IgnoreQueryFilters because the row this is looking for is the soft-deleted one. User has no
+        // soft-delete filter today, so this changes nothing — it is here so that adding one (every other
+        // soft-deletable type has it) cannot quietly turn re-enabling into a 404.
+        var user = await _db.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        if (!user.IsDisabled)
+        {
+            // Nothing to undo. Refused rather than accepted as a no-op, so the audit trail never gains
+            // an "enabled" entry for an account that was already active.
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: $"{user.Username} is already active.");
+        }
+
+        // Both halves of Disable, undone. DeletedAt going from set to null is what the interceptor reads
+        // as a Restore (AuditSaveChangesInterceptor.WasRestored), so this is audited as its own action,
+        // with the reason attached, rather than looking like an ordinary edit.
+        user.DeletedAt = null;
+        user.DeletedBy = null;
+
+        // Covers the other way in: a user the legacy app switched off set only ustat, never a soft
+        // delete, and IsDisabled counts that as disabled too.
+        user.Ustat = "Active";
+
+        await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Removes the account outright — row and all — and only while it has raised nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Why this is allowed at all, when nothing else in this system is.</b> Everything else is
+    /// soft-deleted so the record stays attributable. An account that has raised nothing has no record
+    /// to keep attributable: it is a mistake — a typo, a duplicate, somebody set up who never started —
+    /// and leaving it disabled forever means the user list slowly fills with people who were never
+    /// people. The moment it has raised anything the door closes, and Disable is the answer instead.</para>
+    ///
+    /// <para><b>The audit entry is written first, and survives.</b> The interceptor cannot record this
+    /// one — <c>ExecuteDelete</c> does not go through the change tracker, which is exactly why it is
+    /// used here (a tracked <c>Remove</c> would be rewritten into the soft delete this is not). So the
+    /// deletion is recorded explicitly, with the username and name in it, because after this the id
+    /// resolves to nobody and an audit row saying only "user 41" names no one. The audit log itself is
+    /// never touched: the application's database user holds INSERT and SELECT on it and nothing more.</para>
+    ///
+    /// <para>What goes with it is what only exists because the account did — their role assignments,
+    /// permission overrides, mailbox assignments, personal notes, unfinished drafts, and the legacy
+    /// permissions row. All by <c>ExecuteDelete</c> and all inside one transaction, so the account
+    /// cannot half-go and leave rows pointing at an id that no longer resolves.</para>
+    /// </remarks>
+    [HttpDelete("{id:long}/permanent")]
+    [RequireChangeReason]
+    public async Task<IActionResult> DeletePermanently(long id, CancellationToken cancellationToken)
+    {
+        // IgnoreQueryFilters so an already-disabled account can be cleared out too — being disabled is
+        // the usual state of a mistake somebody has already tidied away once.
+        var user = await _db.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        if (id == CurrentUserId)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "You cannot delete your own account.");
+        }
+
+        if ((await UsersWithTransactionsAsync(cancellationToken).ConfigureAwait(false)).Contains(id))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title:
+                    $"{user.Username} has raised documents, so the account cannot be deleted — those "
+                    + "documents are attributed to it. Disable them instead.");
+        }
+
+        await using var transaction = await _db.Database
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // Before the row goes, and inside the transaction: if anything below fails, this rolls back
+        // with it rather than leaving a log entry for a deletion that did not happen.
+        await _audit.RecordAsync(
+            AuditAction.Delete,
+            nameof(User),
+            id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            details: new { permanent = true, username = user.Username, name = user.Name },
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        // IgnoreQueryFilters on each: these are soft-deletable too, and a soft-deleted assignment left
+        // behind is a row pointing at a user id that no longer resolves.
+        await _db.UserRoles.IgnoreQueryFilters().Where(r => r.UserId == id)
+            .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+
+        await _db.UserPermissionOverrides.IgnoreQueryFilters().Where(o => o.UserId == id)
+            .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+
+        await _db.UserMailAccounts.IgnoreQueryFilters().Where(a => a.UserId == id)
+            .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+
+        // Personal by definition — UserNote.CreatedBy is the visibility rule, so nobody else can read
+        // these and there is no one to inherit them.
+        await _db.UserNotes.IgnoreQueryFilters().Where(n => n.CreatedBy == id)
+            .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+
+        // Half-typed screens. A draft belongs to whoever started it and is not a document.
+        await _db.DocumentDrafts.Where(d => d.CreatedBy == id)
+            .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+
+        // The legacy app's own permission row, keyed by the id as a varchar.
+        var key = id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        await _db.Set<Dictionary<string, object>>(LegacyUserPermissions.EntityName)
+            .Where(r => (string)r[LegacyUserPermissions.UserIdColumn] == key)
+            .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+
+        await _db.Users.IgnoreQueryFilters().Where(u => u.Id == id)
+            .ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return NoContent();
     }
@@ -612,7 +819,14 @@ public sealed class UsersController : ControllerBase
         await _permissions.SyncToLegacyAsync(userId, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<UserSummary> Summarise(User user, CancellationToken cancellationToken)
+    /// <param name="transacted">
+    /// Everyone who has raised something, from <see cref="UsersWithTransactionsAsync"/> — computed once
+    /// per request and shared. Null when the caller did not ask the question; see the property.
+    /// </param>
+    private async Task<UserSummary> Summarise(
+        User user,
+        CancellationToken cancellationToken,
+        HashSet<long>? transacted = null)
     {
         var roles = await _db.UserRoles
             .Where(assignment => assignment.UserId == user.Id)
@@ -656,7 +870,55 @@ public sealed class UsersController : ControllerBase
             [.. effective.Order(StringComparer.Ordinal)],
             mailboxes,
             // The version the edit screen echoes back, so two administrators cannot overwrite each other.
-            user.RowVersion);
+            user.RowVersion,
+            // Null means the caller did not ask, and "has transactions" is the safe reading of that: it
+            // withholds the username field and the permanent delete rather than offering either wrongly.
+            HasTransactions: transacted is null || transacted.Contains(user.Id));
+    }
+
+    /// <summary>
+    /// The ids of everyone who has raised something — the accounts whose username is now fixed.
+    /// </summary>
+    /// <remarks>
+    /// <para>One round trip for the whole screen, not one per user: this is called once and the set is
+    /// handed to every <see cref="Summarise"/> call, so adding the rule did not turn the user list into
+    /// N × 11 queries.</para>
+    ///
+    /// <para><b>IgnoreQueryFilters throughout, deliberately.</b> A voided invoice is still an invoice
+    /// this person raised. Without it, voiding everything somebody had entered would quietly hand back
+    /// the right to rename them, and the documents — which still carry their id — would then be
+    /// attributed to a login that no longer means what it did.</para>
+    ///
+    /// <para>Both attribution columns are read where a document has two. <c>CreatedBy</c> is who saved
+    /// the row and <c>PreparedBy</c>/<c>EnteredBy</c> is who the document says raised it; on a legacy
+    /// document adopted by this app they are different people, and either one counts.</para>
+    /// </remarks>
+    private async Task<HashSet<long>> UsersWithTransactionsAsync(CancellationToken cancellationToken)
+    {
+        var actors = _db.Invoices.IgnoreQueryFilters().Select(d => d.PreparedBy)
+            .Concat(_db.Invoices.IgnoreQueryFilters().Select(d => d.CreatedBy))
+            .Concat(_db.Quotations.IgnoreQueryFilters().Select(d => d.PreparedBy))
+            .Concat(_db.Quotations.IgnoreQueryFilters().Select(d => d.CreatedBy))
+            .Concat(_db.CreditNotes.IgnoreQueryFilters().Select(d => d.PreparedBy))
+            .Concat(_db.CreditNotes.IgnoreQueryFilters().Select(d => d.CreatedBy))
+            .Concat(_db.PurchaseOrders.IgnoreQueryFilters().Select(d => d.PreparedBy))
+            .Concat(_db.PurchaseOrders.IgnoreQueryFilters().Select(d => d.CreatedBy))
+            .Concat(_db.JobCards.IgnoreQueryFilters().Select(d => d.EnteredBy))
+            .Concat(_db.JobCards.IgnoreQueryFilters().Select(d => d.CreatedBy))
+            .Concat(_db.CustomerReceipts.IgnoreQueryFilters().Select(d => d.CreatedBy))
+            .Concat(_db.SupplierPayments.IgnoreQueryFilters().Select(d => d.CreatedBy))
+            .Concat(_db.SupplierInvoices.IgnoreQueryFilters().Select(d => d.CreatedBy))
+            .Concat(_db.Cheques.IgnoreQueryFilters().Select(d => d.CreatedBy))
+            .Concat(_db.Expenses.IgnoreQueryFilters().Select(d => d.CreatedBy))
+            .Concat(_db.StockMovements.IgnoreQueryFilters().Select(d => d.CreatedBy));
+
+        var ids = await actors
+            .Where(id => id != null)
+            .Distinct()
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return [.. ids.Select(id => id!.Value)];
     }
 
     private long CurrentUserId => long.Parse(

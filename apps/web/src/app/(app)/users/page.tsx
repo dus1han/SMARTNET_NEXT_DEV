@@ -27,8 +27,11 @@ import {
   KeyRound,
   Mail,
   MoreHorizontal,
+  Pencil,
   ShieldCheck,
   ShieldOff,
+  Trash2,
+  UserCheck,
   UserPlus,
 } from "lucide-react";
 import * as Menu from "@radix-ui/react-dropdown-menu";
@@ -37,13 +40,16 @@ import { z } from "zod";
 import { ApiError } from "@/lib/api";
 import {
   createUser,
+  deleteUserPermanently,
   disableUser,
+  enableUser,
   listAssignableMailboxes,
   listPermissions,
   listUsers,
   resetPassword,
   setUserMailboxes,
   setUserPermissions,
+  updateUser,
   type MailboxSummary,
   type UserSummary,
 } from "@/lib/admin";
@@ -65,17 +71,31 @@ import {
 } from "@/components/ui";
 
 /** The one schema. It validates the form and it types the payload — see DEVELOPMENT.md §1. */
+const username = z
+  .string()
+  .min(1, "A username is required.")
+  // Mirrors the server's rule. It is not the enforcement — the server re-checks it — but it is
+  // the difference between a helpful message and a 400.
+  .regex(/^[a-zA-Z0-9._-]+$/, "Letters, numbers, dot, underscore and hyphen only.");
+
 const newUser = z.object({
-  username: z
-    .string()
-    .min(1, "A username is required.")
-    // Mirrors the server's rule. It is not the enforcement — the server re-checks it — but it is
-    // the difference between a helpful message and a 400.
-    .regex(/^[a-zA-Z0-9._-]+$/, "Letters, numbers, dot, underscore and hyphen only."),
+  username,
   name: z.string().min(1, "A full name is required."),
 });
 
 type NewUser = z.infer<typeof newUser>;
+
+/**
+ * The edit form. Same two fields as creation, and the username carries the same rule — but it is only
+ * *sent* while the server says it may still be corrected (`canChangeUsername`), so the schema keeps
+ * validating a field the form may be showing read-only.
+ */
+const editUser = z.object({
+  username,
+  name: z.string().min(1, "A full name is required."),
+});
+
+type EditUser = z.infer<typeof editUser>;
 
 export default function UsersPage() {
   const queryClient = useQueryClient();
@@ -92,6 +112,7 @@ export default function UsersPage() {
   const mailboxes = useQuery({ queryKey: ["assignable-mailboxes"], queryFn: listAssignableMailboxes });
 
   const [creating, setCreating] = useState(false);
+  const [renaming, setRenaming] = useState<UserSummary | null>(null);
   const [editing, setEditing] = useState<UserSummary | null>(null);
   const [assigning, setAssigning] = useState<UserSummary | null>(null);
   const [inspecting, setInspecting] = useState<UserSummary | null>(null);
@@ -207,6 +228,11 @@ export default function UsersPage() {
                 sideOffset={4}
                 className="z-50 min-w-48 rounded-lg border border-subtle bg-surface p-1 shadow-lg data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
               >
+                <Menu.Item className={menuItem} onSelect={() => setRenaming(user)}>
+                  <Pencil className="size-4 text-muted" aria-hidden />
+                  Edit user
+                </Menu.Item>
+
                 <Menu.Item className={menuItem} onSelect={() => setEditing(user)}>
                   <ShieldCheck className="size-4 text-muted" aria-hidden />
                   Edit permissions
@@ -257,23 +283,64 @@ export default function UsersPage() {
 
                 <Menu.Separator className="my-1 h-px bg-subtle" />
 
-                <Menu.Item
-                  disabled={user.isDisabled}
-                  className={cn(menuItem, "text-danger data-[disabled]:opacity-40")}
-                  onSelect={() =>
-                    reason.ask({
-                      title: `Disable ${user.username}`,
-                      description:
-                        "They can no longer sign in. Nothing is deleted — their history stays attributable.",
-                      confirmLabel: "Disable user",
-                      destructive: true,
-                      onConfirm: (why) => disable.mutateAsync({ id: user.id, reason: why }),
-                    })
-                  }
-                >
-                  <ShieldOff className="size-4" aria-hidden />
-                  Disable
-                </Menu.Item>
+                {/* Disable and Enable are the same slot, because they are the same decision seen from
+                    whichever side the account is currently on — and an account can only be on one. */}
+                {user.isDisabled ? (
+                  <Menu.Item
+                    className={menuItem}
+                    onSelect={() =>
+                      reason.ask({
+                        title: `Enable ${user.username}`,
+                        description:
+                          "They can sign in again, with the password they had. A lockout, if there is one, is left in place and still expires on its own.",
+                        confirmLabel: "Enable user",
+                        onConfirm: (why) => enable.mutateAsync({ id: user.id, reason: why }),
+                      })
+                    }
+                  >
+                    <UserCheck className="size-4 text-muted" aria-hidden />
+                    Enable
+                  </Menu.Item>
+                ) : (
+                  <Menu.Item
+                    className={cn(menuItem, "text-danger data-[disabled]:opacity-40")}
+                    onSelect={() =>
+                      reason.ask({
+                        title: `Disable ${user.username}`,
+                        description:
+                          "They can no longer sign in. Nothing is deleted — their history stays attributable.",
+                        confirmLabel: "Disable user",
+                        destructive: true,
+                        onConfirm: (why) => disable.mutateAsync({ id: user.id, reason: why }),
+                      })
+                    }
+                  >
+                    <ShieldOff className="size-4" aria-hidden />
+                    Disable
+                  </Menu.Item>
+                )}
+
+                {/* Only while the account is still a mistake rather than part of the record. Once it
+                    has raised anything the server refuses, and Disable is the only way out — so the
+                    item is not offered at all rather than offered and rejected. */}
+                {!user.hasTransactions && (
+                  <Menu.Item
+                    className={cn(menuItem, "text-danger")}
+                    onSelect={() =>
+                      reason.ask({
+                        title: `Delete ${user.username} permanently`,
+                        description:
+                          "The account and everything that exists only because of it — roles, permissions, mailbox assignments, notes and drafts — are removed for good. This cannot be undone. Disable instead if you may want them back.",
+                        confirmLabel: "Delete permanently",
+                        destructive: true,
+                        onConfirm: (why) => destroy.mutateAsync({ id: user.id, reason: why }),
+                      })
+                    }
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                    Delete permanently
+                  </Menu.Item>
+                )}
               </Menu.Content>
             </Menu.Portal>
           </Menu.Root>
@@ -295,6 +362,24 @@ export default function UsersPage() {
     mutationFn: (v: { id: number; reason: string }) => disableUser(v.id, v.reason),
     onSuccess: () => {
       toast.success("User disabled.");
+      void invalidate();
+    },
+    onError: (error: unknown) => toast.error(message(error)),
+  });
+
+  const enable = useMutation({
+    mutationFn: (v: { id: number; reason: string }) => enableUser(v.id, v.reason),
+    onSuccess: () => {
+      toast.success("User enabled.");
+      void invalidate();
+    },
+    onError: (error: unknown) => toast.error(message(error)),
+  });
+
+  const destroy = useMutation({
+    mutationFn: (v: { id: number; reason: string }) => deleteUserPermanently(v.id, v.reason),
+    onSuccess: () => {
+      toast.success("User deleted.");
       void invalidate();
     },
     onError: (error: unknown) => toast.error(message(error)),
@@ -347,6 +432,13 @@ export default function UsersPage() {
           setIssued({ username, password });
           void invalidate();
         }}
+      />
+
+      <EditUserDialog
+        user={renaming}
+        onClose={() => setRenaming(null)}
+        onSaved={invalidate}
+        ask={reason.ask}
       />
 
       <EditPermissionsDialog
@@ -474,6 +566,133 @@ function CreateUserDialog({ open, onClose, onCreated }: {
           The account starts with no permissions. Once it is created, use{" "}
           <span className="font-medium text-text">Edit permissions</span> to grant access.
         </p>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * The edit form: who this person is, as opposed to what they may do (that is Edit permissions).
+ *
+ * <b>The username is not always editable.</b> It is the login for this app and the legacy one, and it
+ * is what the audit trail and every document's `preparedby` were written against. Correcting a typo
+ * the day an account is made is a fix; changing it after that person has raised invoices rewrites who
+ * those invoices came from. So the server allows it only while the account has raised nothing, tells
+ * this form which case it is in (`hasTransactions`), and re-checks on save — the lock here is the
+ * explanation, not the enforcement.
+ */
+function EditUserDialog({ user, onClose, onSaved, ask }: {
+  user: UserSummary | null;
+  onClose: () => void;
+  onSaved: () => void;
+  ask: (request: import("@/components/form").ReasonRequest) => void;
+}) {
+  const form = useAppForm<EditUser>(editUser, { username: "", name: "" });
+  const [banner, setBanner] = useState<string[]>([]);
+  const [loaded, setLoaded] = useState<number | null>(null);
+
+  // Load whichever row was opened into the fields, during render rather than in an effect — the same
+  // shape as EditPermissionsDialog. Without this the form keeps the previous user's values when a
+  // second row is opened without unmounting.
+  if (user && loaded !== user.id) {
+    form.reset({ username: user.username, name: user.name });
+    setBanner([]);
+    setLoaded(user.id);
+  }
+
+  const save = useMutation({
+    mutationFn: (v: { values: EditUser; reason: string }) =>
+      updateUser(
+        user!.id,
+        {
+          name: v.values.name,
+          // Omitted unless it may change AND has actually changed, so an ordinary rename never sends a
+          // username the server would have to reason about.
+          username:
+            !user!.hasTransactions && v.values.username !== user!.username
+              ? v.values.username
+              : undefined,
+          // The roles they already hold, sent straight back. This endpoint sets the whole role set, so
+          // leaving them out would strip every role as a side effect of correcting a name.
+          roleIds: user!.roles.map((role) => role.id),
+        },
+        v.reason,
+        // The version the dialog opened on: a stale save is refused rather than applied over whatever
+        // another administrator has just done to this account.
+        user!.rowVersion,
+      ),
+    onSuccess: () => {
+      toast.success("User saved.");
+      onSaved();
+      onClose();
+    },
+    onError: (error: unknown) => setBanner(applyServerErrors(form, error)),
+  });
+
+  const locked = user !== null && user.hasTransactions;
+
+  return (
+    <Dialog
+      open={user !== null}
+      onOpenChange={(next) => !next && onClose()}
+      title={user ? `Edit ${user.username}` : ""}
+      description="Their name and, while the account is still new, their username. The change is recorded against your name."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+
+          <Button
+            pending={save.isPending}
+            onClick={form.handleSubmit((values) =>
+              // Editing a user is one of the audited actions — the server rejects this call without an
+              // X-Change-Reason header.
+              ask({
+                title: "Why is this changing?",
+                description: `${user?.username}'s details are about to change.`,
+                confirmLabel: "Save user",
+                onConfirm: (why) => save.mutateAsync({ values, reason: why }),
+              }),
+            )}
+          >
+            Save user
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {banner.map((text) => (
+          <ErrorBanner key={text} message={text} />
+        ))}
+
+        <Input
+          label="Username"
+          required
+          readOnly={locked}
+          aria-describedby={locked ? "username-locked" : undefined}
+          className={cn(locked && "cursor-not-allowed opacity-60")}
+          error={form.formState.errors.username?.message}
+          {...form.register("username")}
+        />
+
+        {locked && (
+          <p
+            id="username-locked"
+            className="rounded-lg border border-subtle bg-surface-sunken px-3 py-2.5 text-xs text-muted"
+          >
+            This account has already raised documents, so its username is fixed — those documents were
+            raised under it. The <span className="font-medium text-text">full name</span> can still be
+            corrected.
+          </p>
+        )}
+
+        <Input
+          label="Full name"
+          required
+          error={form.formState.errors.name?.message}
+          {...form.register("name")}
+        />
       </div>
     </Dialog>
   );

@@ -18,7 +18,19 @@ public sealed record UserSummary(
     IReadOnlyList<MailboxSummary> Mailboxes,
     // Echoed back on save so two administrators editing one account cannot overwrite each other —
     // which, on a screen that grants permissions, is a security question and not just a lost edit.
-    int RowVersion = 0);
+    int RowVersion = 0,
+    /// <summary>
+    /// Whether this account has raised anything — any document, receipt, payment, expense, cheque or
+    /// stock movement, voided or not.
+    /// </summary>
+    /// <remarks>
+    /// One fact, because it settles two questions that are really the same one: whether the username
+    /// can still be corrected, and whether the account can be deleted outright rather than disabled.
+    /// Both are "is this account still new, or is it part of the record?". The server re-checks it on
+    /// every such request — this exists so the screen can explain itself rather than offer actions that
+    /// are about to be refused.
+    /// </remarks>
+    bool HasTransactions = true);
 
 /// <summary>A mailbox as it appears in the user list and the assign dialog — no secrets.</summary>
 public sealed record MailboxSummary(long Id, string DisplayName, string EmailAddress);
@@ -41,7 +53,18 @@ public sealed record CreateUserResponse(long Id, string TemporaryPassword);
 /// <i>roles</i>, so two administrators saving at once does not merely lose an edit — it can silently
 /// reinstate a role somebody else has just removed.
 /// </param>
-public sealed record UpdateUserRequest(string Name, long[] RoleIds, int? ExpectedRowVersion = null);
+/// <param name="Username">
+/// A corrected username, or null to leave it alone. Accepted only while the account has raised
+/// nothing — see <c>UsersController.Update</c>. It is the login for both this app and the legacy one,
+/// so it moves with the row; what it does not move is the historical text that already names the old
+/// one (a document's <c>preparedby</c>, an <c>addedby</c> stamp), which is a record of what was true
+/// then and is deliberately left alone.
+/// </param>
+public sealed record UpdateUserRequest(
+    string Name,
+    long[] RoleIds,
+    int? ExpectedRowVersion = null,
+    string? Username = null);
 
 public sealed record ResetPasswordResponse(string TemporaryPassword);
 
@@ -111,7 +134,19 @@ public sealed class CreateUserRequestValidator : AbstractValidator<CreateUserReq
 
 public sealed class UpdateUserRequestValidator : AbstractValidator<UpdateUserRequest>
 {
-    public UpdateUserRequestValidator() => RuleFor(r => r.Name).NotEmpty().MaximumLength(100);
+    public UpdateUserRequestValidator()
+    {
+        RuleFor(r => r.Name).NotEmpty().MaximumLength(100);
+
+        // Only when one is being set — null means "leave the username alone", which is what every save
+        // that is not correcting it sends. The same rule as CreateUserRequest, for the same reason.
+        When(r => r.Username is not null, () =>
+            RuleFor(r => r.Username)
+                .NotEmpty()
+                .MaximumLength(100)
+                .Matches("^[a-zA-Z0-9._-]+$")
+                .WithMessage("Letters, numbers, dot, underscore and hyphen only."));
+    }
 }
 
 public sealed class SaveRoleRequestValidator : AbstractValidator<SaveRoleRequest>
