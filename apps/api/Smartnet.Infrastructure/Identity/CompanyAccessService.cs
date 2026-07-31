@@ -77,13 +77,24 @@ public sealed class CompanyAccessService : ICompanyAccessService
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        // A role assigned with no company is a GLOBAL assignment: it applies everywhere.
+        // A role assigned with no company is a GLOBAL assignment: it applies everywhere. So is having
+        // no role assignment at all — which is the part that used to be missing, and it made every
+        // screen empty for anyone whose access came from the users screen.
         //
         // **Every user is in exactly this state, and that is the intended end state, not a migration
         // artefact.** The staff work across both trading entities and are meant to. Scoping is opt-in
         // and currently opted into by nobody; it exists for a future entity whose books the existing
         // staff should not see, and until there is one, this branch is the only one that runs.
-        if (assignments.Contains(null))
+        //
+        // <b>No assignment is the absence of a scoping statement, not a statement of "no companies".</b>
+        // Access is granted permission by permission (UsersController.SetPermissions writes overrides
+        // and no role), and a user created on that screen has no role row at all. Falling through to the
+        // scoped branch gave them an EMPTY company list, and since every list, report and lookup filters
+        // on it, they saw their menus — the permissions are real and in their token — and no data behind
+        // any of them. Company scope is explicitly "not an authorisation boundary" (see the interface
+        // remarks); reading silence as a denial turned the dormant mechanism into the thing it says it
+        // is not. Only an assignment naming actual companies narrows anyone now.
+        if (assignments.Count == 0 || assignments.Contains(null))
         {
             return all;
         }
