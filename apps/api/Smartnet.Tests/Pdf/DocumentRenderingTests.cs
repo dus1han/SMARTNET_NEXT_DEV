@@ -255,21 +255,36 @@ public sealed class DocumentRenderingTests
             [.. Items().Select(i => new QuotationItem(i.ItemNo, i.Description, i.Quantity, i.Rate, i.Total))],
             791_946m, 0m, 0m, 791_946m, "VAT 18%", 142_550.28m, 934_496.28m, Bank);
 
+        /// <summary>
+        /// A credit note carrying VAT, so <b>Smart Net</b> — the registered company, in its own burgundy.
+        /// </summary>
+        /// <remarks>
+        /// This sample used to name Smart Technologies while charging VAT 18%, which cannot happen: Smart
+        /// Technologies is not VAT-registered, and the invoice samples beside it already get this right
+        /// (<see cref="Invoice"/> is Smart Technologies, <see cref="TaxInvoice"/> is Smart Net). A fixture
+        /// that pairs a company with figures it could never produce is not a shortcut — it reads as a bug
+        /// in the renderer to anyone who looks at the output, which is exactly what it cost.
+        /// </remarks>
         public static CreditNoteModel CreditNote() => new(
-            null, "Smart Technologies", "No 5, Colombo 05 · 011 2 555 555", "#B91C1C",
-            "STCN-88", "14 Jul 2026", "STI-1214",
+            null, "Smart Net (Pvt) Ltd", "No 5, Colombo 05 · 011 2 555 555", CompanyTheme.SmartNetAccent,
+            // Smart Net's own series, crediting a Smart Net invoice — a note credits its own company's.
+            "SNCN-88", "14 Jul 2026", "SNI-1074",
             "CDEM PVT LTD", "No 100, Industrial Estate, Colombo 15", "MR SAMITH", "011 2 444 444",
             "Dev Admin", true,
             [.. Items().Select(i => new CreditNoteItem(i.Description, i.Quantity, i.Rate, i.Total))],
             133_596m, 0m, 0m, 133_596m, "VAT 18%", 24_047.28m, 157_643.28m);
 
         /// <summary>
-        /// A credit note carrying no VAT — a note from the non-VAT company, or one crediting an invoice
-        /// raised before Smart Net registered. Null TaxLabel is what makes it head itself CREDIT NOTE.
+        /// A credit note carrying no VAT, so <b>Smart Technologies</b> — the unregistered company, in the
+        /// default navy. Null TaxLabel is what heads it CREDIT NOTE rather than TAX CREDIT NOTE, and it
+        /// drops the VAT rows with it.
         /// </summary>
         public static CreditNoteModel CreditNoteWithoutVat() => CreditNote() with
         {
             CompanyName = "Smart Technologies",
+            AccentColour = CompanyTheme.DefaultAccent,
+            CreditNoteNo = "STCN-88",
+            InvoiceNo = "STI-1214",
             TaxLabel = null,
             TaxAmount = null,
             Total = 133_596m,
