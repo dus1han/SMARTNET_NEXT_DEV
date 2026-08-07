@@ -45,6 +45,9 @@ public sealed class DocumentRenderingTests
         { "tax invoice", new TaxInvoiceDocument(Sample.TaxInvoice()) },
         { "quotation", new QuotationDocument(Sample.Quotation()) },
         { "credit note", new CreditNoteDocument(Sample.CreditNote()) },
+        // The same document without VAT — it heads itself CREDIT NOTE rather than TAX CREDIT NOTE and
+        // drops the VAT rows, so it is a different layout and worth rendering in its own right.
+        { "credit note (no VAT)", new CreditNoteDocument(Sample.CreditNoteWithoutVat()) },
         { "purchase order", new PurchaseOrderDocument(Sample.PurchaseOrder()) },
         { "job sheet", new JobSheetDocument(Sample.JobSheet()) },
         { "Smart Net job sheet", new SmartNetJobSheetDocument(Sample.JobSheet()) },
@@ -259,6 +262,18 @@ public sealed class DocumentRenderingTests
             "Dev Admin", true,
             [.. Items().Select(i => new CreditNoteItem(i.Description, i.Quantity, i.Rate, i.Total))],
             133_596m, 0m, 0m, 133_596m, "VAT 18%", 24_047.28m, 157_643.28m);
+
+        /// <summary>
+        /// A credit note carrying no VAT — a note from the non-VAT company, or one crediting an invoice
+        /// raised before Smart Net registered. Null TaxLabel is what makes it head itself CREDIT NOTE.
+        /// </summary>
+        public static CreditNoteModel CreditNoteWithoutVat() => CreditNote() with
+        {
+            CompanyName = "Smart Technologies",
+            TaxLabel = null,
+            TaxAmount = null,
+            Total = 133_596m,
+        };
 
         public static PurchaseOrderModel PurchaseOrder() => new(
             null, "Smart Net (Pvt) Ltd", "No 5, Colombo 05 · 011 2 555 555", "#0F766E",

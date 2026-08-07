@@ -19,7 +19,25 @@ public sealed class CreditNoteDocument : HouseDocument
 
     public CreditNoteDocument(CreditNoteModel model) : base(model.AccentColour) => _m = model;
 
-    protected override string Title => "CREDIT NOTE";
+    /// <summary>
+    /// <c>TAX CREDIT NOTE</c> when the note carries VAT, <c>CREDIT NOTE</c> when it does not — the
+    /// same distinction the invoice makes between <see cref="TaxInvoiceDocument"/> and
+    /// <see cref="InvoiceDocument"/>, and for the same reason: it is what the customer reclaims
+    /// against.
+    /// </summary>
+    /// <remarks>
+    /// Read off <see cref="CreditNoteModel.TaxLabel"/>, which the renderer sets only for a VAT-registered
+    /// company on a note that actually charges VAT. Deriving the heading from the VAT line rather than
+    /// deciding it separately means the two cannot disagree — a document headed TAX CREDIT NOTE with no
+    /// VAT row on it would be a contradiction, and it is the sort that gets found by an auditor rather
+    /// than by us.
+    ///
+    /// <para>Note that this follows the <b>document</b>, not today's registration status. Smart Net
+    /// registered for VAT on 2024-09-02; a credit against one of the 664 invoices raised before that
+    /// charges no VAT, and reprinting it now under a TAX CREDIT NOTE heading would restate a historical
+    /// supply as something it was not. Same rule as the invoice, deliberately.</para>
+    /// </remarks>
+    protected override string Title => _m.TaxLabel is null ? "CREDIT NOTE" : "TAX CREDIT NOTE";
 
     protected override byte[]? Logo => _m.Logo;
 
