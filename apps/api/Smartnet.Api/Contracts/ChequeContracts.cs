@@ -20,6 +20,34 @@ public sealed record CreateChequeRequest(
 
 public sealed record ChequeCreatedResponse(long Id, decimal Amount);
 
+/// <summary>
+/// The cheques becoming bankable in the next couple of working days — the dashboard warning.
+/// </summary>
+/// <param name="From">The first day of the window: today, as the server reckons it.</param>
+/// <param name="To">
+/// The last day: two <b>business</b> days out, so a Friday reaches Tuesday. See
+/// <see cref="Smartnet.Domain.Documents.BusinessDays"/>.
+/// </param>
+/// <remarks>
+/// Forward-looking only, and deliberately. A cheque has no cleared or banked state anywhere in this
+/// system — the register is a written record, not a lifecycle — so nothing can ever mark one as dealt
+/// with. An overdue list would therefore only ever grow, and a warning that is permanently on is a
+/// warning nobody reads. What this answers is "what leaves the account next", which is actionable.
+/// </remarks>
+public sealed record ChequesDueSoon(
+    DateOnly From,
+    DateOnly To,
+    int Count,
+    IReadOnlyList<ChequeDueSoonRow> Cheques);
+
+/// <summary>One cheque in the warning — enough to recognise it without opening the register.</summary>
+public sealed record ChequeDueSoonRow(
+    long Id,
+    DateOnly DueDate,
+    string PayTo,
+    decimal Amount,
+    string? CompanyName);
+
 /// <summary>One row of the cheque list.</summary>
 /// <param name="Origin"><c>new</c> for a cheque this app raised; <c>legacy</c> for an adopted one.</param>
 /// <param name="Source">Where it came from — <c>Manual</c>, <c>Supplier payment</c> or <c>Expense</c>.</param>

@@ -34,6 +34,7 @@ import {
 } from "@/components/dashboard/analytics-charts";
 import { CompanySwitch } from "@/components/dashboard/company-switch";
 import { AttentionStrip } from "@/components/dashboard/attention-strip";
+import { ChequesDueStrip } from "@/components/dashboard/cheques-due-strip";
 import { StatTile, formatMoney, formatReportDate } from "@/components/reports";
 import { AnimatedNumber, Card, CardHeader, ErrorBanner, FadeIn, LoadingPanel } from "@/components/ui";
 
@@ -63,6 +64,8 @@ export function ManagementDashboard() {
       />
 
       {loadError && <ErrorBanner message={loadError.message} correlationId={loadError.correlationId} />}
+
+      <ChequesDueStrip company={company} />
 
       <AttentionStrip company={company} />
 

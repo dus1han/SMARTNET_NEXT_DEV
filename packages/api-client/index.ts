@@ -220,6 +220,8 @@ export type CreateChequeRequest = Schemas["CreateChequeRequest"];
 export type ChequeCreatedResponse = Schemas["ChequeCreatedResponse"];
 export type ChequeSummary = Schemas["ChequeSummary"];
 export type ChequeDetail = Schemas["ChequeDetail"];
+export type ChequesDueSoon = Schemas["ChequesDueSoon"];
+export type ChequeDueSoonRow = Schemas["ChequeDueSoonRow"];
 
 // --- Expenses & categories (Phase 7) ----------------------------------------------------------
 

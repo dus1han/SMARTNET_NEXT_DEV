@@ -35,6 +35,9 @@ public sealed class ChequesController : ControllerBase
     private readonly IAuditWriter _audit;
     private readonly IChequePrintRecorder _printRecorder;
 
+    /// <summary>Today, for the due-soon window — never DateTime.Now, and fixed in tests.</summary>
+    private readonly TimeProvider _time;
+
     public ChequesController(
         IChequeCreator creator,
         IChequeVoider voider,
@@ -43,8 +46,10 @@ public sealed class ChequesController : ControllerBase
         SmartnetLegacyDbContext legacy,
         IChequeRenderer chequePdf,
         IAuditWriter audit,
-        IChequePrintRecorder printRecorder)
+        IChequePrintRecorder printRecorder,
+        TimeProvider time)
     {
+        _time = time;
         _creator = creator;
         _voider = voider;
         _company = company;
@@ -165,6 +170,111 @@ public sealed class ChequesController : ControllerBase
                      && accessible.Contains(c.CompanyId.Value),
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The cheques becoming bankable within the next two business days.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Business days, not calendar days.</b> Two calendar days from a Friday is Sunday, so the
+    /// cheque presented on Monday morning — the one there is least time to do anything about — would be
+    /// the one never warned about. <see cref="BusinessDays"/> carries the arithmetic and its own tests.</para>
+    ///
+    /// <para><b>Both origins, like the list.</b> Every cheque in production today is a legacy row whose
+    /// due date lives in the <c>duedate</c> varchar, not the typed column; reading only
+    /// <c>_db.Cheques</c> would have warned about none of them. The legacy side is filtered after
+    /// parsing rather than in SQL, because a varchar date cannot be compared as one — the register is
+    /// small enough that this costs nothing.</para>
+    ///
+    /// <para>Its own endpoint rather than a field on the dashboard payload: the dashboard's analytics
+    /// query is already the slowest thing on that page and has been seen to time out, and a warning
+    /// that takes the landing page down with it is worse than no warning.</para>
+    /// </remarks>
+    [HttpGet("due-soon")]
+    [RequirePermission(Permissions.Cheques)]
+    public async Task<ActionResult<ChequesDueSoon>> DueSoon(
+        [FromQuery] string? company,
+        CancellationToken cancellationToken)
+    {
+        var scope = DueSoonScope(company);
+        var scopeText = scope.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToHashSet(StringComparer.Ordinal);
+
+        var today = DateOnly.FromDateTime(_time.GetUtcNow().UtcDateTime);
+        var until = BusinessDays.AddTo(today, 2);
+
+        var companyNames = await _db.Companies
+            .Where(c => scope.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken)
+            .ConfigureAwait(false);
+
+        var typed = await _db.Cheques
+            .Where(c => c.CompanyId != null
+                     && scope.Contains(c.CompanyId.Value)
+                     && c.DueDate != null
+                     && c.DueDate >= today
+                     && c.DueDate <= until)
+            .Select(c => new { c.Id, c.DueDate, c.PayTo, c.Amount, c.CompanyId })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var rows = typed
+            .Select(c => new ChequeDueSoonRow(
+                c.Id,
+                c.DueDate!.Value,
+                c.PayTo,
+                c.Amount,
+                c.CompanyId is { } cid ? companyNames.GetValueOrDefault(cid) : null))
+            .ToList();
+
+        var legacy = await _legacy.Cheques
+            .Where(c => c.DataOrigin != "new")
+            .Select(c => new { c.Id, c.Duedate, c.Payto, c.Amount, c.Company })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        rows.AddRange(legacy
+            .Where(c => c.Company != null && scopeText.Contains(c.Company))
+            .Select(c => new
+            {
+                c.Id,
+                // A legacy date the old app allowed but no calendar does parses to null and is skipped,
+                // rather than being warned about on some epoch date nobody recognises.
+                Due = LegacyValue.Date(c.Duedate),
+                c.Payto,
+                c.Amount,
+                c.Company,
+            })
+            .Where(c => c.Due is { } due && due >= today && due <= until)
+            .Select(c => new ChequeDueSoonRow(
+                c.Id,
+                c.Due!.Value,
+                c.Payto ?? string.Empty,
+                LegacyValue.Money(c.Amount),
+                long.TryParse(c.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var lc)
+                    ? companyNames.GetValueOrDefault(lc)
+                    : null)));
+
+        // Soonest first: the one to deal with today is the one to read first.
+        var due = rows
+            .OrderBy(r => r.DueDate)
+            .ThenBy(r => r.Id)
+            .ToList();
+
+        return Ok(new ChequesDueSoon(today, until, due.Count, due));
+    }
+
+    /// <summary>
+    /// The companies this warning covers: the caller's accessible set, narrowed to one if the dashboard
+    /// filter names one they may see. A filter can only narrow to something already permitted.
+    /// </summary>
+    private List<long> DueSoonScope(string? company)
+    {
+        var accessible = _company.Accessible.ToList();
+
+        return long.TryParse(company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+               && accessible.Contains(id)
+            ? [id]
+            : accessible;
     }
 
     /// <summary>Every cheque the caller may see, newest first — this app's own and the legacy ones.</summary>

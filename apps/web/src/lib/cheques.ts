@@ -3,11 +3,31 @@ import type {
   ChequeCreatedResponse,
   ChequeDetail,
   ChequeSummary,
+  ChequesDueSoon,
 } from "@smartnet/api-client";
 import { api } from "./api";
+import type { CompanyFilter } from "./reports";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
-export type { CreateChequeRequest, ChequeCreatedResponse, ChequeDetail, ChequeSummary } from "@smartnet/api-client";
+export type {
+  CreateChequeRequest,
+  ChequeCreatedResponse,
+  ChequeDetail,
+  ChequeSummary,
+  ChequesDueSoon,
+  ChequeDueSoonRow,
+} from "@smartnet/api-client";
+
+/**
+ * The cheques becoming bankable in the next two business days — what the dashboard warns about.
+ *
+ * The window is the server's, not the browser's: it decides what "today" is and does the business-day
+ * arithmetic, so a machine with a wrong clock cannot warn about the wrong days.
+ */
+export const getChequesDueSoon = (company: CompanyFilter) =>
+  api<ChequesDueSoon>(
+    `/api/cheques/due-soon${company === "all" ? "" : `?company=${company}`}`,
+  );
 
 /** The cheques this app has recorded and the legacy ones adopted, newest first. */
 export const getCheques = () => api<ChequeSummary[]>("/api/cheques");

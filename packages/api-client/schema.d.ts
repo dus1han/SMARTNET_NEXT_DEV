@@ -489,6 +489,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cheques/due-soon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    company?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ChequesDueSoon"];
+                        "application/json": components["schemas"]["ChequesDueSoon"];
+                        "text/json": components["schemas"]["ChequesDueSoon"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/cheques": {
         parameters: {
             query?: never;
@@ -7949,6 +7988,16 @@ export interface components {
             /** Format: date-time */
             lastPrintedAt?: string | null;
         };
+        ChequeDueSoonRow: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            dueDate: string;
+            payTo: string;
+            /** Format: double */
+            amount: number;
+            companyName?: string | null;
+        };
         ChequeReportResponse: {
             /** Format: double */
             total: number;
@@ -7995,6 +8044,15 @@ export interface components {
             printCount: number;
             /** Format: date-time */
             lastPrintedAt?: string | null;
+        };
+        ChequesDueSoon: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: int32 */
+            count: number;
+            cheques: components["schemas"]["ChequeDueSoonRow"][];
         };
         CloseJobCardRequest: {
             /** Format: int32 */
