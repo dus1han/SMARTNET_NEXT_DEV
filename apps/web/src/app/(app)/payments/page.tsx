@@ -46,7 +46,9 @@ export default function PaymentsPage() {
         columns={columns}
         rows={receipts.data?.rows}
         loading={receipts.isPending}
-        searchable={(row) => `${row.customerName ?? ""} ${row.reference ?? ""} ${row.method ?? ""}`}
+        searchable={(row) =>
+          `${row.customerName ?? ""} ${row.reference ?? ""} ${row.method ?? ""} ${row.invoiceNumbers.join(" ")}`
+        }
         server={{
           total: receipts.data?.total ?? 0,
           page,
@@ -54,7 +56,7 @@ export default function PaymentsPage() {
           search,
           onSearchChange: setSearch,
         }}
-        searchPlaceholder="Search by customer, reference or method…"
+        searchPlaceholder="Search by invoice no., customer, reference or method…"
         defaultSort={{ id: "date", desc: true }}
         actions={
           <Button size="sm" onClick={() => router.push("/payments/new")}>
@@ -104,10 +106,30 @@ const columns: ColumnDef<CustomerReceiptSummary, unknown>[] = [
   },
   {
     id: "invoices",
-    accessorFn: (row) => row.invoices,
+    accessorFn: (row) => row.invoiceNumbers.join(" "),
     header: "Invoices",
-    meta: { align: "center" },
-    cell: ({ row }) => <span className="tabular text-muted">{row.original.invoices}</span>,
+    cell: ({ row }) => {
+      const numbers = row.original.invoiceNumbers;
+
+      if (numbers.length === 0) {
+        // An allocation whose invoice row could not be read. The count still says how many there were,
+        // so this states that rather than pretending the receipt settled nothing.
+        return <span className="text-muted">{row.original.invoices || "—"}</span>;
+      }
+
+      // A legacy payment always settles exactly one; a receipt this app recorded may settle several.
+      // The first is named because that is what identifies the row at a glance, and the rest are counted
+      // rather than listed — three invoice numbers in a table cell wrap and push every other column
+      // about. The full list is on the row's tooltip and on the receipt itself.
+      return (
+        <span className="whitespace-nowrap text-text" title={numbers.join(", ")}>
+          {numbers[0]}
+          {numbers.length > 1 && (
+            <span className="ml-1.5 text-muted">+{numbers.length - 1}</span>
+          )}
+        </span>
+      );
+    },
   },
   {
     id: "amount",

@@ -26,6 +26,21 @@ public sealed record CustomerReceiptCreatedResponse(long Id, decimal Amount, boo
 
 /// <summary>One row of the receipts list.</summary>
 /// <param name="Origin"><c>new</c> for a receipt this app recorded; <c>legacy</c> for a pre-cutover one from the payments table.</param>
+/// <param name="Invoices">
+/// How many invoices this receipt settled. Kept beside the numbers rather than derived from them: an
+/// allocation whose invoice row cannot be read still counts as an allocation, and a count that quietly
+/// disagreed with the money would be the worse of the two to trust.
+/// </param>
+/// <param name="InvoiceNumbers">
+/// The invoices it settled, in the order they were allocated — one for a legacy payment, one or more for
+/// a receipt this app recorded.
+/// </param>
+/// <remarks>
+/// The numbers are here because they are how anybody actually looks a payment up. Asked "how was SI-35
+/// paid?", this list could not answer: it showed a count and searched only customer, reference and
+/// method, and a pre-cutover row has no reference at all — so the payment was on the screen and
+/// unfindable. Both halves of the list now match on the number too.
+/// </remarks>
 public sealed record CustomerReceiptSummary(
     long Id,
     DateOnly Date,
@@ -34,7 +49,8 @@ public sealed record CustomerReceiptSummary(
     string? Method,
     string? Reference,
     int Invoices,
-    string Origin);
+    string Origin,
+    IReadOnlyList<string> InvoiceNumbers);
 
 /// <summary>One allocation, for the read view — the invoice it settled (its date and total) and how much went to it.</summary>
 public sealed record ReceiptAllocationLine(

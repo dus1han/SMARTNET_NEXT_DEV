@@ -151,6 +151,18 @@ public sealed class CustomerReceiptsController : ControllerBase
 
         var term = paging.LikePattern;
 
+        // The invoices whose number matches the search, so a receipt can be found by what it settled —
+        // the way anybody actually looks a payment up. Resolved to ids once here rather than joined per
+        // half: the legacy side matches the number on the payment row itself, while a new receipt reaches
+        // its invoices through its allocations, and those are two different shapes of query.
+        var matchedInvoiceIds = term == null
+            ? []
+            : await _legacy.InvoiceHs
+                .Where(h => h.Invoiceno != null && EF.Functions.Like(h.Invoiceno, term))
+                .Select(h => h.Id)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
         // --- legacy keys: payments, scoped to a company through the invoice they settled -----------
         // payments carries no company of its own. The join also drops payments whose invoice is gone,
         // which is the same three orphaned rows the old code skipped and Data Exceptions reports.
@@ -163,6 +175,9 @@ public sealed class CustomerReceiptsController : ControllerBase
                   && accessibleText.Contains(h.Company)
                   && (term == null
                       || EF.Functions.Like(p.Payref!, term)
+                      // The number the payment settled. A pre-cutover row carries no reference at all,
+                      // so before this there was nothing on it to search by.
+                      || EF.Functions.Like(p.Invoiceno!, term)
                       || (h.Customer != null && searchCodes.Contains(h.Customer)))
             select new { p.Id, Date = p.Paymentrecdate })
             .ToListAsync(cancellationToken)
@@ -173,6 +188,9 @@ public sealed class CustomerReceiptsController : ControllerBase
             .Where(r => r.CompanyId != null && accessible.Contains(r.CompanyId.Value)
                         && (term == null
                             || EF.Functions.Like(r.Reference!, term)
+                            // Any one of the invoices it settled — a receipt spread over three invoices
+                            // is found by searching for any of the three.
+                            || r.Allocations.Any(a => matchedInvoiceIds.Contains(a.InvoiceId))
                             || searchIds.Contains(r.CustomerId)))
             .Select(r => new { r.Id, r.Date })
             .ToListAsync(cancellationToken)
@@ -228,10 +246,40 @@ public sealed class CustomerReceiptsController : ControllerBase
                 .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken)
                 .ConfigureAwait(false);
 
+            // The numbers a receipt settled — one row per allocation, for the page's receipts only. Two
+            // queries rather than a join because the numbers live in the legacy invoice table while the
+            // allocations are this app's own; there is no navigation between them.
+            var allocations = await _db.ReceiptAllocations
+                .Where(a => a.CustomerReceiptId != null && newIds.Contains(a.CustomerReceiptId.Value))
+                .Select(a => new { ReceiptId = a.CustomerReceiptId!.Value, a.InvoiceId, a.Id })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var allocatedIds = allocations.Select(a => a.InvoiceId).Distinct().ToList();
+            var numbersById = allocatedIds.Count == 0
+                ? []
+                : (await _legacy.InvoiceHs
+                    .Where(h => allocatedIds.Contains(h.Id) && h.Invoiceno != null)
+                    .Select(h => new { h.Id, h.Invoiceno })
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false))
+                    .ToDictionary(h => h.Id, h => h.Invoiceno!);
+
+            var numbersByReceipt = allocations
+                .GroupBy(a => a.ReceiptId)
+                .ToDictionary(
+                    g => g.Key,
+                    // Allocation order, which is the order they were typed on the form.
+                    g => (IReadOnlyList<string>)[.. g.OrderBy(a => a.Id)
+                        .Select(a => numbersById.GetValueOrDefault(a.InvoiceId))
+                        .Where(n => n is not null)
+                        .Select(n => n!)]);
+
             foreach (var r in receipts)
             {
                 byId[r.Id] = new CustomerReceiptSummary(
-                    r.Id, r.Date, names.GetValueOrDefault(r.CustomerId), r.Amount, r.Method, r.Reference, r.Invoices, "new");
+                    r.Id, r.Date, names.GetValueOrDefault(r.CustomerId), r.Amount, r.Method, r.Reference, r.Invoices, "new",
+                    numbersByReceipt.GetValueOrDefault(r.Id, []));
             }
         }
 
@@ -273,7 +321,10 @@ public sealed class CustomerReceiptsController : ControllerBase
                     p.Paym,
                     p.Payref,
                     1,
-                    "legacy");
+                    "legacy",
+                    // Always exactly one: the old app settled one invoice per payment, which is the very
+                    // limitation a receipt allocated across several was built to lift.
+                    p.Invoiceno is null ? [] : [p.Invoiceno]);
             }
         }
 
@@ -328,7 +379,9 @@ public sealed class CustomerReceiptsController : ControllerBase
                 p.Paym,
                 p.Payref,
                 1,
-                "legacy"));
+                "legacy",
+                // One per payment, always — the old app had no notion of splitting one across invoices.
+                p.Invoiceno is null ? [] : [p.Invoiceno]));
         }
 
         return rows;

@@ -8535,6 +8535,7 @@ export interface components {
             /** Format: int32 */
             invoices: number;
             origin: string;
+            invoiceNumbers: string[];
         };
         CustomerReceiptSummaryPagedResult: {
             rows: components["schemas"]["CustomerReceiptSummary"][];
