@@ -41,10 +41,16 @@ export default function NewCustomerReceiptPage() {
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   const customerKey = customerId === "" ? null : Number(customerId);
+  const companyKey = companyId === "" ? null : Number(companyId);
+
+  // Both, or nothing. A receipt is written for one company and settles that company's invoices, so the
+  // picker cannot be filled until the company is known — offering every company's invoices and sorting
+  // it out at save time is how a Smart Net receipt ends up paying a Smart Technologies debt. The company
+  // is in the key, so changing it refetches rather than leaving the previous company's list on screen.
   const outstanding = useQuery({
-    queryKey: ["outstanding-invoices", customerKey],
-    queryFn: () => getOutstandingInvoices(customerKey!),
-    enabled: customerKey != null,
+    queryKey: ["outstanding-invoices", customerKey, companyKey],
+    queryFn: () => getOutstandingInvoices(customerKey!, companyKey!),
+    enabled: customerKey != null && companyKey != null,
   });
 
   const invoices = useMemo(() => outstanding.data ?? [], [outstanding.data]);
@@ -74,6 +80,14 @@ export default function NewCustomerReceiptPage() {
 
   function resetCustomer(id: string) {
     setCustomerId(id);
+    setAllocations({});
+  }
+
+  // Changing the company changes which invoices are on offer, so anything already typed was typed
+  // against a list that no longer applies. Clearing it is the honest thing: allocations are keyed by
+  // invoice id, so a stale one would otherwise sit there invisible and be submitted.
+  function resetCompany(id: string) {
+    setCompanyId(id);
     setAllocations({});
   }
 
@@ -125,7 +139,7 @@ export default function NewCustomerReceiptPage() {
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
 
       <Card className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Select label="Company" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+        <Select label="Company" value={companyId} onChange={(e) => resetCompany(e.target.value)}>
           <option value="">Select…</option>
           {companies.data?.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
@@ -156,8 +170,14 @@ export default function NewCustomerReceiptPage() {
           />
         </div>
 
-        {customerKey == null ? (
-          <p className="text-sm text-muted">Pick a customer to see its open invoices.</p>
+        {companyKey == null || customerKey == null ? (
+          // Both are needed before there is a list to show — and saying which one is missing beats
+          // "Loading…" that never resolves because the query is still disabled.
+          <p className="text-sm text-muted">
+            {companyKey == null
+              ? "Pick a company and a customer to see its open invoices."
+              : "Pick a customer to see its open invoices."}
+          </p>
         ) : outstanding.isPending ? (
           <p className="text-sm text-muted">Loading open invoices…</p>
         ) : invoices.length === 0 ? (

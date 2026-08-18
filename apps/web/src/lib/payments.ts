@@ -40,9 +40,18 @@ export const getCustomerReceipts = (params: { page: number; pageSize?: number; s
 /** One receipt in full, with its per-invoice allocations. */
 export const getCustomerReceipt = (id: number) => api<CustomerReceiptDetail>(`/api/customer-receipts/${id}`);
 
-/** A customer's open invoices — the picker a receipt is allocated over (new and legacy alike). */
-export const getOutstandingInvoices = (customerId: number) =>
-  api<OutstandingInvoiceLine[]>(`/api/customer-receipts/outstanding?customerId=${customerId}`);
+/**
+ * A customer's open invoices for one company — the picker a receipt is allocated over (new and legacy
+ * alike).
+ *
+ * `companyId` is not optional here on purpose. A receipt is written for one company, and settling one
+ * company's invoice with another company's money is the mistake this stops; the server re-checks it on
+ * save, so leaving it out would just move the refusal to after the amounts are typed.
+ */
+export const getOutstandingInvoices = (customerId: number, companyId: number) =>
+  api<OutstandingInvoiceLine[]>(
+    `/api/customer-receipts/outstanding?customerId=${customerId}&companyId=${companyId}`,
+  );
 
 /** Record a receipt — allocated across open invoices; posts Payment entries and dual-writes the legacy shadow. */
 export const createCustomerReceipt = (request: CreateCustomerReceiptRequest) =>

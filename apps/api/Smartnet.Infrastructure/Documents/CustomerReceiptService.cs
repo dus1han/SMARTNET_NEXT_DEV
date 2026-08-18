@@ -67,8 +67,10 @@ public sealed class CustomerReceiptService : ICustomerReceiptCreator, ICustomerR
         var invoiceIds = request.Allocations.Select(a => a.InvoiceId).Distinct().ToList();
         var outstanding = await DerivedOutstandingAsync(invoiceIds, cancellationToken).ConfigureAwait(false);
         var numbers = await InvoiceNumbersAsync(invoiceIds, cancellationToken).ConfigureAwait(false);
+        var companies = await InvoiceCompaniesAsync(invoiceIds, cancellationToken).ConfigureAwait(false);
 
-        // Validate each invoice belongs to this customer and is not over-allocated (summing any duplicates).
+        // Validate each invoice belongs to this customer and this company, and is not over-allocated
+        // (summing any duplicates).
         foreach (var group in request.Allocations.GroupBy(a => a.InvoiceId))
         {
             if (!outstanding.TryGetValue(group.Key, out var info))
@@ -78,6 +80,19 @@ public sealed class CustomerReceiptService : ICustomerReceiptCreator, ICustomerR
             if (info.CustomerId != request.CustomerId)
             {
                 throw new ReceiptInvoiceCustomerMismatchException(group.Key);
+            }
+
+            // A receipt is written for one company, so it can only settle that company's invoices —
+            // otherwise money taken by Smart Net pays down a Smart Technologies debt and the two sets of
+            // books have been settled against each other. The picker now only offers the right company's
+            // invoices; this is the server saying so, since the picker is a convenience and not a rule.
+            if (companies.TryGetValue(group.Key, out var invoiceCompany)
+                && invoiceCompany is { } owner
+                && owner != request.CompanyId)
+            {
+                throw new InvalidOperationException(
+                    $"Invoice {numbers.GetValueOrDefault(group.Key, group.Key.ToString(CultureInfo.InvariantCulture))} "
+                    + "belongs to another company and cannot be settled by this receipt.");
             }
 
             var applied = group.Sum(a => a.Amount);
@@ -237,6 +252,28 @@ public sealed class CustomerReceiptService : ICustomerReceiptCreator, ICustomerR
     }
 
     /// <summary>The legacy invoice number of each invoice id (new or legacy — both live in invoice_h).</summary>
+    /// <summary>
+    /// Each invoice's company, read from the legacy <c>company</c> varchar every invoice carries — new
+    /// and adopted alike. A value that will not parse comes back null and is not treated as a mismatch:
+    /// refusing a receipt because a legacy row holds an unreadable company would block settling a real
+    /// debt over a defect in data nobody can fix from this screen.
+    /// </summary>
+    private async Task<Dictionary<long, long?>> InvoiceCompaniesAsync(
+        IReadOnlyList<long> invoiceIds, CancellationToken cancellationToken)
+    {
+        var rows = await _legacy.InvoiceHs
+            .Where(h => invoiceIds.Contains(h.Id))
+            .Select(h => new { h.Id, h.Company })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return rows.ToDictionary(
+            r => r.Id,
+            r => long.TryParse(r.Company, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+                ? id
+                : (long?)null);
+    }
+
     private async Task<Dictionary<long, string>> InvoiceNumbersAsync(IReadOnlyList<long> invoiceIds, CancellationToken cancellationToken)
     {
         var rows = await _legacy.InvoiceHs

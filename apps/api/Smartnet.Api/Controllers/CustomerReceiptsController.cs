@@ -46,12 +46,30 @@ public sealed class CustomerReceiptsController : ControllerBase
     }
 
     /// <summary>A customer's open invoices — the picker a receipt is allocated over. New and legacy alike, from the ledger.</summary>
+    /// <param name="companyId">
+    /// The company the receipt is being written for. Given, only that company's invoices come back.
+    /// </param>
+    /// <remarks>
+    /// <b>The company matters here, and used to be ignored.</b> A receipt is booked against one company,
+    /// so offering the customer's invoices from every company the user can reach invites allocating
+    /// Smart Net money against a Smart Technologies invoice — two sets of books, settled against each
+    /// other. Narrowing is only ever to a company the caller may already see, so the parameter can
+    /// restrict what is shown and never widen it.
+    /// </remarks>
     [HttpGet("outstanding")]
     [RequirePermission(Permissions.Payments)]
     public async Task<ActionResult<IReadOnlyList<OutstandingInvoiceLine>>> Outstanding(
-        [FromQuery] long customerId, CancellationToken cancellationToken)
+        [FromQuery] long customerId,
+        [FromQuery] long? companyId,
+        CancellationToken cancellationToken)
     {
-        var accessibleText = _company.Accessible.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToHashSet();
+        var accessible = _company.Accessible;
+
+        var scope = companyId is { } wanted && accessible.Contains(wanted)
+            ? [wanted]
+            : accessible.ToList();
+
+        var accessibleText = scope.Select(id => id.ToString(CultureInfo.InvariantCulture)).ToHashSet(StringComparer.Ordinal);
 
         // Derived outstanding per invoice, in one grouped query over the ledger — unifies new and legacy invoices.
         var ledgerRows = await _db.ReceivablesLedger

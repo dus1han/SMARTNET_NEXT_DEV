@@ -1038,6 +1038,14 @@
               "type": "integer",
               "format": "int64"
             }
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
           }
         ],
         "responses": {

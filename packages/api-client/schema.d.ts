@@ -910,6 +910,7 @@ export interface paths {
             parameters: {
                 query?: {
                     customerId?: number;
+                    companyId?: number;
                 };
                 header?: never;
                 path?: never;
