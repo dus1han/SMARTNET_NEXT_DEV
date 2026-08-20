@@ -6,8 +6,15 @@ public static class ChequeSource
     /// <summary>Raised as the method of a supplier payment; the payment is the money event, this prints it.</summary>
     public const string SupplierPayment = "SupplierPayment";
 
-    /// <summary>Raised as the method of an expense; the expense is the money event, this prints it.</summary>
+    /// <summary>
+    /// Raised as the method of an expense, before expenses were settled separately; the expense was the money
+    /// event and this printed it. Kept for the cheques already recorded that way — a cheque written for an
+    /// expense now comes from the settlement, as <see cref="ExpensePayment"/>.
+    /// </summary>
     public const string Expense = "Expense";
+
+    /// <summary>Raised as the method of an expense payment; the payment is the money event, this prints it.</summary>
+    public const string ExpensePayment = "ExpensePayment";
 }
 
 /// <summary>

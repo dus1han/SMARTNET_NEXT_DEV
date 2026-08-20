@@ -1142,14 +1142,14 @@ public sealed class ReportsController : ControllerBase
         var scopeIds = scope.Select(s => long.Parse(s, CultureInfo.InvariantCulture)).ToHashSet();
         var vatExpenses = await _db.Expenses
             .Where(e => e.CompanyId != null && scopeIds.Contains(e.CompanyId.Value) && e.Amount > e.NetAmount)
-            .Select(e => new { e.Date, e.InvoiceNo, e.Description, e.NetAmount, e.Amount })
+            .Select(e => new { e.Date, e.InvoiceNo, e.Description, e.NetAmount, e.Amount, e.VatNumber })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var expenseRows = vatExpenses
             .Where(e => (period.From is null || e.Date >= period.From) && (period.To is null || e.Date <= period.To))
             .Select(e => new SupplierVatRow(
-                e.Date, e.InvoiceNo ?? string.Empty, $"Expense — {e.Description}", null, e.NetAmount, e.Amount - e.NetAmount, false))
+                e.Date, e.InvoiceNo ?? string.Empty, $"Expense — {e.Description}", e.VatNumber, e.NetAmount, e.Amount - e.NetAmount, false))
             .ToList();
 
         if (expenseRows.Count == 0)

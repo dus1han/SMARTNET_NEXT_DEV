@@ -230,6 +230,9 @@ export type ExpenseCreatedResponse = Schemas["ExpenseCreatedResponse"];
 export type ExpenseSummary = Schemas["ExpenseSummary"];
 export type ExpenseCategoryDto = Schemas["ExpenseCategoryDto"];
 export type SaveExpenseCategoryRequest = Schemas["SaveExpenseCategoryRequest"];
+export type RecordExpensePaymentRequest = Schemas["RecordExpensePaymentRequest"];
+export type ExpensePaymentRecordedResponse = Schemas["ExpensePaymentRecordedResponse"];
+export type ExpensePaymentSummary = Schemas["ExpensePaymentSummary"];
 
 // --- History ---------------------------------------------------------------------------------
 

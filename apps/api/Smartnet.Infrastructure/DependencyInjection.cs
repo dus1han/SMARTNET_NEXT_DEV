@@ -133,11 +133,13 @@ public static class DependencyInjection
         services.AddScoped<IChequeVoider>(sp => sp.GetRequiredService<ChequeService>());
         services.AddScoped<IChequePrintRecorder>(sp => sp.GetRequiredService<ChequeService>());
 
-        // Expenses (Phase 7, slice 3): a flat adopted log (no ledger, no balance) that dual-writes the legacy
-        // expense_tr row for the surviving ExpenseReport. One service; categories are managed on the controller.
+        // Expenses (Phase 7, slice 3): an adopted log that dual-writes the legacy expense_tr row for the
+        // surviving ExpenseReport. Recording what was incurred and settling it are separate services,
+        // because they are separate money events; categories are managed on the controller.
         services.AddScoped<ExpenseService>();
         services.AddScoped<IExpenseCreator>(sp => sp.GetRequiredService<ExpenseService>());
         services.AddScoped<IExpenseVoider>(sp => sp.GetRequiredService<ExpenseService>());
+        services.AddScoped<IExpensePayments, ExpensePaymentService>();
 
         // Document storage (Phase 7, slice 4): uploaded bytes on the filesystem, outside the web root,
         // under server-generated names. A singleton — it holds a path and no per-request state — and an

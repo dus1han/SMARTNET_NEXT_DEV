@@ -10,25 +10,23 @@ namespace Smartnet.Infrastructure.Documents;
 
 /// <summary>
 /// Records expenses (Phase 7, slice 3) — a validated, audited write on the adopted legacy <c>expense_tr</c>
-/// table. A flat log: no ledger, no balance.
+/// table. What was incurred; <see cref="ExpensePaymentService"/> is what pays it.
 /// </summary>
 /// <remarks>
 /// The typed columns are the source of truth; the legacy <c>varchar</c> columns are dual-written beside them
 /// (via shadow properties) so the surviving <c>ExpenseReport</c> reads a whole row. Void is soft and
-/// reason-gated — not the legacy hard delete.
+/// reason-gated — not the legacy hard delete — and refused while any payment stands against the expense.
 /// </remarks>
 public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
 {
     private readonly SmartnetDbContext _db;
-    private readonly IChequeCreator _cheques;
     private readonly IGeneralLedger _gl;
     private readonly IChangeContext _change;
     private readonly TimeProvider _time;
 
-    public ExpenseService(SmartnetDbContext db, IChequeCreator cheques, IGeneralLedger gl, IChangeContext change, TimeProvider time)
+    public ExpenseService(SmartnetDbContext db, IGeneralLedger gl, IChangeContext change, TimeProvider time)
     {
         _db = db;
-        _cheques = cheques;
         _gl = gl;
         _change = change;
         _time = time;
@@ -55,13 +53,14 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
             Description = request.Description,
             NetAmount = request.NetAmount,
             TaxRatePercentage = request.TaxRatePercentage,
+            VatNumber = string.IsNullOrWhiteSpace(request.VatNumber) ? null : request.VatNumber.Trim(),
             Amount = request.Amount,
-            Method = request.Method ?? string.Empty,
-            Reference = request.Reference ?? string.Empty,
+            // Empty until a payment settles it — the method and reference describe money going out, and none
+            // has yet. ExpensePaymentService mirrors the latest settlement onto these legacy columns.
+            Method = string.Empty,
+            Reference = string.Empty,
             DataOrigin = "new",
         };
-
-        var paidByCheque = string.Equals(request.Method, "Cheque", StringComparison.OrdinalIgnoreCase);
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
@@ -69,24 +68,15 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
         SetLegacyShadow(expense, await ActingUserNameAsync(cancellationToken).ConfigureAwait(false));
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        // Paid by cheque → raise a printable cheque linked to this expense (the expense is the money event).
-        if (paidByCheque)
-        {
-            await _cheques.CreateAsync(new NewCheque(
-                request.CompanyId, "Manual", request.ChequePayee ?? request.Description, null,
-                request.ChequeBank, request.ChequeNumber, request.Amount,
-                request.ChequeDate ?? request.Date, request.ChequeDueDate ?? request.Date,
-                ChequeSource.Expense, expense.Id), cancellationToken).ConfigureAwait(false);
-        }
-
-        // The general-ledger entry: Dr the category's expense account + Input VAT, Cr Cash/Bank — money out.
+        // The general-ledger entry: Dr the category's expense account + Input VAT, Cr Accounts Payable — the
+        // cost is incurred now and owed; the money leaves when a payment settles it (Dr Payable, Cr Cash/Bank).
         // The expense account is created on demand for a category first seen since the chart was seeded.
         await _gl.PostAsync(new GlPosting(
             request.CompanyId, request.Date, GlSources.Expense, expense.Id, request.Description,
             [
                 GlChart.ExpenseCategory(request.CategoryId, category.Name ?? $"Category {request.CategoryId}", expense.NetAmount, 0m),
                 GlChart.InputVat(expense.TaxAmount, 0m),
-                GlChart.CashOrBank(request.Method, 0m, expense.Amount),
+                GlChart.Payable(0m, expense.Amount),
             ]), cancellationToken).ConfigureAwait(false);
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -110,7 +100,27 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
                 "This expense was changed by someone else while you were viewing it.");
         }
 
+        // Money that has already gone out is never left pointing at an expense that no longer exists: the
+        // payments come off first, each reversing what it posted, and only then can the expense be voided.
+        var payments = await _db.ExpensePayments
+            .CountAsync(p => p.ExpenseId == expenseId, cancellationToken)
+            .ConfigureAwait(false);
+        if (payments > 0)
+        {
+            throw new ExpenseHasPaymentsException(expenseId, payments);
+        }
+
         var now = _time.GetUtcNow().UtcDateTime;
+
+        // What the void reverses is whatever the expense actually posted, which is not the same for every
+        // row: an expense recorded since expenses became payable credited Accounts Payable, while one
+        // recorded before that (and every adopted legacy row) credited Cash/Bank as it was entered.
+        var postedToPayable = await _db.GlLines
+            .AnyAsync(
+                l => _db.GlEntries.Any(e => e.Id == l.GlEntryId && e.SourceType == GlSources.Expense && e.SourceId == expense.Id)
+                     && _db.GlAccounts.Any(a => a.Id == l.AccountId && a.Code == GlAccountCodes.AccountsPayable),
+                cancellationToken)
+            .ConfigureAwait(false);
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
@@ -120,14 +130,16 @@ public sealed class ExpenseService : IExpenseCreator, IExpenseVoider
 
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        // Reverse the expense's GL entry — Dr Cash/Bank, Cr the category account + Input VAT (money back).
+        // Reverse the expense's GL entry — Dr what it credited, Cr the category account + Input VAT.
         if (expense.CompanyId is { } companyId)
         {
             await _gl.PostAsync(new GlPosting(
                 companyId, DateOnly.FromDateTime(now), GlSources.ExpenseVoid, expense.Id,
                 $"Expense {expense.Id} voided",
                 [
-                    GlChart.CashOrBank(expense.Method, expense.Amount, 0m),
+                    postedToPayable
+                        ? GlChart.Payable(expense.Amount, 0m)
+                        : GlChart.CashOrBank(expense.Method, expense.Amount, 0m),
                     GlChart.ExpenseCategory(expense.CategoryId, $"Category {expense.CategoryId}", 0m, expense.NetAmount),
                     GlChart.InputVat(0m, expense.TaxAmount),
                 ]), cancellationToken).ConfigureAwait(false);

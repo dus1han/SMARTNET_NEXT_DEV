@@ -18,6 +18,8 @@ public static class GlSources
     public const string PayablesPayment = "PayablesPayment";
     public const string Expense = "Expense";
     public const string ExpenseVoid = "ExpenseVoid";
+    public const string ExpensePayment = "ExpensePayment";
+    public const string ExpensePaymentVoid = "ExpensePaymentVoid";
 
     /// <summary>A historical customer payment, posted by the Phase 8 backfill from the legacy <c>payments</c>
     /// table (keyed on the payment row id).</summary>

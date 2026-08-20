@@ -159,4 +159,15 @@ test("record an expense against a category", async ({ page }) => {
 
   await page.waitForURL(/\/expenses$/);
   await expect(page.getByText("E2E stationery")).toBeVisible();
+
+  // The expense is recorded owing; settling it is the separate money event that closes it.
+  const row = page.getByRole("row", { name: /E2E stationery/ });
+  await expect(row.getByText("Outstanding")).toBeVisible();
+  await row.getByRole("button", { name: "Settle expense" }).click();
+
+  const settle = page.getByRole("dialog");
+  await expect(settle.getByLabel("Amount")).toHaveValue("40");
+  await settle.getByRole("button", { name: "Record payment" }).click();
+
+  await expect(page.getByRole("row", { name: /E2E stationery/ }).getByText("Settled")).toBeVisible();
 });

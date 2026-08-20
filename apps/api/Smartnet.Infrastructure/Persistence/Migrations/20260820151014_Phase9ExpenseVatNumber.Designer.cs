@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Smartnet.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Smartnet.Infrastructure.Persistence;
 namespace Smartnet.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(SmartnetDbContext))]
-    partial class SmartnetDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260820151014_Phase9ExpenseVatNumber")]
+    partial class Phase9ExpenseVatNumber
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -935,83 +938,6 @@ namespace Smartnet.Infrastructure.Persistence.Migrations
                     b.HasIndex("CategoryId");
 
                     b.ToTable("expense_tr", (string)null);
-                });
-
-            modelBuilder.Entity("Smartnet.Domain.Documents.ExpensePayment", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,4)")
-                        .HasColumnName("amount");
-
-                    b.Property<long?>("CompanyId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("company_id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("created_at");
-
-                    b.Property<long?>("CreatedBy")
-                        .HasColumnType("bigint")
-                        .HasColumnName("created_by");
-
-                    b.Property<string>("DataOrigin")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("varchar(16)")
-                        .HasColumnName("data_origin");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date")
-                        .HasColumnName("paid_on");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("deleted_at");
-
-                    b.Property<long?>("DeletedBy")
-                        .HasColumnType("bigint")
-                        .HasColumnName("deleted_by");
-
-                    b.Property<long>("ExpenseId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("expense_id");
-
-                    b.Property<string>("Method")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)")
-                        .HasColumnName("method");
-
-                    b.Property<string>("Reference")
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)")
-                        .HasColumnName("reference");
-
-                    b.Property<int>("RowVersion")
-                        .IsConcurrencyToken()
-                        .HasColumnType("int")
-                        .HasColumnName("row_version");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("updated_at");
-
-                    b.Property<long?>("UpdatedBy")
-                        .HasColumnType("bigint")
-                        .HasColumnName("updated_by");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ExpenseId");
-
-                    b.ToTable("expense_payments", (string)null);
                 });
 
             modelBuilder.Entity("Smartnet.Domain.Documents.Invoice", b =>

@@ -186,8 +186,11 @@ public class SmartnetDbContext : DbContext
     /// <summary>Cheques (Phase 7), on the adopted legacy <c>cheques</c>. A standalone written record — no ledger, no balance.</summary>
     public DbSet<Cheque> Cheques => Set<Cheque>();
 
-    /// <summary>Expenses (Phase 7), on the adopted legacy <c>expense_tr</c>. A flat log — no ledger, no balance.</summary>
+    /// <summary>Expenses (Phase 7), on the adopted legacy <c>expense_tr</c>. Recorded unpaid; settled by <see cref="ExpensePayments"/>.</summary>
     public DbSet<Expense> Expenses => Set<Expense>();
+
+    /// <summary>Expense payments — what settles an expense, in one payment or several; the outstanding is derived from them.</summary>
+    public DbSet<ExpensePayment> ExpensePayments => Set<ExpensePayment>();
 
     /// <summary>Expense categories (Phase 7), on the adopted legacy <c>exp_cat_m</c>. Shared across companies.</summary>
     public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();

@@ -3,8 +3,8 @@ using Smartnet.Domain.Auditing;
 namespace Smartnet.Domain.Documents;
 
 /// <summary>
-/// An expense (Phase 7, slice 3) — a flat, standalone record of money spent, on the adopted legacy
-/// <c>expense_tr</c> table.
+/// An expense (Phase 7, slice 3) — what was incurred, on the adopted legacy <c>expense_tr</c> table. The
+/// money that settles it lives in <see cref="ExpensePayment"/>.
 /// </summary>
 /// <remarks>
 /// The legacy app kept expenses as an append-only log feeding one report — no ledger, no balance, money in a
@@ -12,6 +12,16 @@ namespace Smartnet.Domain.Documents;
 /// the new source of truth and the legacy <c>varchar</c> columns sit beside them, dual-written so the
 /// surviving <c>ExpenseReport</c> keeps reading. Unlike the legacy row, the surrogate id is real (the legacy
 /// <c>id</c> was <c>0</c> on every row) and delete is soft.
+///
+/// <para><b>An expense is recorded unpaid.</b> The bill is owed from the moment it is incurred, and the
+/// money goes out afterwards — in full or in instalments — as <see cref="ExpensePayment"/> rows. What is
+/// still outstanding is therefore derived (<see cref="Amount"/> − Σ payments) rather than stored, which is
+/// what makes partial settlement work; recording the expense posts Dr the category + Input VAT, Cr Accounts
+/// Payable, and each payment settles that payable against Cash/Bank.</para>
+///
+/// <para><b>Still no supplier.</b> Being payable does not make it a supplier invoice: there is no party on
+/// file, no statement and no supplier balance. Whom it was paid to is the description, the cheque payee, and
+/// — for VAT — the <see cref="VatNumber"/> typed off the bill.</para>
 /// </remarks>
 public class Expense : IAuditable, ISoftDeletable
 {
@@ -38,16 +48,28 @@ public class Expense : IAuditable, ISoftDeletable
     /// <summary>The VAT rate applied, as a percentage.</summary>
     public decimal TaxRatePercentage { get; set; }
 
+    /// <summary>The VAT registration number on the bill — the vendor's, copied off their tax invoice.</summary>
+    /// <remarks>
+    /// Only meaningful on a VAT expense (<see cref="TaxRatePercentage"/> above zero). It is typed in rather
+    /// than looked up: an expense has no supplier link by design — it is a flat log of money spent, not a
+    /// payable — and the vendor's number is what makes the input VAT claimable, so it lives on the expense.
+    /// </remarks>
+    public string? VatNumber { get; set; }
+
     /// <summary>The VAT amount — derived (<see cref="Amount"/> − <see cref="NetAmount"/>), not stored.</summary>
     public decimal TaxAmount => Amount - NetAmount;
 
     /// <summary>The total spent, VAT included (the legacy <c>expense_amount</c>).</summary>
     public decimal Amount { get; set; }
 
-    /// <summary>How it was paid — Cash, Cheque, etc. (the legacy <c>paymentm</c>).</summary>
+    /// <summary>
+    /// How it was settled — Cash, Cheque, etc. (the legacy <c>paymentm</c>). Empty until a payment is
+    /// recorded; the settlement itself is <see cref="ExpensePayment"/>, and this mirrors the latest one so
+    /// the surviving <c>ExpenseReport</c>, which reads only this row, still shows how the money went out.
+    /// </summary>
     public string? Method { get; set; }
 
-    /// <summary>A reference (the legacy <c>payment_ref</c>).</summary>
+    /// <summary>The latest settlement's reference (the legacy <c>payment_ref</c>) — mirrored, as above.</summary>
     public string? Reference { get; set; }
 
     /// <summary><c>new</c> for expenses this app raised; <c>legacy</c> for the adopted rows.</summary>

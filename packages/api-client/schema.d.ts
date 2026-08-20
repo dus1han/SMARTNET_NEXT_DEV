@@ -1924,6 +1924,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/expenses/{id}/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ExpensePaymentSummary"][];
+                        "application/json": components["schemas"]["ExpensePaymentSummary"][];
+                        "text/json": components["schemas"]["ExpensePaymentSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["RecordExpensePaymentRequest"];
+                    "text/json": components["schemas"]["RecordExpensePaymentRequest"];
+                    "application/*+json": components["schemas"]["RecordExpensePaymentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ExpensePaymentRecordedResponse"];
+                        "application/json": components["schemas"]["ExpensePaymentRecordedResponse"];
+                        "text/json": components["schemas"]["ExpensePaymentRecordedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expenses/payments/{paymentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    paymentId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/expenses/{id}": {
         parameters: {
             query?: never;
@@ -8186,17 +8291,9 @@ export interface components {
             netAmount: number;
             /** Format: double */
             taxRatePercentage: number;
+            vatNumber?: string | null;
             /** Format: double */
             amount: number;
-            method?: string | null;
-            reference?: string | null;
-            chequePayee?: string | null;
-            chequeBank?: string | null;
-            chequeNumber?: string | null;
-            /** Format: date */
-            chequeDate?: string | null;
-            /** Format: date */
-            chequeDueDate?: string | null;
         };
         CreateFolderRequest: {
             name: string;
@@ -8974,6 +9071,29 @@ export interface components {
             /** Format: double */
             amount: number;
         };
+        ExpensePaymentRecordedResponse: {
+            /** Format: int64 */
+            expenseId: number;
+            /** Format: int64 */
+            paymentId: number;
+            /** Format: double */
+            amountPaid: number;
+            /** Format: double */
+            outstanding: number;
+        };
+        ExpensePaymentSummary: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            date: string;
+            /** Format: double */
+            amount: number;
+            method?: string | null;
+            reference?: string | null;
+            /** Format: int32 */
+            rowVersion: number;
+            origin: string;
+        };
         ExpenseReportResponse: {
             /** Format: double */
             total: number;
@@ -9011,8 +9131,13 @@ export interface components {
             netAmount: number;
             /** Format: double */
             taxAmount: number;
+            vatNumber?: string | null;
             /** Format: double */
             amount: number;
+            /** Format: double */
+            paidAmount: number;
+            /** Format: double */
+            outstanding: number;
             method?: string | null;
             reference?: string | null;
             companyName?: string | null;
@@ -9724,6 +9849,21 @@ export interface components {
             /** Format: double */
             total: number;
             preparedBy: string;
+        };
+        RecordExpensePaymentRequest: {
+            /** Format: double */
+            amount: number;
+            /** Format: date */
+            date: string;
+            method?: string | null;
+            reference?: string | null;
+            chequePayee?: string | null;
+            chequeBank?: string | null;
+            chequeNumber?: string | null;
+            /** Format: date */
+            chequeDate?: string | null;
+            /** Format: date */
+            chequeDueDate?: string | null;
         };
         RecordHistoryResponse: {
             entries: components["schemas"]["AuditEntry"][];

@@ -3,7 +3,8 @@
 /**
  * Record an expense — Phase 7, slice 3.
  *
- * A flat log entry against a shared category. No ledger, no balance. Dual-writes the legacy expense_tr row.
+ * What was incurred, against a shared category: recorded unpaid, and settled afterwards from the expenses
+ * list. Dual-writes the legacy expense_tr row.
  */
 
 import { useMemo, useState } from "react";
@@ -31,13 +32,8 @@ export default function NewExpensePage() {
   const [description, setDescription] = useState("");
   const [net, setNet] = useState("");
   const [vat, setVat] = useState("");
+  const [vatNumber, setVatNumber] = useState("");
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("Cash");
-  const [reference, setReference] = useState("");
-  const [chequePayee, setChequePayee] = useState("");
-  const [chequeBank, setChequeBank] = useState("");
-  const [chequeNumber, setChequeNumber] = useState("");
-  const [chequeDueDate, setChequeDueDate] = useState(today);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
@@ -51,10 +47,11 @@ export default function NewExpensePage() {
 
   const netValue = net !== "" ? Number(net) : 0;
   const amountValue = amount !== "" ? Number(amount) : suggested ?? 0;
-  const byCheque = method.toUpperCase() === "CHEQUE";
+  // A VAT expense is simply one carrying VAT — that is when the vendor's VAT number is worth having, since
+  // it is what makes the input VAT claimable. There is no supplier link here to look one up from.
+  const withVat = vat !== "" && Number(vat) > 0;
   const canSubmit =
-    companyId !== "" && categoryId !== "" && description.trim() !== "" && amountValue > 0 &&
-    (!byCheque || chequePayee.trim() !== "") && !submitting;
+    companyId !== "" && categoryId !== "" && description.trim() !== "" && amountValue > 0 && !submitting;
 
   async function submit() {
     setSubmitting(true);
@@ -68,16 +65,10 @@ export default function NewExpensePage() {
         description: description.trim(),
         netAmount: net !== "" ? netValue : amountValue,
         taxRatePercentage: vat !== "" ? Number(vat) : 0,
+        vatNumber: withVat ? vatNumber.trim() || null : null,
         amount: amountValue,
-        method: method || null,
-        reference: reference || null,
-        chequePayee: byCheque ? chequePayee.trim() : null,
-        chequeBank: byCheque ? chequeBank || null : null,
-        chequeNumber: byCheque ? chequeNumber || null : null,
-        chequeDate: byCheque ? date : null,
-        chequeDueDate: byCheque ? chequeDueDate || null : null,
       });
-      toast.success(`Expense recorded — ${formatMoney(created.amount)}.`);
+      toast.success(`Expense recorded — ${formatMoney(created.amount)} outstanding.`);
       router.push("/expenses");
     } catch (e) {
       setError(e as ApiError);
@@ -93,7 +84,10 @@ export default function NewExpensePage() {
         All expenses
       </Link>
 
-      <PageHeader title="Record an expense" description="A flat log entry against a shared category. No ledger, no balance." />
+      <PageHeader
+        title="Record an expense"
+        description="What was incurred, against a shared category. It is recorded as outstanding and settled afterwards."
+      />
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
 
@@ -118,17 +112,17 @@ export default function NewExpensePage() {
 
         <Input label="Description" value={description} onChange={(e) => setDescription(e.target.value)} className="sm:col-span-2 lg:col-span-1" />
 
-        <Select label="Method" value={method} onChange={(e) => setMethod(e.target.value)}>
-          <option value="Cash">Cash</option>
-          <option value="Bank">Bank</option>
-          <option value="Cheque">Cheque</option>
-          <option value="Online">Online</option>
-        </Select>
-
-        <Input label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} />
-
         <Input label="Net (before VAT)" inputMode="decimal" value={net} onChange={(e) => setNet(e.target.value)} placeholder="0" />
         <Input label="VAT %" inputMode="decimal" value={vat} onChange={(e) => setVat(e.target.value)} placeholder="0" />
+        {withVat && (
+          <Input
+            label="VAT no."
+            value={vatNumber}
+            onChange={(e) => setVatNumber(e.target.value)}
+            placeholder="Vendor's VAT / TRN"
+            hint="From the vendor's tax invoice — what the input VAT is claimed against."
+          />
+        )}
         <Input
           label="Total"
           inputMode="decimal"
@@ -138,15 +132,10 @@ export default function NewExpensePage() {
           hint={suggested != null && amount === "" ? `Net + VAT = ${formatMoney(suggested)} (edit if it differs).` : undefined}
         />
 
-        {byCheque && (
-          <>
-            <Input label="Cheque payee" required value={chequePayee} onChange={(e) => setChequePayee(e.target.value)} />
-            <Input label="Bank" value={chequeBank} onChange={(e) => setChequeBank(e.target.value)} />
-            <Input label="Cheque no." value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} />
-            <Input label="Cheque due date" type="date" value={chequeDueDate} onChange={(e) => setChequeDueDate(e.target.value)} />
-            <p className="text-xs text-muted sm:col-span-2 lg:col-span-3">A cheque for this expense will appear in the cheque register, ready to print.</p>
-          </>
-        )}
+        <p className="text-xs text-muted sm:col-span-2 lg:col-span-3">
+          The expense is recorded as outstanding. Settle it from the expenses list — in full, or in
+          instalments — and record how it was paid there.
+        </p>
       </Card>
 
       <div className="flex justify-end">

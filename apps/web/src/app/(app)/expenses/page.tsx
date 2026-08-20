@@ -1,29 +1,42 @@
 "use client";
 
 /**
- * The expenses list (Phase 7, slice 3) — money spent.
+ * The expenses list (Phase 7, slice 3) — money owed and money spent.
  *
- * This app's own expenses and the legacy ones adopted. A flat log — no ledger, no balance. Categories are the
- * shared exp_cat_m, managed from here.
+ * This app's own expenses and the legacy ones adopted. An expense is recorded when it is incurred and
+ * settled afterwards, in one payment or several, so what it still owes is derived (amount − payments)
+ * rather than kept in a flag. Categories are the shared exp_cat_m, managed from here.
  */
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { Plus, Tags, Trash2 } from "lucide-react";
+import { Plus, Tags, Trash2, Wallet } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import {
   addExpenseCategory,
   getExpenseCategories,
+  getExpensePayments,
   getExpenses,
+  recordExpensePayment,
   renameExpenseCategory,
   voidExpense,
+  voidExpensePayment,
+  type ExpensePaymentSummary,
   type ExpenseSummary,
 } from "@/lib/expenses";
+import { today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
-import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, toast } from "@/components/ui";
+import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Select, toast } from "@/components/ui";
+
+/** Settled, part settled or outstanding — read off the derived figures, never a stored flag. */
+function status(expense: ExpenseSummary) {
+  if (expense.outstanding <= 0) return { label: "Settled", tone: "success" as const };
+  if (expense.paidAmount > 0) return { label: "Part settled", tone: "warning" as const };
+  return { label: "Outstanding", tone: "warning" as const };
+}
 
 export default function ExpensesPage() {
   const router = useRouter();
@@ -32,6 +45,8 @@ export default function ExpensesPage() {
 
   const [voiding, setVoiding] = useState<ExpenseSummary | null>(null);
   const [viewing, setViewing] = useState<ExpenseSummary | null>(null);
+  const [settling, setSettling] = useState<ExpenseSummary | null>(null);
+  const [voidingPayment, setVoidingPayment] = useState<{ expense: ExpenseSummary; payment: ExpensePaymentSummary } | null>(null);
   const [managingCategories, setManagingCategories] = useState(false);
 
   const columns: ColumnDef<ExpenseSummary, unknown>[] = [
@@ -78,21 +93,56 @@ export default function ExpensesPage() {
       cell: ({ row }) => <span className="tabular font-medium text-text">{formatMoney(row.original.amount)}</span>,
     },
     {
+      id: "outstanding",
+      accessorFn: (row) => row.outstanding,
+      header: "Outstanding",
+      meta: { align: "right" },
+      cell: ({ row }) => (
+        <span className="tabular text-muted">
+          {row.original.outstanding > 0 ? formatMoney(row.original.outstanding) : "—"}
+        </span>
+      ),
+    },
+    {
+      id: "status",
+      accessorFn: (row) => status(row).label,
+      header: "Status",
+      cell: ({ row }) => {
+        const s = status(row.original);
+        return <Badge tone={s.tone}>{s.label}</Badge>;
+      },
+    },
+    {
       id: "actions",
       header: "",
       enableSorting: false,
       cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Void expense"
-          onClick={(e) => {
-            e.stopPropagation();
-            setVoiding(row.original);
-          }}
-        >
-          <Trash2 className="text-muted" />
-        </Button>
+        <div className="flex justify-end gap-1">
+          {row.original.outstanding > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Settle expense"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSettling(row.original);
+              }}
+            >
+              <Wallet className="text-muted" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Void expense"
+            onClick={(e) => {
+              e.stopPropagation();
+              setVoiding(row.original);
+            }}
+          >
+            <Trash2 className="text-muted" />
+          </Button>
+        </div>
       ),
     },
   ];
@@ -101,7 +151,7 @@ export default function ExpensesPage() {
     <FadeIn className="space-y-6">
       <PageHeader
         title="Expenses"
-        description="Money spent — this app's own and the legacy ones. A flat log against a shared set of categories."
+        description="Money spent — this app's own and the legacy ones. Recorded when incurred, settled in full or in instalments."
       />
 
       {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
@@ -110,8 +160,8 @@ export default function ExpensesPage() {
         columns={columns}
         rows={expenses.data}
         loading={expenses.isPending}
-        searchable={(row) => `${row.description} ${row.category ?? ""} ${row.reference ?? ""} ${row.method ?? ""}`}
-        searchPlaceholder="Search by description, category, reference…"
+        searchable={(row) => `${row.description} ${row.category ?? ""} ${row.reference ?? ""} ${row.method ?? ""} ${row.vatNumber ?? ""}`}
+        searchPlaceholder="Search by description, category, reference, VAT no.…"
         defaultSort={{ id: "date", desc: true }}
         onRowClick={(row) => setViewing(row)}
         actions={
@@ -136,11 +186,29 @@ export default function ExpensesPage() {
         <ExpenseDetailDialog
           expense={viewing}
           onClose={() => setViewing(null)}
+          onSettle={() => {
+            const e = viewing;
+            setViewing(null);
+            setSettling(e);
+          }}
           onVoid={() => {
             const e = viewing;
             setViewing(null);
             setVoiding(e);
           }}
+          onVoidPayment={(payment) => {
+            const e = viewing;
+            setViewing(null);
+            setVoidingPayment({ expense: e, payment });
+          }}
+        />
+      )}
+      {settling && <SettleExpenseDialog expense={settling} onClose={() => setSettling(null)} />}
+      {voidingPayment && (
+        <VoidPaymentDialog
+          expense={voidingPayment.expense}
+          payment={voidingPayment.payment}
+          onClose={() => setVoidingPayment(null)}
         />
       )}
       {voiding && <VoidExpenseDialog expense={voiding} onClose={() => setVoiding(null)} />}
@@ -149,7 +217,19 @@ export default function ExpensesPage() {
   );
 }
 
-function ExpenseDetailDialog({ expense, onClose, onVoid }: { expense: ExpenseSummary; onClose: () => void; onVoid: () => void }) {
+function ExpenseDetailDialog({ expense, onClose, onSettle, onVoid, onVoidPayment }: {
+  expense: ExpenseSummary;
+  onClose: () => void;
+  onSettle: () => void;
+  onVoid: () => void;
+  onVoidPayment: (payment: ExpensePaymentSummary) => void;
+}) {
+  const payments = useQuery({
+    queryKey: ["expense-payments", expense.id],
+    queryFn: () => getExpensePayments(expense.id),
+  });
+  const state = status(expense);
+
   return (
     <Dialog
       open
@@ -162,7 +242,15 @@ function ExpenseDetailDialog({ expense, onClose, onVoid }: { expense: ExpenseSum
             <Trash2 />
             Void
           </Button>
-          <Button onClick={onClose}>Close</Button>
+          {expense.outstanding > 0 && (
+            <Button onClick={onSettle}>
+              <Wallet />
+              Settle
+            </Button>
+          )}
+          <Button variant={expense.outstanding > 0 ? "secondary" : "primary"} onClick={onClose}>
+            Close
+          </Button>
         </>
       }
     >
@@ -174,15 +262,194 @@ function ExpenseDetailDialog({ expense, onClose, onVoid }: { expense: ExpenseSum
         <Detail label="Method" value={expense.method || "—"} />
         <Detail label="Net (before VAT)" value={formatMoney(expense.netAmount)} />
         <Detail label="VAT" value={formatMoney(expense.taxAmount)} />
+        <Detail label="VAT no." value={expense.vatNumber || "—"} />
         <Detail label="Total" value={formatMoney(expense.amount)} />
+        <Detail label="Settled" value={formatMoney(expense.paidAmount)} />
+        <Detail label="Outstanding" value={formatMoney(expense.outstanding)} />
         <Detail label="Reference" value={expense.reference || "—"} />
         <div className="sm:col-span-2">
           <Detail label="Description" value={expense.description || "—"} />
         </div>
-        {expense.origin === "legacy" && (
-          <div className="sm:col-span-2">
-            <Badge tone="neutral">Legacy</Badge>
+        <div className="flex items-center gap-2 sm:col-span-2">
+          <Badge tone={state.tone}>{state.label}</Badge>
+          {expense.origin === "legacy" && <Badge tone="neutral">Legacy</Badge>}
+        </div>
+
+        <div className="sm:col-span-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Payments</p>
+          {payments.isPending && <p className="mt-1 text-sm text-muted">Loading…</p>}
+          {payments.data?.length === 0 && <p className="mt-1 text-sm text-muted">Nothing paid yet.</p>}
+          <div className="mt-1 space-y-1">
+            {payments.data?.map((p) => (
+              <PaymentRow key={p.id} payment={p} onVoid={() => onVoidPayment(p)} />
+            ))}
           </div>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+/** One settlement, with the void that takes it back off. */
+function PaymentRow({ payment, onVoid }: { payment: ExpensePaymentSummary; onVoid: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md bg-surface-sunken px-2.5 py-1.5 text-sm">
+      <span className="whitespace-nowrap text-muted">{formatReportDate(payment.date)}</span>
+      <span className="min-w-0 flex-1 truncate text-text">
+        {payment.method || "—"}
+        {payment.reference ? ` · ${payment.reference}` : ""}
+        {payment.origin === "migrated" && " · recorded with the expense"}
+      </span>
+      <span className="tabular font-medium text-text">{formatMoney(payment.amount)}</span>
+      <Button variant="ghost" size="icon" aria-label="Void payment" onClick={onVoid}>
+        <Trash2 className="text-muted" />
+      </Button>
+    </div>
+  );
+}
+
+function VoidPaymentDialog({ expense, payment, onClose }: {
+  expense: ExpenseSummary;
+  payment: ExpensePaymentSummary;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  async function submit() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await voidExpensePayment(payment.id, payment.rowVersion, reason);
+      void queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      void queryClient.invalidateQueries({ queryKey: ["expense-payments", expense.id] });
+      toast.success("Payment voided.");
+      onClose();
+    } catch (e) {
+      setError(e as ApiError);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(next) => !next && onClose()}
+      title="Void payment"
+      description={`${formatMoney(payment.amount)} of "${expense.description}". Soft-deleted and audited — the expense goes back to owing that much.`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={submitting}>Cancel</Button>
+          <Button onClick={submit} pending={submitting} disabled={reason.trim().length < 10}>Void</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+        <Input
+          label="Reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          hint="At least 10 characters — recorded on the audit trail."
+          placeholder="Why is this payment being voided?"
+        />
+      </div>
+    </Dialog>
+  );
+}
+
+function SettleExpenseDialog({ expense, onClose }: { expense: ExpenseSummary; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [amount, setAmount] = useState(String(expense.outstanding));
+  const [date, setDate] = useState(today);
+  const [method, setMethod] = useState("Cash");
+  const [reference, setReference] = useState("");
+  const [chequePayee, setChequePayee] = useState("");
+  const [chequeBank, setChequeBank] = useState("");
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [chequeDueDate, setChequeDueDate] = useState(today);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  const value = Number(amount);
+  const byCheque = method.toUpperCase() === "CHEQUE";
+  const valid =
+    Number.isFinite(value) && value > 0 && value <= expense.outstanding &&
+    (!byCheque || chequePayee.trim() !== "") && !submitting;
+
+  async function submit() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await recordExpensePayment(expense.id, {
+        amount: value,
+        date,
+        method: method || null,
+        reference: reference.trim() || null,
+        chequePayee: byCheque ? chequePayee.trim() : null,
+        chequeBank: byCheque ? chequeBank || null : null,
+        chequeNumber: byCheque ? chequeNumber || null : null,
+        chequeDate: byCheque ? date : null,
+        chequeDueDate: byCheque ? chequeDueDate || null : null,
+      });
+      void queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      void queryClient.invalidateQueries({ queryKey: ["expense-payments", expense.id] });
+      toast.success(
+        result.outstanding === 0
+          ? "Expense settled."
+          : `Payment recorded — ${formatMoney(result.outstanding)} still outstanding.`,
+      );
+      onClose();
+    } catch (e) {
+      setError(e as ApiError);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(next) => !next && onClose()}
+      title="Settle expense"
+      description={`${formatMoney(expense.outstanding)} outstanding on "${expense.description}". Pay all of it, or part.`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={submitting}>Cancel</Button>
+          <Button onClick={submit} pending={submitting} disabled={!valid}>Record payment</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+        <Input
+          label="Amount"
+          inputMode="decimal"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="0"
+          hint={value > expense.outstanding ? `More than the ${formatMoney(expense.outstanding)} outstanding.` : undefined}
+        />
+        <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <Select label="Method" value={method} onChange={(e) => setMethod(e.target.value)}>
+          <option value="Cash">Cash</option>
+          <option value="Bank">Bank</option>
+          <option value="Cheque">Cheque</option>
+          <option value="Online">Online</option>
+        </Select>
+        <Input label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} />
+
+        {byCheque && (
+          <>
+            <Input label="Cheque payee" required value={chequePayee} onChange={(e) => setChequePayee(e.target.value)} />
+            <Input label="Bank" value={chequeBank} onChange={(e) => setChequeBank(e.target.value)} />
+            <Input label="Cheque no." value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} />
+            <Input label="Cheque due date" type="date" value={chequeDueDate} onChange={(e) => setChequeDueDate(e.target.value)} />
+            <p className="text-xs text-muted">A cheque for this payment will appear in the cheque register, ready to print.</p>
+          </>
         )}
       </div>
     </Dialog>
@@ -224,7 +491,7 @@ function VoidExpenseDialog({ expense, onClose }: { expense: ExpenseSummary; onCl
       open
       onOpenChange={(next) => !next && onClose()}
       title="Void expense"
-      description="Soft-deleted and audited — its history is kept (the legacy delete removed the row)."
+      description="Soft-deleted and audited — its history is kept (the legacy delete removed the row). Any payments against it must be voided first."
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={submitting}>Cancel</Button>

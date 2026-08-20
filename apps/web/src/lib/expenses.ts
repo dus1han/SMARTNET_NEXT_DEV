@@ -1,8 +1,11 @@
 import type {
   CreateExpenseRequest,
   ExpenseCreatedResponse,
+  ExpensePaymentRecordedResponse,
+  ExpensePaymentSummary,
   ExpenseSummary,
   ExpenseCategoryDto,
+  RecordExpensePaymentRequest,
   SaveExpenseCategoryRequest,
 } from "@smartnet/api-client";
 import { api } from "./api";
@@ -11,17 +14,31 @@ import { api } from "./api";
 export type {
   CreateExpenseRequest,
   ExpenseCreatedResponse,
+  ExpensePaymentRecordedResponse,
+  ExpensePaymentSummary,
   ExpenseSummary,
   ExpenseCategoryDto,
+  RecordExpensePaymentRequest,
   SaveExpenseCategoryRequest,
 } from "@smartnet/api-client";
 
 /** The expenses this app has recorded and the legacy ones adopted, newest first. */
 export const getExpenses = () => api<ExpenseSummary[]>("/api/expenses");
 
-/** Record an expense — a flat log entry; dual-writes the legacy row for the ExpenseReport. */
+/** Record an expense — what was incurred, unpaid; dual-writes the legacy row for the ExpenseReport. */
 export const createExpense = (request: CreateExpenseRequest) =>
   api<ExpenseCreatedResponse>("/api/expenses", { method: "POST", body: request });
+
+/** Every settlement against an expense, oldest first — including the ones backfilled at the migration. */
+export const getExpensePayments = (id: number) => api<ExpensePaymentSummary[]>(`/api/expenses/${id}/payments`);
+
+/** Settle an expense — all of what it still owes, or part of it. The outstanding comes back derived. */
+export const recordExpensePayment = (id: number, request: RecordExpensePaymentRequest) =>
+  api<ExpensePaymentRecordedResponse>(`/api/expenses/${id}/payments`, { method: "POST", body: request });
+
+/** Void a settlement — soft, reason-gated; the expense goes back to owing that much. */
+export const voidExpensePayment = (paymentId: number, expectedRowVersion: number, reason: string) =>
+  api<void>(`/api/expenses/payments/${paymentId}?expectedRowVersion=${expectedRowVersion}`, { method: "DELETE", reason });
 
 /** Void an expense — soft, reason-gated. A stale row_version is a 409. */
 export const voidExpense = (id: number, expectedRowVersion: number, reason: string) =>

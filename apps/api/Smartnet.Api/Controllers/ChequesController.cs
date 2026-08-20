@@ -376,6 +376,7 @@ public sealed class ChequesController : ControllerBase
     {
         ChequeSource.SupplierPayment => "Supplier payment",
         ChequeSource.Expense => "Expense",
+        ChequeSource.ExpensePayment => "Expense payment",
         _ => "Manual",
     };
 

@@ -55,6 +55,7 @@ public class ExpenseConfiguration : IEntityTypeConfiguration<Expense>
         builder.Property(e => e.CategoryId).HasColumnName("category_id");
         builder.Property(e => e.NetAmount).HasColumnName("net_amount").HasColumnType("decimal(18,4)");
         builder.Property(e => e.TaxRatePercentage).HasColumnName("tax_rate_percentage").HasColumnType("decimal(18,4)");
+        builder.Property(e => e.VatNumber).HasColumnName("vat_no").HasMaxLength(100);
         builder.Property(e => e.Amount).HasColumnName("amount").HasColumnType("decimal(18,4)");
         builder.Ignore(e => e.TaxAmount); // derived (Amount − NetAmount), not stored
         builder.Property(e => e.Date).HasColumnName("spent_on");

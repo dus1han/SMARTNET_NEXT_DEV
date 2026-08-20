@@ -2323,6 +2323,155 @@
         }
       }
     },
+    "/api/expenses/{id}/payments": {
+      "get": {
+        "tags": [
+          "Expenses"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExpensePaymentSummary"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExpensePaymentSummary"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExpensePaymentSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Expenses"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/RecordExpensePaymentRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/RecordExpensePaymentRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/RecordExpensePaymentRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpensePaymentRecordedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpensePaymentRecordedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpensePaymentRecordedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/expenses/payments/{paymentId}": {
+      "delete": {
+        "tags": [
+          "Expenses"
+        ],
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "expectedRowVersion",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/expenses/{id}": {
       "delete": {
         "tags": [
@@ -10889,39 +11038,13 @@
             "type": "number",
             "format": "double"
           },
+          "vatNumber": {
+            "type": "string",
+            "nullable": true
+          },
           "amount": {
             "type": "number",
             "format": "double"
-          },
-          "method": {
-            "type": "string",
-            "nullable": true
-          },
-          "reference": {
-            "type": "string",
-            "nullable": true
-          },
-          "chequePayee": {
-            "type": "string",
-            "nullable": true
-          },
-          "chequeBank": {
-            "type": "string",
-            "nullable": true
-          },
-          "chequeNumber": {
-            "type": "string",
-            "nullable": true
-          },
-          "chequeDate": {
-            "type": "string",
-            "format": "date",
-            "nullable": true
-          },
-          "chequeDueDate": {
-            "type": "string",
-            "format": "date",
-            "nullable": true
           }
         },
         "additionalProperties": false
@@ -13490,6 +13613,74 @@
         },
         "additionalProperties": false
       },
+      "ExpensePaymentRecordedResponse": {
+        "required": [
+          "amountPaid",
+          "expenseId",
+          "outstanding",
+          "paymentId"
+        ],
+        "type": "object",
+        "properties": {
+          "expenseId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "paymentId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "amountPaid": {
+            "type": "number",
+            "format": "double"
+          },
+          "outstanding": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExpensePaymentSummary": {
+        "required": [
+          "amount",
+          "date",
+          "id",
+          "origin",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "method": {
+            "type": "string",
+            "nullable": true
+          },
+          "reference": {
+            "type": "string",
+            "nullable": true
+          },
+          "rowVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "origin": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "ExpenseReportResponse": {
         "required": [
           "count",
@@ -13576,6 +13767,8 @@
           "id",
           "netAmount",
           "origin",
+          "outstanding",
+          "paidAmount",
           "rowVersion",
           "taxAmount"
         ],
@@ -13612,7 +13805,19 @@
             "type": "number",
             "format": "double"
           },
+          "vatNumber": {
+            "type": "string",
+            "nullable": true
+          },
           "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "paidAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "outstanding": {
             "type": "number",
             "format": "double"
           },
@@ -15952,6 +16157,54 @@
           },
           "preparedBy": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecordExpensePaymentRequest": {
+        "required": [
+          "amount",
+          "date"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "method": {
+            "type": "string",
+            "nullable": true
+          },
+          "reference": {
+            "type": "string",
+            "nullable": true
+          },
+          "chequePayee": {
+            "type": "string",
+            "nullable": true
+          },
+          "chequeBank": {
+            "type": "string",
+            "nullable": true
+          },
+          "chequeNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "chequeDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "chequeDueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
           }
         },
         "additionalProperties": false
