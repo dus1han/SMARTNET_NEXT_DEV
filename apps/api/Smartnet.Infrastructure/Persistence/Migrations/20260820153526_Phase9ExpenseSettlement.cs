@@ -98,7 +98,7 @@ namespace Smartnet.Infrastructure.Persistence.Migrations
                     FROM `expense_tr` e
                     WHERE e.`deleted_at` IS NULL
                 ) settled
-                WHERE `amount` > 0
+                WHERE `amount` > 0;
                 """;
 
         /// <inheritdoc />
