@@ -9,7 +9,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ApiError } from "@/lib/api";
@@ -22,6 +22,7 @@ import { Button, Card, ErrorBanner, FadeIn, Input, Select, toast } from "@/compo
 
 export default function NewExpensePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const companies = useQuery({ queryKey: ["companies"], queryFn: listCompanies });
   const categories = useQuery({ queryKey: ["expense-categories"], queryFn: getExpenseCategories });
 
@@ -68,6 +69,10 @@ export default function NewExpensePage() {
         vatNumber: withVat ? vatNumber.trim() || null : null,
         amount: amountValue,
       });
+      // The list is cached and still inside its staleTime, so without this the expense just recorded
+      // is missing from the grid we are about to land on until the user reloads the page. Every other
+      // module navigates to the new record's own page and never notices; this one goes back to a list.
+      void queryClient.invalidateQueries({ queryKey: ["expenses"] });
       toast.success(`Expense recorded — ${formatMoney(created.amount)} outstanding.`);
       router.push("/expenses");
     } catch (e) {
