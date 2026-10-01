@@ -2375,6 +2375,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invoices/draft-pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DraftInvoicePdfRequest"];
+                    "text/json": components["schemas"]["DraftInvoicePdfRequest"];
+                    "application/*+json": components["schemas"]["DraftInvoicePdfRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/invoices": {
         parameters: {
             query?: never;
@@ -4817,6 +4856,45 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/quotations/draft-pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DraftQuotationPdfRequest"];
+                    "text/json": components["schemas"]["DraftQuotationPdfRequest"];
+                    "application/*+json": components["schemas"]["DraftQuotationPdfRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -8993,6 +9071,33 @@ export interface components {
             updatedByName?: string | null;
             /** Format: int32 */
             rowVersion: number;
+        };
+        DraftInvoicePdfRequest: {
+            /** Format: int64 */
+            companyId: number;
+            /** Format: int64 */
+            customerId?: number | null;
+            type: string;
+            /** Format: date */
+            date: string;
+            purchaseOrderNo?: string | null;
+            contactPerson?: string | null;
+            lines: components["schemas"]["CreateInvoiceLineRequest"][];
+            /** Format: double */
+            documentDiscountPercent: number;
+        };
+        DraftQuotationPdfRequest: {
+            /** Format: int64 */
+            companyId: number;
+            /** Format: int64 */
+            customerId?: number | null;
+            /** Format: date */
+            date: string;
+            contactPerson?: string | null;
+            validity?: string | null;
+            lines: components["schemas"]["CreateInvoiceLineRequest"][];
+            /** Format: double */
+            documentDiscountPercent: number;
         };
         DraftSaved: {
             /** Format: int64 */

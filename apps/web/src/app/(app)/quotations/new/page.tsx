@@ -24,7 +24,7 @@ import { createQuotation, getQuotationTaxRate } from "@/lib/quotations";
 import { listCompanies, listCustomers } from "@/lib/customers";
 import { listItems } from "@/lib/items";
 import { today } from "@/lib/period";
-import { formatAmount, MINOR_UNITS_PER_MAJOR, QUANTITY_SCALE } from "@/lib/money";
+import { formatAmount, MINOR_UNITS_PER_MAJOR } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { DRAFT_QUOTATION } from "@/lib/drafts";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -42,20 +42,12 @@ import {
   type DocumentKind,
   type DraftLine,
 } from "@/components/documents/line-draft";
-
-/** The saved shape. Bump it when the state below changes meaning — see `readPayload`. */
-const DRAFT_VERSION = 1;
-
-interface QuotationDraftState {
-  kind: DocumentKind;
-  companyId: string;
-  customerId: string;
-  date: string;
-  validity: string;
-  contact: string;
-  documentDiscount: string;
-  lines: DraftLine[];
-}
+import {
+  documentDiscountPercent,
+  QUOTATION_DRAFT_VERSION,
+  linesForApi,
+  type QuotationDraftState,
+} from "@/components/documents/draft-print";
 
 /**
  * `useDraftResume` reads `?draft=` through `useSearchParams`, which forces the client tree up to the
@@ -95,10 +87,7 @@ function NewQuotationForm() {
   const rateError = taxRate.error as ApiError | null;
   const ratePercent = taxRate.data?.percentage ?? 0;
 
-  const docPercent = useMemo(() => {
-    const value = Number(documentDiscount);
-    return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
-  }, [documentDiscount]);
+  const docPercent = useMemo(() => documentDiscountPercent(documentDiscount), [documentDiscount]);
 
   const selectedCustomer = customers.data?.find((c) => String(c.id) === customerId) ?? null;
   const contactOptions = customerContactNames(selectedCustomer);
@@ -107,7 +96,7 @@ function NewQuotationForm() {
 
   // --- The draft ---------------------------------------------------------------------------------
 
-  const resume = useDraftResume<QuotationDraftState>(DRAFT_VERSION, (state) => {
+  const resume = useDraftResume<QuotationDraftState>(QUOTATION_DRAFT_VERSION, (state) => {
     setKind(state.kind);
     setCompanyId(state.companyId);
     setCustomerId(state.customerId);
@@ -120,7 +109,7 @@ function NewQuotationForm() {
 
   const draft = useDraftAutosave<QuotationDraftState>({
     docType: DRAFT_QUOTATION,
-    version: DRAFT_VERSION,
+    version: QUOTATION_DRAFT_VERSION,
     state: { kind, companyId, customerId, date, validity, contact, documentDiscount, lines },
     // A company on its own is not work — it is the first thing the screen asks for and is often the only
     // one. A customer or a line means somebody started building a quote.
@@ -153,15 +142,7 @@ function NewQuotationForm() {
         // No documentCost from this screen, for either kind. An item quotation's cost is derived from its
         // line costs by the server; a SERVICE quotation's is not known yet — it is entered when the quote is
         // converted to an invoice, which is the point at which the work is committed to and the cost is real.
-        lines: lines.map((l) => ({
-          itemId: l.itemId,
-          itemCode: l.itemCode,
-          description: l.description,
-          quantity: l.quantity / QUANTITY_SCALE,
-          unitPrice: l.unitPrice / MINOR_UNITS_PER_MAJOR,
-          discountPercent: l.discountPercent,
-          cost: l.cost === null ? null : l.cost / MINOR_UNITS_PER_MAJOR,
-        })),
+        lines: linesForApi(lines),
       });
       // The quotation exists now, so the draft has nothing left to protect. Cleared before navigating so
       // the Drafts list is already right when the user goes back to it.

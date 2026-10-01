@@ -25,7 +25,7 @@ import { createInvoice, getCreditStatus, getInvoiceTaxRate } from "@/lib/invoice
 import { listCompanies, listCustomers } from "@/lib/customers";
 import { listItems } from "@/lib/items";
 import { today } from "@/lib/period";
-import { formatAmount, MINOR_UNITS_PER_MAJOR, QUANTITY_SCALE } from "@/lib/money";
+import { formatAmount, MINOR_UNITS_PER_MAJOR } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { DRAFT_INVOICE } from "@/lib/drafts";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -43,22 +43,12 @@ import {
   type DocumentKind,
   type DraftLine,
 } from "@/components/documents/line-draft";
-
-/** The saved shape. Bump it when the state below changes meaning — see `readPayload`. */
-const DRAFT_VERSION = 1;
-
-interface InvoiceDraftState {
-  kind: DocumentKind;
-  companyId: string;
-  customerId: string;
-  type: string;
-  date: string;
-  po: string;
-  contact: string;
-  documentDiscount: string;
-  serviceCost: string;
-  lines: DraftLine[];
-}
+import {
+  documentDiscountPercent,
+  INVOICE_DRAFT_VERSION,
+  linesForApi,
+  type InvoiceDraftState,
+} from "@/components/documents/draft-print";
 
 /**
  * `useDraftResume` reads `?draft=` through `useSearchParams`, which forces the client tree up to the
@@ -105,10 +95,7 @@ function NewInvoiceForm() {
   const rateError = taxRate.error as ApiError | null;
   const ratePercent = taxRate.data?.percentage ?? 0;
 
-  const docPercent = useMemo(() => {
-    const value = Number(documentDiscount);
-    return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
-  }, [documentDiscount]);
+  const docPercent = useMemo(() => documentDiscountPercent(documentDiscount), [documentDiscount]);
 
   // The contact person comes from the customer: the master stores each contact in one `;`-separated field.
   const selectedCustomer = customers.data?.find((c) => String(c.id) === customerId) ?? null;
@@ -135,7 +122,7 @@ function NewInvoiceForm() {
 
   // --- The draft ---------------------------------------------------------------------------------
 
-  const resume = useDraftResume<InvoiceDraftState>(DRAFT_VERSION, (state) => {
+  const resume = useDraftResume<InvoiceDraftState>(INVOICE_DRAFT_VERSION, (state) => {
     setKind(state.kind);
     setCompanyId(state.companyId);
     setCustomerId(state.customerId);
@@ -150,7 +137,7 @@ function NewInvoiceForm() {
 
   const draft = useDraftAutosave<InvoiceDraftState>({
     docType: DRAFT_INVOICE,
-    version: DRAFT_VERSION,
+    version: INVOICE_DRAFT_VERSION,
     state: {
       kind, companyId, customerId, type, date, po, contact, documentDiscount, serviceCost, lines,
     },
@@ -192,16 +179,7 @@ function NewInvoiceForm() {
         acknowledgeCreditLimit,
         // Service invoices carry a document-level cost; item invoices derive it from the line item costs.
         documentCost: kind === "service" && serviceCost !== "" ? Number(serviceCost) : null,
-        // Back to the major-unit decimals the API expects, at the boundary and nowhere else.
-        lines: lines.map((l) => ({
-          itemId: l.itemId,
-          itemCode: l.itemCode,
-          description: l.description,
-          quantity: l.quantity / QUANTITY_SCALE,
-          unitPrice: l.unitPrice / MINOR_UNITS_PER_MAJOR,
-          discountPercent: l.discountPercent,
-          cost: l.cost === null ? null : l.cost / MINOR_UNITS_PER_MAJOR,
-        })),
+        lines: linesForApi(lines),
       });
       // The invoice exists now, so the draft has nothing left to protect. Cleared before navigating so
       // the Drafts list is already right when the user goes back to it.

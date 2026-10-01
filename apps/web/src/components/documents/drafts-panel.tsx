@@ -13,19 +13,22 @@
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FilePenLine, Trash2 } from "lucide-react";
+import { FilePenLine, Printer, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { me } from "@/lib/auth";
 import { cn } from "@/lib/cn";
 import {
   activeElsewhere,
   deleteDraft,
+  getDraft,
   listDrafts,
   type DraftDocType,
   type DraftSummary,
 } from "@/lib/drafts";
 import { instantFromApi } from "@/lib/time";
 import { DataTable, type ColumnDef } from "@/components/data-table";
+import { PrintPreview } from "@/components/print-preview";
+import { draftPrintRequest, type DraftPrintRequest } from "./draft-print";
 import { formatMoney } from "@/components/reports";
 import { Badge, Button, Dialog, ErrorBanner, toast } from "@/components/ui";
 
@@ -122,12 +125,35 @@ export interface DraftsPanelProps {
   noun: string;
   /** "Customer" or "Supplier" — whichever party this document is addressed to. */
   partyLabel: string;
+  /**
+   * Offers a Print action on each draft — a PDF marked DRAFT on every page, with no number. Only the
+   * documents whose drafts the server can render set it (quotations and invoices).
+   */
+  printable?: boolean;
 }
 
-export function DraftsPanel({ docType, resumeHref, noun, partyLabel }: DraftsPanelProps) {
+export function DraftsPanel({ docType, resumeHref, noun, partyLabel, printable = false }: DraftsPanelProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [discarding, setDiscarding] = useState<DraftSummary | null>(null);
+  const [printing, setPrinting] = useState<DraftPrintRequest | null>(null);
+
+  // The list carries no payload, so the draft is read in full first — then the printed document is built
+  // from exactly what the create screen would raise.
+  const preparePrint = useMutation({
+    mutationFn: async (summary: DraftSummary) => {
+      const detail = await getDraft(summary.id);
+      const request = draftPrintRequest(detail.docType, detail.payload);
+
+      if (request === null) {
+        throw new Error("This draft was saved by an older version and cannot be printed. Open it to see what it holds.");
+      }
+
+      return request;
+    },
+    onSuccess: setPrinting,
+    onError: (e) => toast.error(e.message),
+  });
 
   const drafts = useQuery({ queryKey: ["drafts", docType], queryFn: () => listDrafts(docType) });
   const error = drafts.error as ApiError | null;
@@ -154,7 +180,7 @@ export function DraftsPanel({ docType, resumeHref, noun, partyLabel }: DraftsPan
       )}
 
       <DataTable
-        columns={columns(partyLabel, viewerId, setDiscarding)}
+        columns={columns(partyLabel, viewerId, setDiscarding, printable ? (draft) => preparePrint.mutate(draft) : null)}
         rows={drafts.data}
         loading={drafts.isPending}
         searchable={(row) => `${row.partyName ?? ""} ${row.createdByName ?? ""}`}
@@ -165,6 +191,14 @@ export function DraftsPanel({ docType, resumeHref, noun, partyLabel }: DraftsPan
           title: "No drafts",
           description: `A ${noun} you start and do not raise is kept here, so you can pick it up later.`,
         }}
+      />
+
+      <PrintPreview
+        open={printing !== null}
+        onOpenChange={(open) => !open && setPrinting(null)}
+        path={printing?.path ?? ""}
+        body={printing?.body}
+        title={`Draft ${noun}`}
       />
 
       <Dialog
@@ -202,6 +236,7 @@ function columns(
   partyLabel: string,
   viewerId: number | null,
   onDiscard: (draft: DraftSummary) => void,
+  onPrint: ((draft: DraftSummary) => void) | null,
 ): ColumnDef<DraftSummary, unknown>[] {
   return [
     // Last edited leads, and the list opens with the most recent first: the draft somebody is coming
@@ -267,18 +302,35 @@ function columns(
       meta: { align: "right" },
       enableSorting: false,
       cell: ({ row }) => (
-        <button
-          type="button"
-          // The row itself resumes the draft; this must not do both.
-          onClick={(e) => {
-            e.stopPropagation();
-            onDiscard(row.original);
-          }}
-          className="grid size-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface-sunken hover:text-danger"
-          aria-label={`Discard the draft for ${row.original.partyName ?? "no customer"}`}
-        >
-          <Trash2 className="size-4" />
-        </button>
+        <span className="inline-flex items-center gap-1">
+          {onPrint && (
+            <button
+              type="button"
+              // The row itself resumes the draft; this must not do both.
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrint(row.original);
+              }}
+              className="grid size-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface-sunken hover:text-text"
+              aria-label={`Print the draft for ${row.original.partyName ?? "no customer"}`}
+              title="Print draft"
+            >
+              <Printer className="size-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            // The row itself resumes the draft; this must not do both.
+            onClick={(e) => {
+              e.stopPropagation();
+              onDiscard(row.original);
+            }}
+            className="grid size-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface-sunken hover:text-danger"
+            aria-label={`Discard the draft for ${row.original.partyName ?? "no customer"}`}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </span>
       ),
     },
   ];

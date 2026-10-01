@@ -44,6 +44,11 @@ public sealed class DocumentRenderingTests
         { "invoice", new InvoiceDocument(Sample.Invoice()) },
         { "tax invoice", new TaxInvoiceDocument(Sample.TaxInvoice()) },
         { "quotation", new QuotationDocument(Sample.Quotation()) },
+        // Printed from the Drafts tab: the same templates, marked DRAFT — a watermark over every page, a
+        // banner and a longer title, any of which could push a layout past what fits.
+        { "draft quotation", new QuotationDocument(Sample.Quotation()) { IsDraft = true } },
+        { "draft invoice", new InvoiceDocument(Sample.Invoice()) { IsDraft = true } },
+        { "draft tax invoice", new TaxInvoiceDocument(Sample.TaxInvoice()) { IsDraft = true } },
         { "credit note", new CreditNoteDocument(Sample.CreditNote()) },
         // The same document without VAT — it heads itself CREDIT NOTE rather than TAX CREDIT NOTE and
         // drops the VAT rows, so it is a different layout and worth rendering in its own right.

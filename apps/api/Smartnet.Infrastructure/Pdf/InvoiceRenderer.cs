@@ -222,7 +222,7 @@ public sealed class InvoiceRenderer : IInvoiceRenderer
     /// <para>Printing "PO Number: XXX" on a document the customer reads is noise standing in for a blank,
     /// so the placeholder is treated as one and the row is omitted.</para>
     /// </remarks>
-    private static string PoNumber(string? raw)
+    internal static string PoNumber(string? raw)
     {
         var value = Trim(raw);
 
@@ -230,7 +230,7 @@ public sealed class InvoiceRenderer : IInvoiceRenderer
     }
 
     /// <summary>Contact person as "Name (telephone)", the house convention across every document.</summary>
-    private static string WithPhone(string? name, string? phone)
+    internal static string WithPhone(string? name, string? phone)
     {
         var person = Trim(name);
         var number = Trim(phone);
@@ -255,7 +255,7 @@ public sealed class InvoiceRenderer : IInvoiceRenderer
     /// claiming the purchaser's TIN is "-" is worse than one that plainly has not got it: the second is a
     /// gap somebody can fill, the first looks answered. Leading punctuation is stripped from the rest.</para>
     /// </remarks>
-    private static string Tin(string? raw)
+    internal static string Tin(string? raw)
     {
         var value = Trim(raw);
 
@@ -270,19 +270,19 @@ public sealed class InvoiceRenderer : IInvoiceRenderer
     /// block is a grid of one-line values and a three-line address would push the two columns out of
     /// step with each other.
     /// </remarks>
-    private static string CompanyAddress(Company c) =>
+    internal static string CompanyAddress(Company c) =>
         string.Join(", ", new[] { c.AddressLine1, c.AddressLine2, c.City }
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .Select(p => p!.Trim()));
 
     /// <summary>A rate without trailing zeros — "18", not "18.00".</summary>
-    private static string Percentage(decimal value) =>
+    internal static string Percentage(decimal value) =>
         value == decimal.Truncate(value)
             ? decimal.Truncate(value).ToString("0", CultureInfo.InvariantCulture)
             : value.ToString("0.##", CultureInfo.InvariantCulture);
 
     /// <summary>The bank block, or null when the company has no account on file — nothing to print.</summary>
-    private static BankDetails? BuildBank(Company? c) =>
+    internal static BankDetails? BuildBank(Company? c) =>
         c is null || string.IsNullOrWhiteSpace(c.BankName)
             ? null
             : new BankDetails(c.BankName.Trim(), Trim(c.BankBranch), Trim(c.BankAccountName), Trim(c.BankAccountNumber));

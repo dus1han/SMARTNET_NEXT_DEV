@@ -40,6 +40,7 @@ public sealed class QuotationsController : ControllerBase
     private readonly IQuotationRenderer _quotationPdf;
     private readonly IAuditWriter _audit;
     private readonly DocumentMailer _mailer;
+    private readonly IDraftDocumentRenderer _draftPdf;
 
     public QuotationsController(
         IQuotationCreator creator,
@@ -52,7 +53,8 @@ public sealed class QuotationsController : ControllerBase
         ITaxEngine tax,
         IQuotationRenderer quotationPdf,
         IAuditWriter audit,
-        DocumentMailer mailer)
+        DocumentMailer mailer,
+        IDraftDocumentRenderer draftPdf)
     {
         _creator = creator;
         _converter = converter;
@@ -65,6 +67,7 @@ public sealed class QuotationsController : ControllerBase
         _quotationPdf = quotationPdf;
         _audit = audit;
         _mailer = mailer;
+        _draftPdf = draftPdf;
     }
 
     /// <summary>
@@ -256,6 +259,45 @@ public sealed class QuotationsController : ControllerBase
             cancellationToken: cancellationToken).ConfigureAwait(false);
 
         return File(pdf, "application/pdf", $"quotation-{quotation.Number}.pdf");
+    }
+
+    /// <summary>
+    /// A quotation that has not been raised, as a PDF marked DRAFT on every page — printed from the Drafts
+    /// tab. Nothing is saved, numbered or audited.
+    /// </summary>
+    /// <remarks>
+    /// Gated by the quotation-raising permission, the one a draft itself requires: a draft carries the same
+    /// commercial detail as the quotation it would become (see <c>DraftDocumentTypes</c>).
+    /// </remarks>
+    [HttpPost("draft-pdf")]
+    [RequirePermission(Permissions.ItemQuotation)]
+    public async Task<IActionResult> DraftPdf(DraftQuotationPdfRequest request, CancellationToken cancellationToken)
+    {
+        if (!_company.Accessible.Contains(request.CompanyId))
+        {
+            return NotFound();
+        }
+
+        byte[]? pdf;
+        try
+        {
+            pdf = await _draftPdf.RenderQuotationAsync(
+                new DraftQuotationPrint(
+                    request.CompanyId,
+                    request.CustomerId,
+                    request.Date,
+                    request.ContactPerson,
+                    request.Validity,
+                    request.DocumentDiscountPercent,
+                    [.. request.Lines.Select(l => new DraftPrintLine(l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent))]),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (TaxRateNotResolvableException notInForce)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: notInForce.Message);
+        }
+
+        return pdf is null ? NotFound() : File(pdf, "application/pdf", "draft-quotation.pdf");
     }
 
     /// <summary>Who this quotation can be emailed to, and the message that would go with it.</summary>

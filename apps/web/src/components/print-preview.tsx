@@ -17,12 +17,18 @@ import { Printer } from "lucide-react";
 import { API_BASE_URL, getActiveCompany } from "@/lib/api";
 import { Button, Dialog, ErrorBanner, Skeleton } from "@/components/ui";
 
-export function PrintPreview({ open, onOpenChange, path, title, onLoaded }: {
+export function PrintPreview({ open, onOpenChange, path, body, title, onLoaded }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 
   /** API path of the PDF, e.g. `/api/job-cards/8/pdf`. */
   path: string;
+
+  /**
+   * Posted as JSON when set — for a document that does not exist on the server yet, such as a draft,
+   * whose content has to be sent to be rendered. Fetched with a GET when absent.
+   */
+  body?: unknown;
 
   title: string;
 
@@ -45,9 +51,14 @@ export function PrintPreview({ open, onOpenChange, path, title, onLoaded }: {
 
       try {
         const company = getActiveCompany();
+        const headers: Record<string, string> = company === null ? {} : { "X-Company-Id": String(company) };
+        if (body !== undefined) headers["Content-Type"] = "application/json";
+
         const response = await fetch(`${API_BASE_URL}${path}`, {
+          method: body === undefined ? "GET" : "POST",
           credentials: "include",
-          headers: company === null ? {} : { "X-Company-Id": String(company) },
+          headers,
+          body: body === undefined ? undefined : JSON.stringify(body),
         });
 
         if (!response.ok) throw new Error("The document could not be produced.");
@@ -68,7 +79,8 @@ export function PrintPreview({ open, onOpenChange, path, title, onLoaded }: {
       // Revoked on close, not after the iframe loads — the viewer keeps reading from the URL.
       if (revoked) URL.revokeObjectURL(revoked);
     };
-    // onLoaded is intentionally excluded: it is a callback identity, not a fetch input.
+    // onLoaded is intentionally excluded: it is a callback identity, not a fetch input. The body is read
+    // when the dialog opens — a caller sets it before opening, and it does not change while open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, path]);
 

@@ -65,6 +65,7 @@ export default function QuotationsPage() {
           resumeHref="/quotations/new"
           noun="quotation"
           partyLabel="Customer"
+          printable
         />
       ) : view === "lines" ? (
         <QuotationLinesPanel />

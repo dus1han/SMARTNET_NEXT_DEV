@@ -57,6 +57,7 @@ export default function InvoicesPage() {
           resumeHref="/invoices/new"
           noun="invoice"
           partyLabel="Customer"
+          printable
         />
       ) : (
         <>

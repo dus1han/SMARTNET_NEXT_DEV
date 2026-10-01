@@ -31,6 +31,21 @@ public abstract class HouseDocument : IDocument
     protected const string Hair = "#E3E6E5";
     protected const string White = "#FFFFFF";
 
+    /// <summary>The draft marking's red — a warning colour no company accent uses.</summary>
+    private const string DraftRed = "#B91C1C";
+
+    /// <summary>
+    /// True for a document that has not been raised — printed from a draft, so it has no number and is
+    /// not a valid document of its kind.
+    /// </summary>
+    /// <remarks>
+    /// Said four ways, because a draft that leaves the building must not be mistaken for the real thing
+    /// by anyone who picks it up: the title reads "DRAFT …", a banner above the content says it was not
+    /// issued, a large diagonal watermark crosses every page, and the footer repeats it. Any one of these
+    /// can be cropped, folded or skimmed past; all four cannot.
+    /// </remarks>
+    public bool IsDraft { get; init; }
+
     protected string Accent { get; }
 
     protected string AccentSoft { get; }
@@ -74,6 +89,9 @@ public abstract class HouseDocument : IDocument
     /// <summary>Everything between the header and the footer.</summary>
     protected abstract void ComposeSections(ColumnDescriptor sections);
 
+    /// <summary>The title as printed — prefixed "DRAFT" on a document that has not been raised.</summary>
+    private string ShownTitle => IsDraft ? $"DRAFT {Title}" : Title;
+
     // --- the layout --------------------------------------------------------------------------
 
     public void Compose(IDocumentContainer container)
@@ -87,7 +105,50 @@ public abstract class HouseDocument : IDocument
             page.Header().Element(ComposeHeader);
             page.Content().Element(ComposeContent);
             page.Footer().Element(ComposeFooter);
+
+            if (IsDraft)
+            {
+                page.Foreground().Element(ComposeDraftWatermark);
+            }
         });
+    }
+
+    /// <summary>
+    /// "DRAFT" across the page, large and faint — over the content rather than behind it, so a filled
+    /// table or a solid header band cannot hide it, and pale enough that the figures stay readable.
+    /// </summary>
+    /// <remarks>
+    /// QuestPDF rotates about an element's top-left corner, so the word is set in a fixed box that is
+    /// moved to its own centre, turned, and moved back — otherwise it swings off towards a corner. Its
+    /// line height is pinned to 1: the page default (1.3) makes the word taller than the box, and a word
+    /// that does not fit is silently not drawn.
+    /// </remarks>
+    private static void ComposeDraftWatermark(IContainer container)
+    {
+        const float width = 500;
+        const float height = 180;
+
+        container.AlignCenter().AlignMiddle()
+            .Width(width).Height(height)
+            .OffsetX(width / 2).OffsetY(height / 2)
+            .Rotate(-40)
+            .OffsetX(-width / 2).OffsetY(-height / 2)
+            .AlignCenter().AlignMiddle()
+            .Text("DRAFT").FontSize(130).LineHeight(1f).Bold().FontColor("#26B91C1C").LetterSpacing(0.08f);
+    }
+
+    /// <summary>The banner above the content of a draft, saying in words what the watermark shows.</summary>
+    private void ComposeDraftBanner(IContainer container)
+    {
+        var noun = FooterName.ToLowerInvariant();
+
+        container.Border(1).BorderColor(DraftRed).Background("#FEF2F2").PaddingVertical(5).PaddingHorizontal(9)
+            .Text(text =>
+            {
+                text.Span("DRAFT — NOT ISSUED. ").FontSize(9).Bold().FontColor(DraftRed);
+                text.Span($"This {noun} has not been raised. It has no number, and it is not a valid {noun} until it is.")
+                    .FontSize(8.5f).FontColor(DraftRed);
+            });
     }
 
     private void ComposeHeader(IContainer container)
@@ -155,7 +216,7 @@ public abstract class HouseDocument : IDocument
                 row.ConstantItem(190).Border(1).BorderColor(Accent).Column(box =>
                 {
                     box.Item().Background(Accent).PaddingVertical(6).AlignCenter()
-                        .Text(Title).FontSize(13).Bold().FontColor(White).LetterSpacing(0.08f);
+                        .Text(ShownTitle).FontSize(13).Bold().FontColor(White).LetterSpacing(0.08f);
 
                     box.Item().PaddingHorizontal(10).PaddingVertical(9).Column(meta =>
                     {
@@ -176,18 +237,23 @@ public abstract class HouseDocument : IDocument
     {
         container.PaddingTop(9).Column(col =>
         {
+            if (IsDraft)
+            {
+                col.Item().PaddingBottom(8).Element(ComposeDraftBanner);
+            }
+
             // Only the masthead layout prints a title band here — the boxed header already carries the
             // title and references, and repeating them would print them twice.
             if (MastheadLayout && CentredTitle)
             {
                 col.Item().Background(AccentSoft).PaddingVertical(6).AlignCenter()
-                    .Text(Title).FontSize(15).Bold().FontColor(Accent).LetterSpacing(0.1f);
+                    .Text(ShownTitle).FontSize(15).Bold().FontColor(Accent).LetterSpacing(0.1f);
             }
             else if (MastheadLayout)
             {
                 col.Item().Row(row =>
                 {
-                    row.RelativeItem().AlignMiddle().Text(Title)
+                    row.RelativeItem().AlignMiddle().Text(ShownTitle)
                         .FontSize(18).Bold().FontColor(Accent).LetterSpacing(0.09f);
 
                     row.ConstantItem(215).Column(meta =>
@@ -215,7 +281,10 @@ public abstract class HouseDocument : IDocument
             col.Item().PaddingBottom(4).LineHorizontal(0.5f).LineColor(Hair);
             col.Item().Row(row =>
             {
-                row.RelativeItem().Text($"{Clean(CompanyName)} · {FooterName}").FontSize(7.5f).FontColor(Muted);
+                row.RelativeItem().Text(IsDraft
+                        ? $"{Clean(CompanyName)} · {FooterName} · DRAFT, NOT ISSUED"
+                        : $"{Clean(CompanyName)} · {FooterName}")
+                    .FontSize(7.5f).FontColor(IsDraft ? DraftRed : Muted);
                 row.RelativeItem().AlignRight().Text(text =>
                 {
                     text.DefaultTextStyle(t => t.FontSize(7.5f).FontColor(Muted));

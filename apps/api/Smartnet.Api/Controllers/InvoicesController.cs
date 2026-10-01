@@ -41,6 +41,7 @@ public sealed class InvoicesController : ControllerBase
     private readonly IInvoiceRenderer _invoicePdf;
     private readonly IAuditWriter _audit;
     private readonly DocumentMailer _mailer;
+    private readonly IDraftDocumentRenderer _draftPdf;
 
     public InvoicesController(
         IInvoiceCreator creator,
@@ -54,7 +55,8 @@ public sealed class InvoicesController : ControllerBase
         IBusinessRuleReader rules,
         IInvoiceRenderer invoicePdf,
         IAuditWriter audit,
-        DocumentMailer mailer)
+        DocumentMailer mailer,
+        IDraftDocumentRenderer draftPdf)
     {
         _creator = creator;
         _editor = editor;
@@ -68,6 +70,47 @@ public sealed class InvoicesController : ControllerBase
         _invoicePdf = invoicePdf;
         _audit = audit;
         _mailer = mailer;
+        _draftPdf = draftPdf;
+    }
+
+    /// <summary>
+    /// An invoice that has not been raised, as a PDF marked DRAFT on every page — printed from the Drafts
+    /// tab. Nothing is saved, numbered, charged or audited.
+    /// </summary>
+    /// <remarks>
+    /// Gated by the invoice-raising permission, the one a draft itself requires: a draft carries the same
+    /// commercial detail as the invoice it would become (see <c>DraftDocumentTypes</c>).
+    /// </remarks>
+    [HttpPost("draft-pdf")]
+    [RequirePermission(Permissions.ItemInvoice)]
+    public async Task<IActionResult> DraftPdf(DraftInvoicePdfRequest request, CancellationToken cancellationToken)
+    {
+        if (!_company.Accessible.Contains(request.CompanyId))
+        {
+            return NotFound();
+        }
+
+        byte[]? pdf;
+        try
+        {
+            pdf = await _draftPdf.RenderInvoiceAsync(
+                new DraftInvoicePrint(
+                    request.CompanyId,
+                    request.CustomerId,
+                    request.Type,
+                    request.Date,
+                    request.PurchaseOrderNo,
+                    request.ContactPerson,
+                    request.DocumentDiscountPercent,
+                    [.. request.Lines.Select(l => new DraftPrintLine(l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent))]),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (TaxRateNotResolvableException notInForce)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: notInForce.Message);
+        }
+
+        return pdf is null ? NotFound() : File(pdf, "application/pdf", "draft-invoice.pdf");
     }
 
     /// <summary>

@@ -240,6 +240,33 @@ public sealed record CreateQuotationRequest(
 public sealed record QuotationCreatedResponse(long Id, string Number, decimal Total);
 
 /// <summary>
+/// A draft quotation to print — what the create screen holds, sent as it would be raised. Unlike
+/// <see cref="CreateQuotationRequest"/> the customer is optional: a draft may not have one yet.
+/// </summary>
+public sealed record DraftQuotationPdfRequest(
+    long CompanyId,
+    long? CustomerId,
+    DateOnly Date,
+    string? ContactPerson,
+    string? Validity,
+    IReadOnlyList<CreateInvoiceLineRequest> Lines,
+    decimal DocumentDiscountPercent = 0m);
+
+/// <summary>
+/// A draft invoice to print — what the create screen holds, sent as it would be raised. Unlike
+/// <see cref="CreateInvoiceRequest"/> the customer is optional: a draft may not have one yet.
+/// </summary>
+public sealed record DraftInvoicePdfRequest(
+    long CompanyId,
+    long? CustomerId,
+    string Type,
+    DateOnly Date,
+    string? PurchaseOrderNo,
+    string? ContactPerson,
+    IReadOnlyList<CreateInvoiceLineRequest> Lines,
+    decimal DocumentDiscountPercent = 0m);
+
+/// <summary>
 /// The terms that turn a quotation into an invoice — everything else comes from the quote. The invoice
 /// is taxed at its own <see cref="Date"/> (not the quote's) through the same save pipeline.
 /// </summary>
