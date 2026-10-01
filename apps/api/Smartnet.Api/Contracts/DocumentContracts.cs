@@ -273,6 +273,22 @@ public sealed record QuotationSummary(
     long? ConvertedInvoiceId,
     string Origin);
 
+/// <summary>One line of one quotation — a row of the item-level quotation list.</summary>
+/// <param name="QuotationId">The quotation the line belongs to, so a row can open it.</param>
+/// <param name="Origin"><c>new</c> for a line this app wrote; <c>legacy</c> for one from the old system, which
+/// kept no line discount — its <see cref="DiscountPercent"/> is 0 and its <see cref="Net"/> its stored total.</param>
+public sealed record QuotationLineSummary(
+    long Id,
+    long QuotationId,
+    string QuotationNumber,
+    DateOnly Date,
+    string? Description,
+    decimal Quantity,
+    decimal UnitPrice,
+    decimal DiscountPercent,
+    decimal Net,
+    string Origin);
+
 /// <summary>One quotation, in full — the read view, with its conversion state and back-link.</summary>
 /// <param name="Origin"><c>new</c> (typed figures, a change history) or <c>legacy</c> (the old system's stored figures).</param>
 public sealed record QuotationDetail(

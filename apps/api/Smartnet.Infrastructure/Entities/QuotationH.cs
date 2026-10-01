@@ -55,4 +55,10 @@ public partial class QuotationH
     /// converted twice.
     /// </summary>
     public long? ConvertedToInvoiceId { get; set; }
+
+    /// <summary>
+    /// Set when the quotation has been voided (soft delete). Deliberately not a query filter: readers
+    /// that must hide voided quotations filter on it themselves.
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
 }

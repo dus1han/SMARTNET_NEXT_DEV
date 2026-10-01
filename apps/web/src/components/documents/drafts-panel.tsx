@@ -29,8 +29,11 @@ import { DataTable, type ColumnDef } from "@/components/data-table";
 import { formatMoney } from "@/components/reports";
 import { Badge, Button, Dialog, ErrorBanner, toast } from "@/components/ui";
 
-/** Which half of a list screen is showing: the documents it has raised, or the ones it has not. */
-export type DocumentView = "issued" | "drafts";
+/**
+ * Which part of a list screen is showing: the documents it has raised, the ones it has not, or — where a
+ * screen offers it — the raised documents' lines, one row per line.
+ */
+export type DocumentView = "issued" | "drafts" | "lines";
 
 /**
  * The switch between a list's raised documents and its drafts.
@@ -45,11 +48,14 @@ export function DocumentViewFilter({
   onChange,
   docType,
   issuedLabel,
+  linesLabel,
 }: {
   view: DocumentView;
   onChange: (view: DocumentView) => void;
   docType: DraftDocType;
   issuedLabel: string;
+  /** Shows a third, line-level tab under this label. Omitted, the screen has only the two. */
+  linesLabel?: string;
 }) {
   const count = useDraftCount(docType);
 
@@ -71,6 +77,11 @@ export function DocumentViewFilter({
           </span>
         )}
       </Tab>
+      {linesLabel && (
+        <Tab active={view === "lines"} onClick={() => onChange("lines")}>
+          {linesLabel}
+        </Tab>
+      )}
     </div>
   );
 }

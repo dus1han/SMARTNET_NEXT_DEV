@@ -1198,6 +1198,7 @@ public partial class SmartnetLegacyDbContext : DbContext
             entity.Property(e => e.RowVersion).HasColumnName("row_version");
             entity.Property(e => e.DataOrigin).HasMaxLength(16).HasColumnName("data_origin");
             entity.Property(e => e.ConvertedToInvoiceId).HasColumnName("converted_to_invoice_id");
+            entity.Property(e => e.DeletedAt).HasColumnName("deleted_at");
             entity.Property(e => e.Beforedisctot)
                 .HasMaxLength(100)
                 .HasColumnName("beforedisctot");

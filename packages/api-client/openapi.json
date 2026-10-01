@@ -6074,6 +6074,68 @@
         }
       }
     },
+    "/api/quotations/lines": {
+      "get": {
+        "tags": [
+          "Quotations"
+        ],
+        "parameters": [
+          {
+            "name": "Page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "Search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "customerId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationLineSummaryPagedResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationLineSummaryPagedResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotationLineSummaryPagedResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/quotations/{id}/pdf": {
       "get": {
         "tags": [
@@ -15992,6 +16054,91 @@
             "format": "double"
           },
           "versionNo": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuotationLineSummary": {
+        "required": [
+          "date",
+          "discountPercent",
+          "id",
+          "net",
+          "origin",
+          "quantity",
+          "quotationId",
+          "quotationNumber",
+          "unitPrice"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quotationId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "quotationNumber": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "unitPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "discountPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "net": {
+            "type": "number",
+            "format": "double"
+          },
+          "origin": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuotationLineSummaryPagedResult": {
+        "required": [
+          "page",
+          "pageSize",
+          "rows",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuotationLineSummary"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
             "type": "integer",
             "format": "int32"
           }

@@ -10,6 +10,7 @@ import type {
   QuotationDeleted,
   QuotationDetail,
   QuotationEditedResponse,
+  QuotationLineSummary,
   QuotationRecipients,
   QuotationSummary,
 } from "@smartnet/api-client";
@@ -25,6 +26,7 @@ export type {
   EmailDocumentResponse,
   QuotationCreatedResponse,
   QuotationDetail,
+  QuotationLineSummary,
   QuotationRecipients,
   QuotationSummary,
 } from "@smartnet/api-client";
@@ -45,6 +47,27 @@ export const getQuotations = (params: { page: number; pageSize?: number; search?
   if (params.search?.trim()) query.set("search", params.search.trim());
 
   return api<Paged<QuotationSummary>>(`/api/quotations?${query}`);
+};
+
+/**
+ * One page of quotation lines — the item-level view — newest quotation first, searched by quotation
+ * number or line description on the server, and narrowed to one customer when `customerId` is given.
+ */
+export const getQuotationLines = (params: {
+  page: number;
+  pageSize?: number;
+  search?: string;
+  customerId?: number;
+}) => {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    pageSize: String(params.pageSize ?? 25),
+  });
+
+  if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.customerId != null) query.set("customerId", String(params.customerId));
+
+  return api<Paged<QuotationLineSummary>>(`/api/quotations/lines?${query}`);
 };
 
 /** One quotation in full, with its lines and conversion state. */
