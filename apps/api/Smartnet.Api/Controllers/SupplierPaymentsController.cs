@@ -102,6 +102,38 @@ public sealed class SupplierPaymentsController : ControllerBase
         return Ok(lines.OrderBy(l => l.Date).ThenBy(l => l.Reference).ToList());
     }
 
+    /// <summary>
+    /// The cheques in the register a payment to this supplier can be made with — in the company, not yet
+    /// tied to any payment or expense, and made out to this supplier or entered as manual cheques.
+    /// </summary>
+    /// <remarks>
+    /// Gated by the supplier-payment permission rather than the cheques one: this is part of recording a
+    /// payment, and it shows only what the payment screen needs to pick from.
+    /// </remarks>
+    [HttpGet("available-cheques")]
+    [RequirePermission(Permissions.SupplierInvoice)]
+    public async Task<ActionResult<IReadOnlyList<AvailableSupplierCheque>>> AvailableCheques(
+        [FromQuery] long companyId, [FromQuery] long supplierId, CancellationToken cancellationToken)
+    {
+        if (!_company.Accessible.Contains(companyId))
+        {
+            return Ok(Array.Empty<AvailableSupplierCheque>());
+        }
+
+        var cheques = await _db.Cheques
+            .Where(c => c.CompanyId == companyId
+                && c.SourceType == null
+                && (c.SupplierId == supplierId || c.SupplierId == null))
+            .OrderByDescending(c => c.ChequeDate)
+            .ThenByDescending(c => c.Id)
+            .Select(c => new AvailableSupplierCheque(
+                c.Id, c.ChequeNumber, c.Bank, c.ChequeDate, c.DueDate, c.Amount, c.PayTo, c.EntryType))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return Ok(cheques);
+    }
+
     /// <summary>Every supplier payment the caller may see, newest first.</summary>
     [HttpGet]
     [RequirePermission(Permissions.SupplierInvoice)]
@@ -479,7 +511,8 @@ public sealed class SupplierPaymentsController : ControllerBase
                     request.CompanyId, request.SupplierId, request.Date, request.Method, request.Reference,
                     request.IdempotencyKey,
                     request.Allocations.Select(a => new NewSupplierPaymentAllocation(a.SupplierInvoiceId, a.Amount)).ToList(),
-                    request.ChequeBank, request.ChequeNumber, request.ChequeDate, request.ChequeDueDate),
+                    request.ChequeBank, request.ChequeNumber, request.ChequeDate, request.ChequeDueDate,
+                    request.ExistingChequeId),
                 cancellationToken).ConfigureAwait(false);
 
             return Ok(new SupplierPaymentCreatedResponse(created.Id, created.Amount, created.AlreadyExisted));
@@ -491,6 +524,17 @@ public sealed class SupplierPaymentsController : ControllerBase
         catch (SupplierPaymentInvoiceMismatchException mismatch)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: mismatch.Message);
+        }
+        catch (SupplierPaymentChequeUnavailableException unavailable)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: unavailable.Message);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Two payments raced for the same register cheque and this one lost; nothing was saved.
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "That cheque was just used by another payment. Pick another cheque and try again.");
         }
     }
 

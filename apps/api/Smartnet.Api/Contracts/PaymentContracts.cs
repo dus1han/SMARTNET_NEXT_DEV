@@ -122,7 +122,9 @@ public sealed record CreateSupplierPaymentRequest(
     string? ChequeBank = null,
     string? ChequeNumber = null,
     DateOnly? ChequeDate = null,
-    DateOnly? ChequeDueDate = null);
+    DateOnly? ChequeDueDate = null,
+    // A cheque already in the register to pay with, instead of raising a new one from the fields above.
+    long? ExistingChequeId = null);
 
 /// <summary>What the caller gets back. <paramref name="AlreadyExisted"/> is true when the idempotency key matched an existing payment.</summary>
 public sealed record SupplierPaymentCreatedResponse(long Id, decimal Amount, bool AlreadyExisted);
@@ -163,6 +165,21 @@ public sealed record SupplierPaymentDetail(
     string Origin);
 
 /// <summary>One of a supplier's open invoices — the picker a payment is allocated over (new and legacy alike).</summary>
+/// <summary>
+/// A cheque in the register that a supplier payment can be made with — not yet tied to any payment or expense,
+/// and made out to the supplier or entered as a manual cheque.
+/// </summary>
+/// <param name="EntryType"><c>Supplier</c> (made out to this supplier) or <c>Manual</c> (free-typed payee).</param>
+public sealed record AvailableSupplierCheque(
+    long Id,
+    string? ChequeNumber,
+    string? Bank,
+    DateOnly? ChequeDate,
+    DateOnly? DueDate,
+    decimal Amount,
+    string PayTo,
+    string EntryType);
+
 public sealed record OutstandingSupplierInvoiceLine(
     long SupplierInvoiceId,
     string Reference,

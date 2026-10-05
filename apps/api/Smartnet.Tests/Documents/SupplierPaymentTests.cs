@@ -120,6 +120,62 @@ public sealed class SupplierPaymentTests
     }
 
     [Fact]
+    public async Task A_payment_made_with_a_register_cheque_links_that_cheque_and_raises_no_second_one()
+    {
+        var (companyId, supplierId, code) = await SeedCompanyAndSupplier();
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
+        var inv = await SeedSupplierInvoice(companyId, supplierId, code, "SINV-G1", 120m);
+
+        long chequeId;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            chequeId = (await new ChequeService(db, change, Clock).CreateAsync(new NewCheque(
+                companyId, "Supplier", "Supplier", supplierId, "NTB", "700100", 120m,
+                new DateOnly(2026, 7, 17), new DateOnly(2026, 7, 31)))).Id;
+        }
+
+        long paymentId;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            paymentId = (await new SupplierPaymentService(db, new ChequeService(db, change, Clock), new GeneralLedger(db), change, Clock).CreateAsync(new NewSupplierPayment(
+                companyId, supplierId, new DateOnly(2026, 7, 17), "Cheque", "700100", "sidem-G",
+                new[] { new NewSupplierPaymentAllocation(inv, 120m) },
+                ExistingChequeId: chequeId))).Id;
+        }
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            // The register cheque is now this payment's — and it is the only cheque the payment has.
+            var linked = await db.Cheques.SingleAsync(c => c.SourceType == ChequeSource.SupplierPayment && c.SourceId == paymentId);
+            linked.Id.Should().Be(chequeId);
+        }
+    }
+
+    [Fact]
+    public async Task A_register_cheque_for_a_different_amount_is_refused()
+    {
+        var (companyId, supplierId, code) = await SeedCompanyAndSupplier();
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
+        var inv = await SeedSupplierInvoice(companyId, supplierId, code, "SINV-H1", 120m);
+
+        long chequeId;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            chequeId = (await new ChequeService(db, change, Clock).CreateAsync(new NewCheque(
+                companyId, "Supplier", "Supplier", supplierId, "NTB", "700200", 90m,
+                new DateOnly(2026, 7, 17), new DateOnly(2026, 7, 31)))).Id;
+        }
+
+        await using var payDb = _fixture.CreateContext(change);
+        var act = () => new SupplierPaymentService(payDb, new ChequeService(payDb, change, Clock), new GeneralLedger(payDb), change, Clock).CreateAsync(new NewSupplierPayment(
+            companyId, supplierId, new DateOnly(2026, 7, 17), "Cheque", null, "sidem-H",
+            new[] { new NewSupplierPaymentAllocation(inv, 120m) },
+            ExistingChequeId: chequeId));
+
+        await act.Should().ThrowAsync<SupplierPaymentChequeUnavailableException>();
+    }
+
+    [Fact]
     public async Task An_allocation_over_the_outstanding_is_refused()
     {
         var (companyId, supplierId, code) = await SeedCompanyAndSupplier();

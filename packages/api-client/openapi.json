@@ -9238,6 +9238,62 @@
         }
       }
     },
+    "/api/supplier-payments/available-cheques": {
+      "get": {
+        "tags": [
+          "SupplierPayments"
+        ],
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "supplierId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AvailableSupplierCheque"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AvailableSupplierCheque"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AvailableSupplierCheque"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/supplier-payments": {
       "get": {
         "tags": [
@@ -10282,6 +10338,50 @@
           "total": {
             "type": "integer",
             "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AvailableSupplierCheque": {
+        "required": [
+          "amount",
+          "entryType",
+          "id",
+          "payTo"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "chequeNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "bank": {
+            "type": "string",
+            "nullable": true
+          },
+          "chequeDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "payTo": {
+            "type": "string"
+          },
+          "entryType": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -11704,6 +11804,11 @@
           "chequeDueDate": {
             "type": "string",
             "format": "date",
+            "nullable": true
+          },
+          "existingChequeId": {
+            "type": "integer",
+            "format": "int64",
             "nullable": true
           }
         },

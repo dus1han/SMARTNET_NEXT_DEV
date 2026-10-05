@@ -7,6 +7,10 @@
  * legacy alike, derived from the payables ledger) appear to allocate against. Each allocation posts a Payment
  * entry to the ledger and dual-writes the legacy shadow. An idempotency key (minted once per form) makes a
  * double-submit return the first payment rather than pay twice.
+ *
+ * Paid by cheque, the cheque is either typed here — and raised into the register — or picked from cheques
+ * already entered in the register, which is then tied to this payment instead of a second one being made.
+ * A picked cheque must be for exactly the payment total: the cheque is the money that left the bank.
  */
 
 import { useMemo, useState } from "react";
@@ -15,7 +19,11 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ApiError } from "@/lib/api";
-import { createSupplierPayment, getOutstandingSupplierInvoices } from "@/lib/supplier-payments";
+import {
+  createSupplierPayment,
+  getAvailableSupplierCheques,
+  getOutstandingSupplierInvoices,
+} from "@/lib/supplier-payments";
 import { listCompanies } from "@/lib/customers";
 import { listSuppliers } from "@/lib/suppliers";
 import { today } from "@/lib/period";
@@ -38,6 +46,9 @@ export default function NewSupplierPaymentPage() {
   const [chequeNumber, setChequeNumber] = useState("");
   const [chequeDate, setChequeDate] = useState(today);
   const [chequeDueDate, setChequeDueDate] = useState(today);
+  // "new" types the cheque here; "register" picks one already entered in the cheque register.
+  const [chequeSource, setChequeSource] = useState<"new" | "register">("new");
+  const [existingChequeId, setExistingChequeId] = useState("");
   const [allocations, setAllocations] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
@@ -53,6 +64,15 @@ export default function NewSupplierPaymentPage() {
   });
 
   const invoices = useMemo(() => outstanding.data ?? [], [outstanding.data]);
+
+  const byCheque = method.toUpperCase() === "CHEQUE";
+  const fromRegister = byCheque && chequeSource === "register";
+  const registerCheques = useQuery({
+    queryKey: ["available-supplier-cheques", companyId, supplierKey],
+    queryFn: () => getAvailableSupplierCheques(Number(companyId), supplierKey!),
+    enabled: fromRegister && companyId !== "" && supplierKey != null,
+  });
+  const pickedCheque = registerCheques.data?.find((c) => String(c.id) === existingChequeId) ?? null;
 
   const { total, overAllocated, positiveCount } = useMemo(() => {
     let sum = 0;
@@ -70,7 +90,12 @@ export default function NewSupplierPaymentPage() {
     return { total: Math.round(sum * 100) / 100, overAllocated: over, positiveCount: count };
   }, [invoices, allocations]);
 
-  const canSubmit = companyId !== "" && supplierKey != null && positiveCount > 0 && !overAllocated && !submitting;
+  // A register cheque is the money that left the bank, so the allocations must add up to exactly its amount.
+  const chequeMismatch = pickedCheque !== null && Math.abs(pickedCheque.amount - total) > 0.005;
+  const chequeReady = !fromRegister || (pickedCheque !== null && !chequeMismatch);
+
+  const canSubmit =
+    companyId !== "" && supplierKey != null && positiveCount > 0 && !overAllocated && chequeReady && !submitting;
 
   function setAllocation(invoiceId: number, value: string) {
     setAllocations((prev) => ({ ...prev, [invoiceId]: value }));
@@ -79,6 +104,14 @@ export default function NewSupplierPaymentPage() {
   function resetSupplier(id: string) {
     setSupplierId(id);
     setAllocations({});
+    setExistingChequeId("");
+  }
+
+  function pickCheque(id: string) {
+    setExistingChequeId(id);
+    const cheque = registerCheques.data?.find((c) => String(c.id) === id);
+    // The cheque number is what the reference usually holds; filled only when nothing has been typed.
+    if (cheque?.chequeNumber && reference === "") setReference(cheque.chequeNumber);
   }
 
   async function submit() {
@@ -92,7 +125,7 @@ export default function NewSupplierPaymentPage() {
         }))
         .filter((a) => a.amount > 0);
 
-      const byCheque = method.toUpperCase() === "CHEQUE";
+      const typedCheque = byCheque && !fromRegister;
       const created = await createSupplierPayment({
         companyId: Number(companyId),
         supplierId: supplierKey!,
@@ -101,10 +134,11 @@ export default function NewSupplierPaymentPage() {
         reference: reference || null,
         idempotencyKey,
         allocations: lines,
-        chequeBank: byCheque ? chequeBank || null : null,
-        chequeNumber: byCheque ? chequeNumber || null : null,
-        chequeDate: byCheque ? chequeDate || null : null,
-        chequeDueDate: byCheque ? chequeDueDate || null : null,
+        chequeBank: typedCheque ? chequeBank || null : null,
+        chequeNumber: typedCheque ? chequeNumber || null : null,
+        chequeDate: typedCheque ? chequeDate || null : null,
+        chequeDueDate: typedCheque ? chequeDueDate || null : null,
+        existingChequeId: fromRegister && pickedCheque ? pickedCheque.id : null,
       });
       toast.success(
         created.alreadyExisted
@@ -155,7 +189,18 @@ export default function NewSupplierPaymentPage() {
           <option value="ONLINE">Online</option>
         </Select>
 
-        {method.toUpperCase() === "CHEQUE" && (
+        {byCheque && (
+          <Select
+            label="Cheque"
+            value={chequeSource}
+            onChange={(e) => setChequeSource(e.target.value as "new" | "register")}
+          >
+            <option value="new">Enter a new cheque</option>
+            <option value="register">Use a cheque from the register</option>
+          </Select>
+        )}
+
+        {byCheque && !fromRegister && (
           <>
             <Input label="Bank" value={chequeBank} onChange={(e) => setChequeBank(e.target.value)} />
             <Input label="Cheque no." value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} />
@@ -163,6 +208,45 @@ export default function NewSupplierPaymentPage() {
             <Input label="Due date" type="date" value={chequeDueDate} onChange={(e) => setChequeDueDate(e.target.value)} />
             <p className="text-xs text-muted sm:col-span-2 lg:col-span-4">A cheque for the payment total will appear in the cheque register, ready to print.</p>
           </>
+        )}
+
+        {fromRegister && (
+          <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+            {companyId === "" || supplierKey == null ? (
+              <p className="pt-7 text-sm text-muted">Pick the company and supplier to see their cheques.</p>
+            ) : registerCheques.isPending ? (
+              <p className="pt-7 text-sm text-muted">Loading cheques…</p>
+            ) : (registerCheques.data ?? []).length === 0 ? (
+              <p className="pt-7 text-sm text-muted">
+                No unused cheques in the register for this supplier. Enter a new cheque instead, or add one under Cheques.
+              </p>
+            ) : (
+              <Select label="Register cheque" value={existingChequeId} onChange={(e) => pickCheque(e.target.value)}>
+                <option value="">Select…</option>
+                {registerCheques.data?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {[
+                      c.chequeNumber ? `No. ${c.chequeNumber}` : "No number",
+                      c.bank,
+                      c.chequeDate ? formatReportDate(c.chequeDate) : null,
+                      formatMoney(c.amount),
+                      c.entryType === "Manual" ? `pay to ${c.payTo}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </option>
+                ))}
+              </Select>
+            )}
+            {chequeMismatch && pickedCheque && (
+              <p className="text-xs text-danger">
+                This cheque is for {formatMoney(pickedCheque.amount)} — allocate exactly that amount across the invoices.
+              </p>
+            )}
+            {pickedCheque && !chequeMismatch && (
+              <p className="text-xs text-muted">This cheque will be tied to the payment. No second cheque is raised.</p>
+            )}
+          </div>
         )}
       </Card>
 

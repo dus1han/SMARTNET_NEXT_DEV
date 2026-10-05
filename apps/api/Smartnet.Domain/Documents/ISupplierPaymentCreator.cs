@@ -6,8 +6,14 @@ public sealed record NewSupplierPaymentAllocation(long SupplierInvoiceId, decima
 /// <summary>
 /// A whole supplier payment, posted at once — the total is the sum of its allocations. When
 /// <paramref name="Method"/> is <c>Cheque</c>, the cheque fields are used to raise a printable cheque linked
-/// to this payment (so the cheque is not a second money event).
+/// to this payment (so the cheque is not a second money event) — unless
+/// <paramref name="ExistingChequeId"/> names a cheque already in the register, which is linked instead.
 /// </summary>
+/// <param name="ExistingChequeId">
+/// A cheque already entered in the cheque register that this payment is made with. It must be in the
+/// payment's company, not already tied to a payment or expense, made out to this supplier (or a manual
+/// cheque), and for exactly the payment total. The cheque fields are then ignored.
+/// </param>
 public sealed record NewSupplierPayment(
     long CompanyId,
     long SupplierId,
@@ -19,7 +25,8 @@ public sealed record NewSupplierPayment(
     string? ChequeBank = null,
     string? ChequeNumber = null,
     DateOnly? ChequeDate = null,
-    DateOnly? ChequeDueDate = null);
+    DateOnly? ChequeDueDate = null,
+    long? ExistingChequeId = null);
 
 /// <summary>What the caller gets back. <paramref name="AlreadyExisted"/> is true when the idempotency key matched an existing payment.</summary>
 public sealed record SupplierPaymentCreated(long Id, decimal Amount, bool AlreadyExisted);
@@ -32,6 +39,12 @@ public sealed class SupplierPaymentAllocationExceedsOutstandingException(long su
     public decimal Outstanding { get; } = outstanding;
     public decimal Attempted { get; } = attempted;
 }
+
+/// <summary>
+/// Thrown when the cheque chosen for a payment cannot be used for it — it does not exist, belongs to another
+/// company or supplier, is already tied to a payment or expense, or is not for the payment total.
+/// </summary>
+public sealed class SupplierPaymentChequeUnavailableException(string message) : Exception(message);
 
 /// <summary>Thrown when a supplier invoice in the payment does not belong to the payment's supplier.</summary>
 public sealed class SupplierPaymentInvoiceMismatchException(long supplierInvoiceId)

@@ -1,4 +1,5 @@
 import type {
+  AvailableSupplierCheque,
   CreateSupplierPaymentRequest,
   SupplierPaymentCreatedResponse,
   SupplierPaymentDetail,
@@ -10,6 +11,7 @@ import type { Paged } from "./paging";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
 export type {
+  AvailableSupplierCheque,
   CreateSupplierPaymentRequest,
   CreateSupplierPaymentAllocationRequest,
   SupplierPaymentCreatedResponse,
@@ -43,6 +45,15 @@ export const getSupplierPayment = (id: number) => api<SupplierPaymentDetail>(`/a
 /** A supplier's open invoices — the picker a payment is allocated over (new and legacy alike). */
 export const getOutstandingSupplierInvoices = (supplierId: number) =>
   api<OutstandingSupplierInvoiceLine[]>(`/api/supplier-payments/outstanding?supplierId=${supplierId}`);
+
+/**
+ * The cheques already in the register that a payment to this supplier can be made with — in the company, not
+ * yet tied to any payment or expense, made out to this supplier or entered as manual cheques.
+ */
+export const getAvailableSupplierCheques = (companyId: number, supplierId: number) =>
+  api<AvailableSupplierCheque[]>(
+    `/api/supplier-payments/available-cheques?companyId=${companyId}&supplierId=${supplierId}`,
+  );
 
 /** Record a supplier payment — allocated across open invoices; posts Payment entries and dual-writes the legacy shadow. */
 export const createSupplierPayment = (request: CreateSupplierPaymentRequest) =>

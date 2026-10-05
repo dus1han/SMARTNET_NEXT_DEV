@@ -215,6 +215,7 @@ export type SupplierPaymentSummary = Schemas["SupplierPaymentSummary"];
 export type SupplierPaymentDetail = Schemas["SupplierPaymentDetail"];
 export type SupplierPaymentAllocationLine = Schemas["SupplierPaymentAllocationLine"];
 export type OutstandingSupplierInvoiceLine = Schemas["OutstandingSupplierInvoiceLine"];
+export type AvailableSupplierCheque = Schemas["AvailableSupplierCheque"];
 
 // --- Cheque register (Phase 7) ----------------------------------------------------------------
 

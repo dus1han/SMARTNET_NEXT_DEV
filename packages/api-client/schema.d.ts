@@ -7370,6 +7370,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/supplier-payments/available-cheques": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    companyId?: number;
+                    supplierId?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AvailableSupplierCheque"][];
+                        "application/json": components["schemas"]["AvailableSupplierCheque"][];
+                        "text/json": components["schemas"]["AvailableSupplierCheque"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/supplier-payments": {
         parameters: {
             query?: never;
@@ -8168,6 +8208,20 @@ export interface components {
             /** Format: int32 */
             total: number;
         };
+        AvailableSupplierCheque: {
+            /** Format: int64 */
+            id: number;
+            chequeNumber?: string | null;
+            bank?: string | null;
+            /** Format: date */
+            chequeDate?: string | null;
+            /** Format: date */
+            dueDate?: string | null;
+            /** Format: double */
+            amount: number;
+            payTo: string;
+            entryType: string;
+        };
         BackupSettingsResponse: {
             enabled: boolean;
             host: string;
@@ -8596,6 +8650,8 @@ export interface components {
             chequeDate?: string | null;
             /** Format: date */
             chequeDueDate?: string | null;
+            /** Format: int64 */
+            existingChequeId?: number | null;
         };
         CreateSupplierResponse: {
             /** Format: int64 */

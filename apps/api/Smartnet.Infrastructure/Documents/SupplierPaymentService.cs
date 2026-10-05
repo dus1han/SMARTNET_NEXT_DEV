@@ -81,6 +81,11 @@ public sealed class SupplierPaymentService : ISupplierPaymentCreator, ISupplierP
         var total = request.Allocations.Sum(a => a.Amount);
         var occurredAt = request.Date.ToDateTime(TimeOnly.MinValue);
 
+        var byCheque = string.Equals(request.Method, "Cheque", StringComparison.OrdinalIgnoreCase);
+        var existingCheque = byCheque && request.ExistingChequeId is { } chequeId
+            ? await UsableChequeAsync(chequeId, request, total, cancellationToken).ConfigureAwait(false)
+            : null;
+
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         var payment = new SupplierPayment
@@ -137,9 +142,18 @@ public sealed class SupplierPaymentService : ISupplierPaymentCreator, ISupplierP
                 GlChart.CashOrBank(request.Method, 0m, total),
             ]), cancellationToken).ConfigureAwait(false);
 
+        // Paid with a cheque already in the register → tie that cheque to this payment rather than raising a
+        // second one. The cheque's row_version guards the claim: if another payment took it in the meantime,
+        // this save fails and the whole payment rolls back.
+        if (existingCheque is not null)
+        {
+            existingCheque.SourceType = ChequeSource.SupplierPayment;
+            existingCheque.SourceId = payment.Id;
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
         // Paid by cheque → raise a printable cheque linked to this payment (the payment is the money event,
         // the cheque only prints it — so it is never double-counted).
-        if (string.Equals(request.Method, "Cheque", StringComparison.OrdinalIgnoreCase))
+        else if (byCheque)
         {
             await _cheques.CreateAsync(new NewCheque(
                 request.CompanyId, "Supplier", supplier.Name ?? "Supplier", request.SupplierId,
@@ -151,6 +165,46 @@ public sealed class SupplierPaymentService : ISupplierPaymentCreator, ISupplierP
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return new SupplierPaymentCreated(payment.Id, payment.Amount, AlreadyExisted: false);
+    }
+
+    /// <summary>
+    /// The register cheque this payment is to be made with, if it can be: same company, not already tied to a
+    /// payment or expense, made out to this supplier or a manual cheque, and for exactly the payment total.
+    /// </summary>
+    /// <remarks>
+    /// The amount must match because the cheque <i>is</i> the payment — the general ledger posts the payment
+    /// total out of the bank, and a cheque for a different sum would leave the register and the ledger
+    /// disagreeing about what left the account.
+    /// </remarks>
+    private async Task<Cheque> UsableChequeAsync(long chequeId, NewSupplierPayment request, decimal total, CancellationToken cancellationToken)
+    {
+        var cheque = await _db.Cheques
+            .FirstOrDefaultAsync(c => c.Id == chequeId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (cheque is null || cheque.CompanyId != request.CompanyId)
+        {
+            throw new SupplierPaymentChequeUnavailableException("That cheque is not in the register for this company.");
+        }
+
+        if (cheque.SourceType is not null)
+        {
+            throw new SupplierPaymentChequeUnavailableException(
+                $"Cheque {cheque.ChequeNumber} is already tied to a {(cheque.SourceType == ChequeSource.SupplierPayment ? "supplier payment" : "expense")}.");
+        }
+
+        if (cheque.SupplierId is { } payee && payee != request.SupplierId)
+        {
+            throw new SupplierPaymentChequeUnavailableException($"Cheque {cheque.ChequeNumber} is made out to a different supplier.");
+        }
+
+        if (cheque.Amount != total)
+        {
+            throw new SupplierPaymentChequeUnavailableException(
+                $"Cheque {cheque.ChequeNumber} is for {cheque.Amount:N2}, but the payment totals {total:N2}. Allocate exactly the cheque amount.");
+        }
+
+        return cheque;
     }
 
     public async Task VoidAsync(long paymentId, int expectedRowVersion, CancellationToken cancellationToken = default)
