@@ -56,4 +56,10 @@ public partial class InvoiceH
     /// legacy rows, so a reader that must not double-count the new invoices filters on it.
     /// </summary>
     public string? DataOrigin { get; set; }
+
+    /// <summary>
+    /// Set when the invoice has been voided (soft delete). Deliberately not a query filter: readers
+    /// that must hide voided invoices filter on it themselves.
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
 }

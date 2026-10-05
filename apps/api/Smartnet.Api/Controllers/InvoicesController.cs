@@ -208,6 +208,99 @@ public sealed class InvoicesController : ControllerBase
     }
 
     /// <summary>
+    /// Every invoice line the caller may see, newest invoice first â€” the item-level view of the list.
+    /// </summary>
+    /// <remarks>
+    /// Read off <c>invoice_l</c> joined to its header by the legacy <c>inno</c>, which this app's own lines
+    /// write too, so one ordered query pages both origins. A legacy line has only varchar figures and no
+    /// discount; a new line's typed figures are read afterwards for the page alone, by the shared id. The
+    /// same shape as the quotation lines list.
+    /// </remarks>
+    /// <param name="customerId">Only this customer's invoices; omitted, every customer's.</param>
+    [HttpGet("lines")]
+    [RequirePermission(Permissions.SearchInvoice)]
+    public async Task<ActionResult<PagedResult<InvoiceLineSummary>>> Lines(
+        [FromQuery] PageRequest paging,
+        [FromQuery] long? customerId,
+        CancellationToken cancellationToken)
+    {
+        var accessibleText = PageRequest.AsText(_company.Accessible).ToList();
+
+        var query =
+            from l in _legacy.InvoiceLs
+            join h in _legacy.InvoiceHs on l.Inno equals h.Invoiceno
+            // A voided invoice's lines are stamped too, but the header is checked as well so a voided
+            // invoice never shows here whatever state its lines were left in.
+            where h.Company != null && accessibleText.Contains(h.Company) && h.DeletedAt == null
+            select new { Line = l, Header = h };
+
+        if (customerId is { } id)
+        {
+            // invoice_h carries the customer by code â€” both origins write it â€” so the id is resolved to
+            // that. An unknown id matches nothing rather than everything.
+            var code = await _db.Customers
+                .Where(c => c.Id == id)
+                .Select(c => c.Code)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            query = query.Where(x => code != null && x.Header.Customer == code);
+        }
+
+        if (paging.LikePattern is { } pattern)
+        {
+            query = query.Where(x =>
+                EF.Functions.Like(x.Header.Invoiceno!, pattern)
+                || (x.Line.Desc != null && EF.Functions.Like(x.Line.Desc, pattern)));
+        }
+
+        var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        // Header id then line id break ties, so the order is total and paging neither repeats nor skips.
+        var page = await query
+            .OrderByDescending(x => x.Header.Indate)
+            .ThenByDescending(x => x.Header.Id)
+            .ThenBy(x => x.Line.Id)
+            .Skip(paging.Skip)
+            .Take(paging.SafePageSize)
+            .Select(x => new
+            {
+                x.Line.Id,
+                InvoiceId = x.Header.Id,
+                x.Header.Invoiceno,
+                x.Header.Indate,
+                x.Header.DataOrigin,
+                x.Line.Desc,
+                x.Line.Qty,
+                x.Line.Rate,
+                x.Line.Tot,
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var newIds = page.Where(x => x.DataOrigin == "new").Select(x => x.Id).ToList();
+        var typed = await _db.InvoiceLines
+            .Where(l => newIds.Contains(l.Id))
+            .Select(l => new { l.Id, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Net })
+            .ToDictionaryAsync(l => l.Id, cancellationToken)
+            .ConfigureAwait(false);
+
+        var rows = page.Select(x =>
+        {
+            var date = LegacyValue.Date(x.Indate) ?? DateOnly.MinValue;
+
+            return typed.TryGetValue(x.Id, out var t)
+                ? new InvoiceLineSummary(
+                    x.Id, x.InvoiceId, x.Invoiceno ?? "â€”", date, x.Desc, t.Quantity, t.UnitPrice, t.DiscountPercent, t.Net, "new")
+                : new InvoiceLineSummary(
+                    x.Id, x.InvoiceId, x.Invoiceno ?? "â€”", date, x.Desc,
+                    LegacyValue.Money(x.Qty), LegacyValue.Money(x.Rate), 0m, LegacyValue.Money(x.Tot), "legacy");
+        }).ToList();
+
+        return Ok(new PagedResult<InvoiceLineSummary>(rows, total, paging.SafePage, paging.SafePageSize));
+    }
+
+    /// <summary>
     /// One invoice in full — the read view. Serves both a <c>new</c> invoice (typed figures, ledger
     /// balance) and a <c>legacy</c> one adopted from the old system (its stored <c>varchar</c> figures).
     /// </summary>

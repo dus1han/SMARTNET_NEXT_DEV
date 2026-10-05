@@ -137,6 +137,7 @@ export type InvoiceCreatedResponse = Schemas["InvoiceCreatedResponse"];
 export type InvoiceTaxRate = Schemas["InvoiceTaxRate"];
 export type CreditStatus = Schemas["CreditStatus"];
 export type InvoiceSummary = Schemas["InvoiceSummary"];
+export type InvoiceLineSummary = Schemas["InvoiceLineSummary"];
 export type InvoiceDetail = Schemas["InvoiceDetail"];
 export type InvoiceLineDetail = Schemas["InvoiceLineDetail"];
 export type InvoicePaymentLine = Schemas["InvoicePaymentLine"];

@@ -10,13 +10,16 @@
  * Behind the Drafts tab is the other half: invoices that have been typed but not raised. They are kept
  * apart rather than mixed in — a draft has no number, posts nothing to the ledger and has no outstanding
  * figure to derive, so it belongs in neither this table nor any report built on it.
+ *
+ * The Items tab is the same raised invoices taken apart: one row per line, for finding what was sold and
+ * at what price without opening each invoice in turn.
  */
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
-import { getInvoices, type InvoiceSummary } from "@/lib/invoices";
+import { getInvoiceLines, getInvoices, type InvoiceSummary } from "@/lib/invoices";
 import { daysDueLabel } from "@/lib/period";
 import { FIRST_PAGE } from "@/lib/paging";
 import { DRAFT_INVOICE } from "@/lib/drafts";
@@ -24,6 +27,7 @@ import { PageHeader } from "@/components/shell/app-shell";
 import { Plus } from "lucide-react";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { DocumentViewFilter, DraftsPanel, type DocumentView } from "@/components/documents/drafts-panel";
+import { LinesPanel } from "@/components/documents/lines-panel";
 import { formatMoney, formatReportDate } from "@/components/reports";
 import { Badge, Button, ErrorBanner, FadeIn } from "@/components/ui";
 
@@ -49,7 +53,13 @@ export default function InvoicesPage() {
         description="Every invoice raised in the new system, newest first. The outstanding figure is derived from the ledger."
       />
 
-      <DocumentViewFilter view={view} onChange={setView} docType={DRAFT_INVOICE} issuedLabel="Invoices" />
+      <DocumentViewFilter
+        view={view}
+        onChange={setView}
+        docType={DRAFT_INVOICE}
+        issuedLabel="Invoices"
+        linesLabel="Items"
+      />
 
       {view === "drafts" ? (
         <DraftsPanel
@@ -58,6 +68,19 @@ export default function InvoicesPage() {
           noun="invoice"
           partyLabel="Customer"
           printable
+        />
+      ) : view === "lines" ? (
+        <LinesPanel
+          queryKey="invoice-lines"
+          fetchPage={async (params) => {
+            const paged = await getInvoiceLines(params);
+            return {
+              ...paged,
+              rows: paged.rows.map((l) => ({ ...l, documentId: l.invoiceId, documentNumber: l.invoiceNumber })),
+            };
+          }}
+          noun="Invoice"
+          hrefFor={(id) => `/invoices/${id}`}
         />
       ) : (
         <>

@@ -2482,6 +2482,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invoices/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    Page?: number;
+                    PageSize?: number;
+                    Search?: string;
+                    customerId?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceLineSummaryPagedResult"];
+                        "application/json": components["schemas"]["InvoiceLineSummaryPagedResult"];
+                        "text/json": components["schemas"]["InvoiceLineSummaryPagedResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/invoices/{id}": {
         parameters: {
             query?: never;
@@ -9373,6 +9415,34 @@ export interface components {
             net: number;
             /** Format: double */
             cost?: number | null;
+        };
+        InvoiceLineSummary: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            invoiceId: number;
+            invoiceNumber: string;
+            /** Format: date */
+            date: string;
+            description?: string | null;
+            /** Format: double */
+            quantity: number;
+            /** Format: double */
+            unitPrice: number;
+            /** Format: double */
+            discountPercent: number;
+            /** Format: double */
+            net: number;
+            origin: string;
+        };
+        InvoiceLineSummaryPagedResult: {
+            rows: components["schemas"]["InvoiceLineSummary"][];
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
         };
         InvoicePaymentLine: {
             /** Format: date */

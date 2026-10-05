@@ -37,6 +37,22 @@ public sealed record CreateInvoiceLineRequest(
 
 public sealed record InvoiceCreatedResponse(long Id, string Number, decimal Total, decimal Outstanding);
 
+/// <summary>One line of one invoice â€” a row of the item-level invoice list.</summary>
+/// <param name="InvoiceId">The invoice the line belongs to, so a row can open it.</param>
+/// <param name="Origin"><c>new</c> for a line this app wrote; <c>legacy</c> for one from the old system, which
+/// kept no line discount â€” its <see cref="DiscountPercent"/> is 0 and its <see cref="Net"/> its stored total.</param>
+public sealed record InvoiceLineSummary(
+    long Id,
+    long InvoiceId,
+    string InvoiceNumber,
+    DateOnly Date,
+    string? Description,
+    decimal Quantity,
+    decimal UnitPrice,
+    decimal DiscountPercent,
+    decimal Net,
+    string Origin);
+
 /// <summary>
 /// An edit to an issued invoice. The lines carry an <see cref="EditInvoiceLineRequest.Id"/> so the change
 /// is reconciled in place, not by deleting and re-inserting. Company, customer, type and date are not
