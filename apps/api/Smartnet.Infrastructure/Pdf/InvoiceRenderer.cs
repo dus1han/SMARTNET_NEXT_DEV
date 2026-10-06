@@ -222,12 +222,7 @@ public sealed class InvoiceRenderer : IInvoiceRenderer
     /// <para>Printing "PO Number: XXX" on a document the customer reads is noise standing in for a blank,
     /// so the placeholder is treated as one and the row is omitted.</para>
     /// </remarks>
-    internal static string PoNumber(string? raw)
-    {
-        var value = Trim(raw);
-
-        return value.All(c => c is 'X' or 'x') ? string.Empty : value;
-    }
+    internal static string PoNumber(string? raw) => LegacyValue.PurchaseOrderNo(raw);
 
     /// <summary>Contact person as "Name (telephone)", the house convention across every document.</summary>
     internal static string WithPhone(string? name, string? phone)

@@ -53,6 +53,18 @@ public static class LegacyValue
     public static decimal Money(string? raw) => Money(raw, out _);
 
     /// <summary>
+    /// The customer's order number from <c>pono</c>, or empty when the field holds the clerks' "no PO"
+    /// placeholder — a run of Xs in either case (<c>X</c>, <c>xx</c>, <c>XXX</c>…), which 219 invoices carry.
+    /// </summary>
+    /// <remarks>Shared by the printed invoice and the invoice list, so the two never disagree about what a PO is.</remarks>
+    public static string PurchaseOrderNo(string? raw)
+    {
+        var value = raw?.Trim() ?? string.Empty;
+
+        return value.All(c => c is 'X' or 'x') ? string.Empty : value;
+    }
+
+    /// <summary>
     /// Parses a legacy ISO date column to a <see cref="DateOnly"/>, or <c>null</c> when it is blank or
     /// unreadable. The legacy <c>Split('-')</c> aging idiom throws on a malformed value; this does not.
     /// </summary>

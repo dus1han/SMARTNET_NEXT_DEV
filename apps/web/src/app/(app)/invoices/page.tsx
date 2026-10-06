@@ -92,7 +92,7 @@ export default function InvoicesPage() {
             loading={invoices.isPending}
             // The server searches number and customer name; this stays as the description of what is
             // searchable, and is unused in server mode.
-            searchable={(row) => `${row.number} ${row.customerName ?? ""}`}
+            searchable={(row) => `${row.number} ${row.purchaseOrderNo ?? ""} ${row.customerName ?? ""}`}
             server={{
               total: invoices.data?.total ?? 0,
               page,
@@ -100,7 +100,7 @@ export default function InvoicesPage() {
               search,
               onSearchChange: setSearch,
             }}
-            searchPlaceholder="Search by number or customer…"
+            searchPlaceholder="Search by number, PO number or customer…"
             defaultSort={{ id: "date", desc: true }}
             actions={
               <Button size="sm" onClick={() => router.push("/invoices/new")}>
@@ -141,6 +141,13 @@ const columns: ColumnDef<InvoiceSummary, unknown>[] = [
         {row.original.origin === "legacy" && <Badge tone="neutral">Legacy</Badge>}
       </span>
     ),
+  },
+  {
+    // The customer's own order number — what they quote back when they query an invoice.
+    id: "po",
+    accessorFn: (row) => row.purchaseOrderNo ?? "",
+    header: "PO No",
+    cell: ({ row }) => <span className="whitespace-nowrap text-text">{row.original.purchaseOrderNo ?? "—"}</span>,
   },
   {
     id: "customer",

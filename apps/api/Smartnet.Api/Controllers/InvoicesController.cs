@@ -152,6 +152,7 @@ public sealed class InvoicesController : ControllerBase
 
             query = query.Where(h =>
                 EF.Functions.Like(h.Invoiceno!, pattern)
+                || (h.Pono != null && EF.Functions.Like(h.Pono, pattern))
                 || (h.Customer != null && matchedCodes.Contains(h.Customer)));
         }
 
@@ -166,7 +167,7 @@ public sealed class InvoicesController : ControllerBase
             .ThenByDescending(h => h.Id)
             .Skip(paging.Skip)
             .Take(paging.SafePageSize)
-            .Select(h => new { h.Id, h.Invoiceno, h.Indate, h.Customer, h.Invtype, h.Totamount, h.Balance, h.DataOrigin })
+            .Select(h => new { h.Id, h.Invoiceno, h.Indate, h.Customer, h.Invtype, h.Totamount, h.Balance, h.DataOrigin, h.Pono })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -202,7 +203,8 @@ public sealed class InvoicesController : ControllerBase
             h.DataOrigin == "new"
                 ? outstanding.GetValueOrDefault(h.Id)
                 : LegacyValue.Money(h.Balance),
-            h.DataOrigin == "new" ? "new" : "legacy")).ToList();
+            h.DataOrigin == "new" ? "new" : "legacy",
+            LegacyValue.PurchaseOrderNo(h.Pono) is { Length: > 0 } po ? po : null)).ToList();
 
         return Ok(new PagedResult<InvoiceSummary>(rows, total, paging.SafePage, paging.SafePageSize));
     }

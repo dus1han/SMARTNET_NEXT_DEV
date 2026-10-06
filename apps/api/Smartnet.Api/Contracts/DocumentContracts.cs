@@ -150,6 +150,7 @@ public sealed record InvoiceTaxRate(long? TaxRateId, string Name, decimal Percen
 /// <c>new</c> for an invoice this app raised (a live, derived outstanding, and a read view); <c>legacy</c>
 /// for one adopted from the old system (its stored figures, read-only — no new-side detail view).
 /// </param>
+/// <param name="PurchaseOrderNo">The customer's order number, or null when they gave none (the "XXX" placeholder included).</param>
 public sealed record InvoiceSummary(
     long Id,
     string Number,
@@ -158,7 +159,8 @@ public sealed record InvoiceSummary(
     string Type,
     decimal Total,
     decimal Outstanding,
-    string Origin);
+    string Origin,
+    string? PurchaseOrderNo);
 
 /// <param name="Id">
 /// The line's surrogate id, for an edit to reconcile against (new invoice lines only). Null for a legacy

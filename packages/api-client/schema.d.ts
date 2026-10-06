@@ -9528,6 +9528,7 @@ export interface components {
             /** Format: double */
             outstanding: number;
             origin: string;
+            purchaseOrderNo?: string | null;
         };
         InvoiceSummaryPagedResult: {
             rows: components["schemas"]["InvoiceSummary"][];
