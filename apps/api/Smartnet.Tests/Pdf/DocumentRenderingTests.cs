@@ -46,6 +46,7 @@ public sealed class DocumentRenderingTests
         { "quotation", new QuotationDocument(Sample.Quotation()) },
         // Printed from the Drafts tab: the same templates, marked DRAFT — a watermark over every page, a
         // banner and a longer title, any of which could push a layout past what fits.
+        { "proforma invoice", new ProformaDocument(Sample.Proforma()) },
         { "draft quotation", new QuotationDocument(Sample.Quotation()) { IsDraft = true } },
         { "draft invoice", new InvoiceDocument(Sample.Invoice()) { IsDraft = true } },
         { "draft tax invoice", new TaxInvoiceDocument(Sample.TaxInvoice()) { IsDraft = true } },
@@ -252,6 +253,14 @@ public sealed class DocumentRenderingTests
             new TaxParty("104578921000", "CDEM PVT LTD", "No 100, Industrial Estate, Colombo 15", "011 2 444 444"),
             "MR SAMITH", "014973", "Dev Admin",
             Items(), 791_946m, 0m, 0m, 791_946m, "VAT 18%", 142_550.28m, 934_496.28m, 0m, 934_496.28m, Bank);
+
+        /// <summary>A proforma raised from the sample quotation — Smart Net's, so it carries VAT.</summary>
+        public static ProformaModel Proforma() => new(
+            null, "Smart Net (Pvt) Ltd", "No 5, Colombo 05 · 011 2 555 555", CompanyTheme.SmartNetAccent,
+            "SNPI-12", "SNQ-1678", "14 Jul 2026", "CDEM PVT LTD", "No 100, Industrial Estate, Colombo 15",
+            "MR SAMITH", "Dev Admin", "30 days",
+            [.. Items().Select(i => new QuotationItem(i.ItemNo, i.Description, i.Quantity, i.Rate, i.Total))],
+            791_946m, 0m, 0m, 791_946m, "VAT 18%", 142_550.28m, 934_496.28m, Bank);
 
         public static QuotationModel Quotation() => new(
             null, "Smart Technologies", "No 5, Colombo 05 · 011 2 555 555", "#4F46E5",

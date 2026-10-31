@@ -150,12 +150,16 @@ const columns: ColumnDef<QuotationSummary, unknown>[] = [
   },
   {
     id: "status",
-    accessorFn: (row) => (row.convertedInvoiceId == null ? "Open" : "Converted"),
+    accessorFn: (row) =>
+      row.convertedInvoiceId != null ? "Converted" : row.proformaNumber ? "Proforma" : "Open",
     header: "Status",
     cell: ({ row }) => {
       // Open until converted — including legacy quotes, which can now be converted through the new app.
       const converted = row.original.convertedInvoiceId != null;
-      return <Badge tone={converted ? "success" : "neutral"}>{converted ? "Converted" : "Open"}</Badge>;
+      if (converted) return <Badge tone="success">Converted</Badge>;
+      // A live proforma is carrying it forward — it will be invoiced through that, not directly.
+      if (row.original.proformaNumber) return <Badge tone="warning">Proforma {row.original.proformaNumber}</Badge>;
+      return <Badge tone="neutral">Open</Badge>;
     },
   },
 ];

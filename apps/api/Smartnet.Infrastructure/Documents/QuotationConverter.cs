@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Smartnet.Domain.Auditing;
 using Smartnet.Domain.Documents;
 using Smartnet.Infrastructure.Persistence;
-using Smartnet.Infrastructure.Reporting;
 
 namespace Smartnet.Infrastructure.Documents;
 
@@ -41,6 +40,10 @@ public sealed class QuotationConverter : IQuotationConverter
             .BeginTransactionAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // Lock the quotation row for the transaction, so this and a concurrent "convert to proforma" of the
+        // same quote are taken one after the other — the second then sees what the first did.
+        await QuotationLock.TakeAsync(_db, quotationId, cancellationToken).ConfigureAwait(false);
+
         // Bypass the data_origin filter so a LEGACY quotation loads too — its conversion columns and its
         // (backfilled) company_id are the new columns the adoption added, so the entity can carry them and
         // record the conversion on the legacy row itself.
@@ -60,16 +63,41 @@ public sealed class QuotationConverter : IQuotationConverter
             throw new QuotationAlreadyConvertedException(quotation.Number, existing);
         }
 
-        var isLegacy = !string.Equals(quotation.DataOrigin, "new", StringComparison.Ordinal);
+        // A quotation with a live proforma goes through the proforma — converting it here as well would
+        // turn one quotation into two invoices.
+        var proforma = await _db.ProformaInvoices
+            .Where(p => p.QuotationId == quotation.Id)
+            .Select(p => p.Number)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (proforma is not null)
+        {
+            throw new QuotationHasProformaException(quotation.Number, proforma);
+        }
 
         // The lines, customer, company and document discount come from the quote (a new quote from its
-        // typed columns; a legacy one from its varchar columns, parsed). The caller supplies only what
-        // makes it a sale — cash/credit, the invoice date, an optional PO and contact. Either way the
-        // invoice is taxed at its OWN date through the same pipeline, so it gets a real number, a ledger
-        // charge, a stock issue and a snapshot — none of which the legacy copy-paste conversion produced.
-        var newInvoice = isLegacy
-            ? await BuildFromLegacyAsync(quotation, request, cancellationToken).ConfigureAwait(false)
-            : BuildFromNew(quotation, request);
+        // typed columns; a legacy one from its varchar columns, parsed — see QuotationContentReader). The
+        // caller supplies only what makes it a sale — cash/credit, the invoice date, an optional PO and
+        // contact. Either way the invoice is taxed at its OWN date through the same pipeline, so it gets a
+        // real number, a ledger charge, a stock issue and a snapshot — none of which the legacy copy-paste
+        // conversion produced.
+        var content = await QuotationContentReader.ReadAsync(quotation, _db, _legacy, cancellationToken).ConfigureAwait(false);
+
+        var newInvoice = new NewInvoice(
+            content.CompanyId,
+            content.CustomerId,
+            request.Type,
+            request.Date,
+            request.PurchaseOrderNo,
+            request.ContactPerson ?? content.ContactPerson,
+            content.Lines,
+            content.DocumentDiscountPercent,
+            // An item quote derives its cost from the line costs carried off the item master. A service quote
+            // has no such source, so the cost is entered at conversion and required there. "Service" means NO
+            // line resolves to an item: a quote holding both (parts plus labour) derives its cost from the item
+            // lines, and on such a mixed quote the labour side of the cost is not captured — the pre-existing
+            // behaviour, which understates cost rather than inventing one.
+            DocumentCost: content.HasItem ? null : ServiceCostRequired(quotation, request));
 
         var created = await _invoices
             .CreateInCurrentTransactionAsync(newInvoice, sourceQuotationId: quotation.Id, cancellationToken)
@@ -87,46 +115,6 @@ public sealed class QuotationConverter : IQuotationConverter
         return created;
     }
 
-    private static NewInvoice BuildFromNew(Quotation quotation, ConvertQuotation request)
-    {
-        if (quotation.CompanyId is not { } companyId)
-        {
-            throw new InvalidOperationException($"Quotation {quotation.Id} has no company and cannot be converted.");
-        }
-
-        // An item quote derives its cost from the line costs carried off the item master. A service quote
-        // has no such source, so the cost is entered at conversion and required there — see
-        // ServiceCostRequired.
-        //
-        // "Service" here means NO line resolves to an item, not "the user picked the service tab". A
-        // document may legitimately hold both kinds (parts plus labour — Phase 5 decision B), and a document
-        // with any item line can derive a cost, so it is not asked for one.
-        //
-        // Known limit, deliberately left: on a MIXED quote the derived figure covers only the item lines, so
-        // the labour side of the cost is not captured. That is the pre-existing behaviour and it understates
-        // cost rather than inventing one. Capturing both would mean asking for a service cost on a mixed
-        // conversion and adding it to the derived total — a bigger change than this one, and a decision the
-        // business has not been asked for.
-        // Live lines only. The quote was loaded with IgnoreQueryFilters (so a legacy row loads), which drops
-        // QuotationLineConfiguration's soft-delete filter with it — so a quote that was edited before being
-        // converted would otherwise carry the lines that edit removed into the invoice it becomes.
-        var lines = quotation.Lines.Where(l => l.DeletedAt is null).ToList();
-
-        var hasItem = lines.Any(l => l.ItemId is not null);
-
-        return new NewInvoice(
-            companyId,
-            quotation.CustomerId,
-            request.Type,
-            request.Date,
-            request.PurchaseOrderNo,
-            request.ContactPerson ?? quotation.ContactPerson,
-            [.. lines.Select(l => new NewInvoiceLine(
-                l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
-            quotation.DiscountPercent,
-            DocumentCost: hasItem ? null : ServiceCostRequired(quotation, request));
-    }
-
     /// <summary>
     /// The cost for a service conversion: what the caller entered, and it must be something.
     /// </summary>
@@ -139,96 +127,4 @@ public sealed class QuotationConverter : IQuotationConverter
     /// </remarks>
     private static decimal ServiceCostRequired(Quotation quotation, ConvertQuotation request) =>
         request.DocumentCost ?? throw new ServiceCostRequiredException(quotation.Number);
-
-    /// <summary>
-    /// Builds the invoice draft from a legacy quotation's stored <c>varchar</c> data, parsed defensively.
-    /// The customer is resolved from its code to the surrogate id the invoice needs; each line resolves
-    /// its item by code where the code still exists in the item master (so it issues stock and carries a
-    /// cost), otherwise it becomes a free-typed service line.
-    /// </summary>
-    private async Task<NewInvoice> BuildFromLegacyAsync(
-        Quotation quotation,
-        ConvertQuotation request,
-        CancellationToken cancellationToken)
-    {
-        if (quotation.CompanyId is not { } companyId)
-        {
-            throw new InvalidOperationException(
-                $"Quotation {quotation.Number} has no company and cannot be converted.");
-        }
-
-        var h = await _legacy.QuotationHs
-            .FirstOrDefaultAsync(x => x.Id == quotation.Id, cancellationToken)
-            .ConfigureAwait(false)
-            ?? throw new InvalidOperationException($"Legacy quotation {quotation.Id} could not be read.");
-
-        var customer = h.Customer is null
-            ? null
-            : await _db.Customers.FirstOrDefaultAsync(c => c.Code == h.Customer, cancellationToken).ConfigureAwait(false);
-        if (customer is null)
-        {
-            throw new InvalidOperationException(
-                $"The customer '{h.Customer}' on quotation {h.QNo} is not in the customer master, so it cannot be converted.");
-        }
-
-        var legacyLines = await _legacy.QuotationLs
-            .Where(l => l.Qno == h.QNo)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        if (legacyLines.Count == 0)
-        {
-            throw new InvalidOperationException($"Quotation {h.QNo} has no lines to convert.");
-        }
-
-        // Resolve items by code once, so a line whose item still exists issues stock and carries its cost.
-        var codes = legacyLines
-            .Select(l => l.Itemcode)
-            .Where(c => !string.IsNullOrWhiteSpace(c))
-            .Distinct()
-            .ToList();
-        var items = (await _db.Items
-            .Where(i => i.Code != null && codes.Contains(i.Code))
-            .Select(i => new { i.Id, i.Code, i.Cost })
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false))
-            .ToDictionary(i => i.Code!, i => (i.Id, i.Cost));
-
-        var lines = legacyLines.Select(l =>
-        {
-            var matched = l.Itemcode is not null && items.TryGetValue(l.Itemcode, out var item);
-            return new NewInvoiceLine(
-                matched ? items[l.Itemcode!].Id : null,
-                l.Itemcode,
-                l.Desc,
-                LegacyValue.Money(l.Qty),
-                LegacyValue.Money(l.Rate),
-                0m, // legacy lines carry no per-line discount
-                matched ? items[l.Itemcode!].Cost : null);
-        }).ToList();
-
-        // As for a new quote: item lines derive cost from the item master; an all-service one takes the cost
-        // entered at conversion, and requires it.
-        //
-        // This branch is not the edge case it looks like. Every quotation on live is `legacy` — the new app
-        // has raised none — so for the foreseeable future this is the ONLY path a conversion takes, and a
-        // change made to BuildFromNew alone would pass its tests and do nothing in production.
-        //
-        // Note what "service" means for a legacy quote: not what the old `it` column claimed, but whether
-        // any line's itemcode still resolves in the item master. A quote whose items have all been deleted
-        // converts as a service quote and will ask for a cost — which is the right answer, because there is
-        // no longer anywhere to derive one from.
-        var hasItem = lines.Any(l => l.ItemId is not null);
-
-        return new NewInvoice(
-            companyId,
-            customer.Id,
-            request.Type,
-            request.Date,
-            request.PurchaseOrderNo,
-            request.ContactPerson ?? h.Contactperson,
-            lines,
-            LegacyValue.Money(h.Discountper),
-            DocumentCost: hasItem ? null : ServiceCostRequired(quotation, request));
-    }
 }

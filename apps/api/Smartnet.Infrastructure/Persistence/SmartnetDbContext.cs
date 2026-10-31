@@ -111,6 +111,12 @@ public class SmartnetDbContext : DbContext
     /// <summary>Quotation lines, on the adopted legacy <c>quotation_l</c>.</summary>
     public DbSet<QuotationLine> QuotationLines => Set<QuotationLine>();
 
+    /// <summary>Proforma invoices — raised from a quotation, converted to an invoice. New-app tables only.</summary>
+    public DbSet<ProformaInvoice> ProformaInvoices => Set<ProformaInvoice>();
+
+    /// <summary>Proforma invoice lines.</summary>
+    public DbSet<ProformaInvoiceLine> ProformaInvoiceLines => Set<ProformaInvoiceLine>();
+
     /// <summary>Credit notes, on the adopted legacy <c>cn_h</c>. Posts the opposite ledger sign to an invoice.</summary>
     public DbSet<CreditNote> CreditNotes => Set<CreditNote>();
 

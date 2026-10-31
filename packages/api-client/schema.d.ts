@@ -4443,6 +4443,303 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/proforma-invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    Page?: number;
+                    PageSize?: number;
+                    Search?: string;
+                    voided?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProformaSummaryPagedResult"];
+                        "application/json": components["schemas"]["ProformaSummaryPagedResult"];
+                        "text/json": components["schemas"]["ProformaSummaryPagedResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateProformaRequest"];
+                    "text/json": components["schemas"]["CreateProformaRequest"];
+                    "application/*+json": components["schemas"]["CreateProformaRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProformaCreatedResponse"];
+                        "application/json": components["schemas"]["ProformaCreatedResponse"];
+                        "text/json": components["schemas"]["ProformaCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/proforma-invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProformaDetail"];
+                        "application/json": components["schemas"]["ProformaDetail"];
+                        "text/json": components["schemas"]["ProformaDetail"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRowVersion?: number;
+                };
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProformaVoided"];
+                        "application/json": components["schemas"]["ProformaVoided"];
+                        "text/json": components["schemas"]["ProformaVoided"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/proforma-invoices/{id}/convert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["ConvertQuotationRequest"];
+                    "text/json": components["schemas"]["ConvertQuotationRequest"];
+                    "application/*+json": components["schemas"]["ConvertQuotationRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InvoiceCreatedResponse"];
+                        "application/json": components["schemas"]["InvoiceCreatedResponse"];
+                        "text/json": components["schemas"]["InvoiceCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/proforma-invoices/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/proforma-invoices/{id}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["QuotationRecipients"];
+                        "application/json": components["schemas"]["QuotationRecipients"];
+                        "text/json": components["schemas"]["QuotationRecipients"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/proforma-invoices/{id}/email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["EmailDocumentRequest"];
+                    "text/json": components["schemas"]["EmailDocumentRequest"];
+                    "application/*+json": components["schemas"]["EmailDocumentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["EmailDocumentResponse"];
+                        "application/json": components["schemas"]["EmailDocumentResponse"];
+                        "text/json": components["schemas"]["EmailDocumentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/purchase-orders/{id}": {
         parameters: {
             query?: never;
@@ -8573,6 +8870,12 @@ export interface components {
             title: string;
             body: string;
         };
+        CreateProformaRequest: {
+            /** Format: int64 */
+            quotationId: number;
+            /** Format: date */
+            date: string;
+        };
         CreatePurchaseOrderRequest: {
             /** Format: int64 */
             companyId: number;
@@ -9440,6 +9743,9 @@ export interface components {
             origin: string;
             lines: components["schemas"]["InvoiceLineDetail"][];
             payments: components["schemas"]["InvoicePaymentLine"][];
+            /** Format: int64 */
+            proformaId?: number | null;
+            proformaNumber?: string | null;
         };
         InvoiceEditedResponse: {
             /** Format: int64 */
@@ -9950,6 +10256,82 @@ export interface components {
             id: number;
             name: string;
         };
+        ProformaCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: double */
+            total: number;
+        };
+        ProformaDetail: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            companyName?: string | null;
+            kind: string;
+            customerName?: string | null;
+            customerCode?: string | null;
+            contactPerson?: string | null;
+            validity?: string | null;
+            /** Format: int64 */
+            quotationId: number;
+            quotationNumber: string;
+            /** Format: double */
+            subtotal: number;
+            /** Format: double */
+            discountPercent: number;
+            /** Format: double */
+            discountAmount: number;
+            /** Format: double */
+            netTotal: number;
+            /** Format: double */
+            taxRatePercentage: number;
+            /** Format: double */
+            taxAmount: number;
+            /** Format: double */
+            total: number;
+            /** Format: int64 */
+            convertedInvoiceId?: number | null;
+            convertedInvoiceNumber?: string | null;
+            status: string;
+            /** Format: date-time */
+            voidedAt?: string | null;
+            /** Format: int32 */
+            rowVersion: number;
+            lines: components["schemas"]["InvoiceLineDetail"][];
+        };
+        ProformaSummary: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+            /** Format: date */
+            date: string;
+            /** Format: int64 */
+            quotationId: number;
+            quotationNumber: string;
+            customerName?: string | null;
+            /** Format: double */
+            total: number;
+            /** Format: int64 */
+            convertedInvoiceId?: number | null;
+            status: string;
+        };
+        ProformaSummaryPagedResult: {
+            rows: components["schemas"]["ProformaSummary"][];
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+        };
+        ProformaVoided: {
+            /** Format: int64 */
+            id: number;
+            number: string;
+        };
         PurchaseOrderCreatedResponse: {
             /** Format: int64 */
             id: number;
@@ -10065,6 +10447,9 @@ export interface components {
             rowVersion: number;
             origin: string;
             lines: components["schemas"]["InvoiceLineDetail"][];
+            /** Format: int64 */
+            proformaId?: number | null;
+            proformaNumber?: string | null;
         };
         QuotationEditedResponse: {
             /** Format: int64 */
@@ -10122,6 +10507,7 @@ export interface components {
             /** Format: int64 */
             convertedInvoiceId?: number | null;
             origin: string;
+            proformaNumber?: string | null;
         };
         QuotationSummaryPagedResult: {
             rows: components["schemas"]["QuotationSummary"][];

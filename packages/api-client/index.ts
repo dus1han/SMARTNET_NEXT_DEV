@@ -188,6 +188,14 @@ export type CloseJobCardRequest = Schemas["CloseJobCardRequest"];
 export type DocumentContact = Schemas["DocumentContact"];
 export type JobSheetRecipients = Schemas["JobSheetRecipients"];
 export type QuotationRecipients = Schemas["QuotationRecipients"];
+
+// --- Proforma invoices ---------------------------------------------------------------------------
+
+export type CreateProformaRequest = Schemas["CreateProformaRequest"];
+export type ProformaCreatedResponse = Schemas["ProformaCreatedResponse"];
+export type ProformaSummary = Schemas["ProformaSummary"];
+export type ProformaDetail = Schemas["ProformaDetail"];
+export type ProformaVoided = Schemas["ProformaVoided"];
 export type InvoiceRecipients = Schemas["InvoiceRecipients"];
 export type PurchaseOrderRecipients = Schemas["PurchaseOrderRecipients"];
 export type CreditNoteRecipients = Schemas["CreditNoteRecipients"];

@@ -40,7 +40,7 @@ public sealed record ProvisionedCompany(
 /// <c>TaxRateNotResolvableException</c> when no default is in force on the document's date, so a
 /// VAT-registered company without one cannot raise an invoice, a quotation or a credit note — at all,
 /// and the error surfaces at save rather than anywhere near the cause.</item>
-/// <item><b>Nine numbering series.</b> One per <c>DocumentTypes.All</c>. Absent, numbering fails when a
+/// <item><b>Ten numbering series.</b> One per <c>DocumentTypes.All</c>. Absent, numbering fails when a
 /// document is saved. Seeded at 1 here, which would have been wrong for the legacy companies — they had
 /// 2,500 invoices already and starting at 1 would have reissued numbers that are on printed paper — and
 /// is exactly right for a company that has none.</item>

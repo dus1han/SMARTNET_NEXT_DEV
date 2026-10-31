@@ -69,6 +69,11 @@ export default function InvoiceViewPage() {
             description={data ? `${data.kind} invoice · ${data.type} · ${formatReportDate(data.date)}` : undefined}
           />
           {isLegacy && <Badge tone="neutral">Legacy</Badge>}
+          {data?.proformaId != null && (
+            <Link href={`/proforma-invoices/${data.proformaId}`} className="text-sm text-primary hover:underline">
+              From proforma {data.proformaNumber}
+            </Link>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Download, print and email all work on a legacy invoice — the document renders from the

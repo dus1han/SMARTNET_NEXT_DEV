@@ -1556,6 +1556,228 @@ namespace Smartnet.Infrastructure.Persistence.Migrations
                     b.ToTable("jobcard_l", (string)null);
                 });
 
+            modelBuilder.Entity("Smartnet.Domain.Documents.ProformaInvoice", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("CompanyId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("company_id");
+
+                    b.Property<string>("ContactPerson")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("contact_person");
+
+                    b.Property<DateTime?>("ConvertedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("converted_at");
+
+                    b.Property<long?>("ConvertedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("converted_by");
+
+                    b.Property<long?>("ConvertedToInvoiceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("converted_to_invoice_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<long>("CustomerId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("customer_id");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("proforma_date");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("discount_amount");
+
+                    b.Property<decimal>("DiscountPercent")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("discount_percent");
+
+                    b.Property<decimal>("NetTotal")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("net_total");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("number");
+
+                    b.Property<long?>("PreparedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("prepared_by");
+
+                    b.Property<long>("QuotationId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("quotation_id");
+
+                    b.Property<string>("QuotationNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("quotation_number");
+
+                    b.Property<int>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("row_version");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("subtotal");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("tax_amount");
+
+                    b.Property<long?>("TaxRateId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("tax_rate_id");
+
+                    b.Property<decimal>("TaxRatePercentage")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("tax_rate_percentage");
+
+                    b.Property<decimal>("Total")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("total_amount");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("Validity")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("validity");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConvertedToInvoiceId");
+
+                    b.HasIndex("QuotationId");
+
+                    b.HasIndex("CompanyId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("proforma_invoices", (string)null);
+                });
+
+            modelBuilder.Entity("Smartnet.Domain.Documents.ProformaInvoiceLine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal?>("Cost")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("cost");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<decimal>("DiscountPercent")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("discount_percent");
+
+                    b.Property<decimal>("Gross")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("gross");
+
+                    b.Property<string>("ItemCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("item_code");
+
+                    b.Property<long?>("ItemId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("item_id");
+
+                    b.Property<decimal>("Net")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("net");
+
+                    b.Property<long>("ProformaInvoiceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("proforma_invoice_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<int>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("row_version");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("unit_price");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProformaInvoiceId");
+
+                    b.ToTable("proforma_invoice_lines", (string)null);
+                });
+
             modelBuilder.Entity("Smartnet.Domain.Documents.PurchaseOrder", b =>
                 {
                     b.Property<long>("Id")
@@ -4883,6 +5105,17 @@ namespace Smartnet.Infrastructure.Persistence.Migrations
                     b.Navigation("JobCard");
                 });
 
+            modelBuilder.Entity("Smartnet.Domain.Documents.ProformaInvoiceLine", b =>
+                {
+                    b.HasOne("Smartnet.Domain.Documents.ProformaInvoice", "ProformaInvoice")
+                        .WithMany("Lines")
+                        .HasForeignKey("ProformaInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ProformaInvoice");
+                });
+
             modelBuilder.Entity("Smartnet.Domain.Documents.PurchaseOrderLine", b =>
                 {
                     b.HasOne("Smartnet.Domain.Documents.PurchaseOrder", "PurchaseOrder")
@@ -5021,6 +5254,11 @@ namespace Smartnet.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("Smartnet.Domain.Documents.JobCard", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("Smartnet.Domain.Documents.ProformaInvoice", b =>
                 {
                     b.Navigation("Lines");
                 });

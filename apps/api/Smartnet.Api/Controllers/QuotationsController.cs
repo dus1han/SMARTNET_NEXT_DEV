@@ -122,6 +122,15 @@ public sealed class QuotationsController : ControllerBase
                 .ConfigureAwait(false))
             .ToDictionary(c => c.Code!, c => c.Name, StringComparer.Ordinal);
 
+        // Which of this page's quotations have a live proforma, for the status column.
+        var pageIds = page.Select(h => h.Id).ToList();
+        var proformas = (await _db.ProformaInvoices
+                .Where(p => pageIds.Contains(p.QuotationId) && p.ConvertedToInvoiceId == null)
+                .Select(p => new { p.QuotationId, p.Number })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .ToDictionary(p => p.QuotationId, p => p.Number);
+
         var rows = page.Select(h => new QuotationSummary(
             h.Id,
             h.QNo ?? "—",
@@ -129,7 +138,8 @@ public sealed class QuotationsController : ControllerBase
             h.Customer is not null ? namesByCode.GetValueOrDefault(h.Customer) : null,
             LegacyValue.Money(h.Totamount),
             h.ConvertedToInvoiceId,
-            h.DataOrigin == "new" ? "new" : "legacy")).ToList();
+            h.DataOrigin == "new" ? "new" : "legacy",
+            proformas.GetValueOrDefault(h.Id))).ToList();
 
         return Ok(new PagedResult<QuotationSummary>(rows, total, paging.SafePage, paging.SafePageSize));
     }
@@ -470,6 +480,8 @@ public sealed class QuotationsController : ControllerBase
 
         var kind = quotation.Lines.Any(l => l.ItemId is not null) ? "Item" : "Service";
 
+        var proforma = await ProformaOfAsync(id, cancellationToken).ConfigureAwait(false);
+
         return Ok(new QuotationDetail(
             quotation.Id,
             quotation.Number,
@@ -493,7 +505,9 @@ public sealed class QuotationsController : ControllerBase
             quotation.RowVersion,
             "new",
             [.. quotation.Lines.Select(l => new InvoiceLineDetail(
-                l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))]));
+                l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))],
+            proforma?.Id,
+            proforma?.Number));
     }
 
     /// <summary>
@@ -566,6 +580,8 @@ public sealed class QuotationsController : ControllerBase
                 .ConfigureAwait(false);
         }
 
+        var proforma = await ProformaOfAsync(id, cancellationToken).ConfigureAwait(false);
+
         return Ok(new QuotationDetail(
             h.Id,
             h.QNo ?? "—",
@@ -598,7 +614,9 @@ public sealed class QuotationsController : ControllerBase
                 0m,
                 LegacyValue.Money(l.Total),
                 LegacyValue.Money(l.Total),
-                null))]));
+                null))],
+            proforma?.Id,
+            proforma?.Number));
     }
 
     /// <summary>
@@ -729,6 +747,11 @@ public sealed class QuotationsController : ControllerBase
             // trying to make a second one.
             return Problem(statusCode: StatusCodes.Status409Conflict, title: already.Message);
         }
+        catch (QuotationHasProformaException hasProforma)
+        {
+            // It goes through its proforma now — converting it here too would make two invoices.
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: hasProforma.Message);
+        }
         catch (CreditLimitExceededException over)
         {
             return Problem(statusCode: StatusCodes.Status409Conflict, title: over.Message);
@@ -772,6 +795,10 @@ public sealed class QuotationsController : ControllerBase
         {
             return Problem(statusCode: StatusCodes.Status409Conflict, title: converted.Message);
         }
+        catch (QuotationHasProformaException hasProforma)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: hasProforma.Message);
+        }
         catch (DbUpdateConcurrencyException)
         {
             return Problem(
@@ -798,12 +825,32 @@ public sealed class QuotationsController : ControllerBase
         {
             return Ok(await _deleter.DeleteAsync(id, expectedRowVersion, cancellationToken).ConfigureAwait(false));
         }
+        catch (QuotationHasProformaException hasProforma)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: hasProforma.Message);
+        }
         catch (DbUpdateConcurrencyException)
         {
             return Problem(
                 statusCode: StatusCodes.Status409Conflict,
                 title: "This quotation was changed by someone else. Reload and try again.");
         }
+    }
+
+    /// <summary>
+    /// The quotation's proforma: its live one, or else the one it was invoiced through — whichever the read
+    /// view should link to. Null when it has none.
+    /// </summary>
+    private async Task<(long Id, string Number)?> ProformaOfAsync(long quotationId, CancellationToken cancellationToken)
+    {
+        var p = await _db.ProformaInvoices
+            .Where(x => x.QuotationId == quotationId)
+            .OrderByDescending(x => x.Id)
+            .Select(x => new { x.Id, x.Number })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return p is null ? null : (p.Id, p.Number);
     }
 
     /// <summary>Whether the caller may act on this quotation — it exists and is in a company they can see.</summary>

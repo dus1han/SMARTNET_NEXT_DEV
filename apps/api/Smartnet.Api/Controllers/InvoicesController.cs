@@ -362,6 +362,13 @@ public sealed class InvoicesController : ControllerBase
         // item invoice, otherwise a service one.
         var kind = invoice.Lines.Any(l => l.ItemId is not null) ? "Item" : "Service";
 
+        // The proforma this invoice was converted from, if any — the link back along the chain.
+        var proforma = await _db.ProformaInvoices
+            .Where(p => p.ConvertedToInvoiceId == id)
+            .Select(p => new { p.Id, p.Number })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         return Ok(new InvoiceDetail(
             invoice.Id,
             invoice.Number,
@@ -386,7 +393,9 @@ public sealed class InvoicesController : ControllerBase
             "new",
             [.. invoice.Lines.Select(l => new InvoiceLineDetail(
                 l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))],
-            payments));
+            payments,
+            proforma?.Id,
+            proforma?.Number));
     }
 
     /// <summary>

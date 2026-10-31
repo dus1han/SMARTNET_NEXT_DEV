@@ -231,7 +231,11 @@ public sealed record InvoiceDetail(
     /// receipts against legacy invoices are dual-written there too. Merging would show every new payment
     /// twice. Same rule the <see cref="Outstanding"/> figure already follows on each path.
     /// </remarks>
-    IReadOnlyList<InvoicePaymentLine> Payments);
+    IReadOnlyList<InvoicePaymentLine> Payments,
+
+    // The proforma invoice this was converted from, when it came through one.
+    long? ProformaId = null,
+    string? ProformaNumber = null);
 
 /// <summary>A payment received against a customer invoice — part or all of what was owed.</summary>
 public sealed record InvoicePaymentLine(DateOnly Date, decimal Amount, string? Method, string? Reference);
@@ -316,7 +320,9 @@ public sealed record QuotationSummary(
     string? CustomerName,
     decimal Total,
     long? ConvertedInvoiceId,
-    string Origin);
+    string Origin,
+    // Set while the quotation has a live proforma — the list shows it as "Proforma raised".
+    string? ProformaNumber = null);
 
 /// <summary>One line of one quotation — a row of the item-level quotation list.</summary>
 /// <param name="QuotationId">The quotation the line belongs to, so a row can open it.</param>
@@ -362,7 +368,11 @@ public sealed record QuotationDetail(
     // a concurrency guard).
     int RowVersion,
     string Origin,
-    IReadOnlyList<InvoiceLineDetail> Lines);
+    IReadOnlyList<InvoiceLineDetail> Lines,
+    // The quotation's live proforma, or the one it was invoiced through. While one is open the quotation is
+    // converted, edited and voided through it, not directly.
+    long? ProformaId = null,
+    string? ProformaNumber = null);
 
 /// <summary>An edit to a quotation. Lines carry ids to reconcile in place; a reason is required by the endpoint.</summary>
 public sealed record EditQuotationRequest(
@@ -813,6 +823,55 @@ public sealed record QuotationRecipients(
     string Body,
     string AttachmentName,
     string? Blocked);
+
+// --- Proforma invoices --------------------------------------------------------------------------
+
+/// <summary>Raise a proforma from a quotation, dated <see cref="Date"/> (the date its VAT is valued at).</summary>
+public sealed record CreateProformaRequest(long QuotationId, DateOnly Date);
+
+public sealed record ProformaCreatedResponse(long Id, string Number, decimal Total);
+
+/// <summary>One row of the proforma list.</summary>
+/// <param name="Status"><c>Open</c>, <c>Invoiced</c> or <c>Voided</c>.</param>
+public sealed record ProformaSummary(
+    long Id,
+    string Number,
+    DateOnly Date,
+    long QuotationId,
+    string QuotationNumber,
+    string? CustomerName,
+    decimal Total,
+    long? ConvertedInvoiceId,
+    string Status);
+
+/// <summary>One proforma in full — the read view, with its links to the quotation and the invoice.</summary>
+/// <param name="Kind"><c>Item</c> when any line is a stock item, <c>Service</c> otherwise — a service proforma asks for its cost on conversion.</param>
+/// <param name="Status"><c>Open</c>, <c>Invoiced</c> or <c>Voided</c>.</param>
+public sealed record ProformaDetail(
+    long Id,
+    string Number,
+    DateOnly Date,
+    string? CompanyName,
+    string Kind,
+    string? CustomerName,
+    string? CustomerCode,
+    string? ContactPerson,
+    string? Validity,
+    long QuotationId,
+    string QuotationNumber,
+    decimal Subtotal,
+    decimal DiscountPercent,
+    decimal DiscountAmount,
+    decimal NetTotal,
+    decimal TaxRatePercentage,
+    decimal TaxAmount,
+    decimal Total,
+    long? ConvertedInvoiceId,
+    string? ConvertedInvoiceNumber,
+    string Status,
+    DateTime? VoidedAt,
+    int RowVersion,
+    IReadOnlyList<InvoiceLineDetail> Lines);
 
 /// <summary>Server-side validation for emailing a job sheet — at least one contact.</summary>
 public sealed class EmailDocumentRequestValidator : AbstractValidator<EmailDocumentRequest>

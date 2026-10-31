@@ -31,6 +31,17 @@ public sealed class QuotationDeleter : IQuotationDeleter
             .ConfigureAwait(false)
             ?? throw new InvalidOperationException($"Quotation {quotationId} does not exist.");
 
+        // While a live proforma carries this quote's content, changing the quote would make the two disagree
+        // about what was offered. Void the proforma first.
+        if (await _db.ProformaInvoices
+                .Where(p => p.QuotationId == quotation.Id)
+                .Select(p => p.Number)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false) is { } proformaNumber)
+        {
+            throw new QuotationHasProformaException(quotation.Number, proformaNumber);
+        }
+
         _db.Entry(quotation).Property(q => q.RowVersion).OriginalValue = expectedRowVersion;
 
         // Adopt a legacy quotation first (materialise + version-1) so the void is a change on a real

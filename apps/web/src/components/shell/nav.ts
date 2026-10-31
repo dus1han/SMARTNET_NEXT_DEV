@@ -3,6 +3,7 @@ import {
   BarChart3,
   Building2,
   DatabaseBackup,
+  FileCheck2,
   FileMinus,
   FileStack,
   FileText,
@@ -68,6 +69,7 @@ export const NAVIGATION: NavSection[] = [
     title: "Sales",
     items: [
       { href: "/quotations", label: "Quotations", icon: FileText, permission: "search_qu" },
+      { href: "/proforma-invoices", label: "Proforma invoices", icon: FileCheck2, permission: "search_qu" },
       { href: "/invoices", label: "Invoices", icon: Receipt, permission: "search_in" },
       { href: "/invoices/deleted", label: "Deleted invoices", icon: Trash2, permission: "deleted_in" },
       { href: "/credit-notes", label: "Credit notes", icon: FileMinus, permission: "search_cn" },

@@ -51,7 +51,7 @@ public sealed class CompanyProvisionerTests
         }
 
         created.TaxRates.Should().Be(2);        // the VAT default, and a zero rate to pick per line
-        created.NumberSeries.Should().Be(9);    // one per DocumentTypes.All
+        created.NumberSeries.Should().Be(10);   // one per DocumentTypes.All
         created.EmailTemplates.Should().Be(5);
 
         await using (var db = _fixture.CreateContext(change))

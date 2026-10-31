@@ -7,24 +7,30 @@
  * one is conversion. Convert turns the quote into an invoice through the same save pipeline a hand-keyed
  * invoice uses (a real number, a ledger charge, stock issued, a snapshot) and marks the quote converted —
  * once. A converted quote shows a link to the invoice it became instead of the convert button.
+ *
+ * Or it goes via a proforma invoice: Convert to proforma raises one, and while it is live the quotation is
+ * converted, edited and voided through the proforma instead — the server refuses the direct routes, so one
+ * quotation can never become two invoices.
  */
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Download, Mail, Pencil, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Download, FileCheck2, Mail, Pencil, Printer, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { convertQuotation, deleteQuotation, emailQuotation, getQuotation, quotationRecipients } from "@/lib/quotations";
+import { createProforma } from "@/lib/proformas";
 import { me } from "@/lib/auth";
 import { today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, downloadExcel, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
-import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Select, Skeleton, toast } from "@/components/ui";
+import { Badge, Button, Card, Dialog, ErrorBanner, FadeIn, Input, Skeleton, toast } from "@/components/ui";
 import { History } from "@/components/history/history";
 import { PrintPreview } from "@/components/print-preview";
 import { EmailDocumentDialog } from "@/components/email-document-dialog";
+import { ConvertToInvoiceDialog, VoidDocumentDialog } from "@/components/documents/document-dialogs";
 import type { InvoiceLineDetail } from "@/lib/invoices";
 
 export default function QuotationViewPage() {
@@ -45,9 +51,13 @@ export default function QuotationViewPage() {
   const [emailing, setEmailing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [voiding, setVoiding] = useState(false);
+  const [raisingProforma, setRaisingProforma] = useState(false);
   const error = quotation.error as ApiError | null;
   const data = quotation.data;
   const converted = data?.convertedInvoiceId != null;
+  // A live proforma carries this quote forward: until it is converted or voided, the quote is not converted,
+  // edited or voided directly.
+  const viaProforma = data?.proformaId != null && !converted;
   const isLegacy = data?.origin === "legacy";
   // A quotation can be edited/voided by someone with the quotation right (a legacy one is adopted on save).
   // A converted quote is spent, so it can only be voided, not edited.
@@ -107,20 +117,26 @@ export default function QuotationViewPage() {
               Email
             </Button>
           )}
-          {canModify && !converted && (
+          {canModify && !converted && !viaProforma && (
             <Button variant="secondary" onClick={() => router.push(`/quotations/${quotationId}/edit`)}>
               <Pencil />
               Edit
             </Button>
           )}
-          {canModify && (
+          {canModify && !viaProforma && (
             <Button variant="secondary" onClick={() => setVoiding(true)}>
               <Trash2 />
               Void
             </Button>
           )}
           {/* Both new and legacy quotes convert — a legacy one is built from its stored lines. */}
-          {data && !converted && (
+          {canModify && !converted && !viaProforma && (
+            <Button variant="secondary" onClick={() => setRaisingProforma(true)}>
+              <FileCheck2 />
+              Convert to proforma
+            </Button>
+          )}
+          {data && !converted && !viaProforma && (
             <Button onClick={() => setConverting(true)}>
               Convert to invoice
               <ArrowRight />
@@ -141,8 +157,30 @@ export default function QuotationViewPage() {
                 <p className="font-medium text-text">Converted to an invoice</p>
                 <p className="text-sm text-muted">This quotation has been turned into an invoice and cannot be converted again.</p>
               </div>
-              <Button variant="secondary" onClick={() => router.push(`/invoices/${data.convertedInvoiceId}`)}>
-                View invoice {data.convertedInvoiceNumber}
+              <div className="flex flex-wrap gap-2">
+                {data.proformaId != null && (
+                  <Button variant="secondary" onClick={() => router.push(`/proforma-invoices/${data.proformaId}`)}>
+                    Proforma {data.proformaNumber}
+                  </Button>
+                )}
+                <Button variant="secondary" onClick={() => router.push(`/invoices/${data.convertedInvoiceId}`)}>
+                  View invoice {data.convertedInvoiceNumber}
+                  <ArrowRight />
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {viaProforma && (
+            <Card className="flex flex-wrap items-center justify-between gap-3 border-primary/40 bg-primary/5 p-4">
+              <div>
+                <p className="font-medium text-text">Proforma invoice {data.proformaNumber} raised</p>
+                <p className="text-sm text-muted">
+                  Convert the proforma to invoice this quotation. To change the quotation, void the proforma first.
+                </p>
+              </div>
+              <Button variant="secondary" onClick={() => router.push(`/proforma-invoices/${data.proformaId}`)}>
+                View proforma {data.proformaNumber}
                 <ArrowRight />
               </Button>
             </Card>
@@ -184,10 +222,10 @@ export default function QuotationViewPage() {
             />
           </Card>
 
-          <ConvertDialog
+          <ConvertToInvoiceDialog
             open={converting}
             onOpenChange={setConverting}
-            quotationNumber={data.number}
+            documentLabel={`Quotation ${data.number}`}
             // The server decides this on whether any line still resolves to an item — the same rule the
             // conversion itself applies, so the dialog cannot ask for a cost the conversion ignores, nor
             // omit one it will demand.
@@ -202,16 +240,29 @@ export default function QuotationViewPage() {
             convert={(request) => convertQuotation(quotationId, request)}
           />
 
-          <VoidDialog
+          <VoidDocumentDialog
             open={voiding}
             onOpenChange={setVoiding}
-            quotationNumber={data.number}
+            documentLabel={`quotation ${data.number}`}
+            description="The quotation is soft-deleted — recoverable and audited. A legacy quotation is adopted into the new system first."
             onVoided={() => {
               void queryClient.invalidateQueries({ queryKey: ["quotations"] });
               toast.success(`Quotation ${data.number} voided.`);
               router.push("/quotations");
             }}
-            voidQuotation={(reason) => deleteQuotation(quotationId, data.rowVersion, reason)}
+            voidDocument={(reason) => deleteQuotation(quotationId, data.rowVersion, reason)}
+          />
+
+          <ProformaDialog
+            open={raisingProforma}
+            onOpenChange={setRaisingProforma}
+            quotationNumber={data.number}
+            raise={(date) => createProforma(quotationId, date)}
+            onRaised={(proformaId) => {
+              void queryClient.invalidateQueries({ queryKey: ["quotation", quotationId] });
+              void queryClient.invalidateQueries({ queryKey: ["proformas"] });
+              router.push(`/proforma-invoices/${proformaId}`);
+            }}
           />
 
           <PrintPreview
@@ -239,113 +290,30 @@ export default function QuotationViewPage() {
   );
 }
 
-function VoidDialog({ open, onOpenChange, quotationNumber, onVoided, voidQuotation }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  quotationNumber: string;
-  onVoided: () => void;
-  voidQuotation: (reason: string) => Promise<unknown>;
-}) {
-  const [reason, setReason] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<ApiError | null>(null);
-
-  async function submit() {
-    setSubmitting(true);
-    setError(null);
-    try {
-      await voidQuotation(reason);
-      onOpenChange(false);
-      onVoided();
-    } catch (e) {
-      setError(e as ApiError);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={`Void quotation ${quotationNumber}`}
-      description="The quotation is soft-deleted — recoverable and audited. A legacy quotation is adopted into the new system first."
-      footer={
-        <>
-          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button onClick={submit} pending={submitting} disabled={reason.trim().length < 10}>
-            Void quotation
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
-        <Input
-          label="Reason"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          hint="At least 10 characters — this is recorded on the audit trail."
-          placeholder="Why is this quotation being voided?"
-        />
-      </div>
-    </Dialog>
-  );
-}
-
 /**
- * The terms that turn a quotation into an invoice — plus, for a SERVICE quotation, its cost.
- *
- * An item quotation already knows its cost basis: every line references an item, and the item master
- * carries that item's cost. A service quotation has no such source, so the figure is asked for here, at the
- * point the work is actually committed to and the cost is real. The server enforces the same rule and
- * refuses the conversion without it (400) — this field is the convenience, not the guarantee.
+ * Raise a proforma invoice from this quotation. The only thing asked is its date: the proforma is valued at
+ * that date's VAT rate, and everything else is the quotation's.
  */
-function ConvertDialog({ open, onOpenChange, quotationNumber, isService, storedCost, defaultContact, onConverted, convert }: {
+function ProformaDialog({ open, onOpenChange, quotationNumber, raise, onRaised }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   quotationNumber: string;
-  /** Item vs service, decided by the server on whether any line resolves to an item — not by a stored flag. */
-  isService: boolean;
-  /** Any cost already recorded on the quote, used to seed the field so nothing captured earlier is retyped. */
-  storedCost: number;
-  defaultContact: string | null | undefined;
-  onConverted: (invoiceId: number) => void;
-  convert: (request: { type: string; date: string; purchaseOrderNo: string | null; contactPerson: string | null; documentCost: number | null }) => Promise<{ id: number; number: string; total: number }>;
+  raise: (date: string) => Promise<{ id: number; number: string }>;
+  onRaised: (proformaId: number) => void;
 }) {
-  const [type, setType] = useState("Credit");
   const [date, setDate] = useState(today);
-  const [po, setPo] = useState("");
-  const [cost, setCost] = useState(storedCost > 0 ? String(storedCost) : "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
-
-  // Zero is a valid answer; blank is not. A service that genuinely cost nothing is a claim someone can make,
-  // but it has to be made — defaulting a blank box to zero is exactly how an invoice comes to report 100%
-  // margin with nobody having said so.
-  const costEntered = cost.trim() !== "" && Number.isFinite(Number(cost)) && Number(cost) >= 0;
-  const canConvert = !isService || costEntered;
 
   async function submit() {
     setSubmitting(true);
     setError(null);
     try {
-      const invoice = await convert({
-        type,
-        date,
-        purchaseOrderNo: po || null,
-        contactPerson: defaultContact || null,
-        // Only a service quotation sends one; the server derives an item quotation's from its lines and
-        // ignores anything sent here.
-        documentCost: isService ? Number(cost) : null,
-      });
-      toast.success(`Invoice ${invoice.number} raised from ${quotationNumber}.`);
+      const proforma = await raise(date);
+      toast.success(`Proforma invoice ${proforma.number} raised from ${quotationNumber}.`);
       onOpenChange(false);
-      onConverted(invoice.id);
+      onRaised(proforma.id);
     } catch (e) {
-      // The server refuses a second conversion, and enforces the credit limit — both arrive as a 409.
       setError(e as ApiError);
     } finally {
       setSubmitting(false);
@@ -356,40 +324,22 @@ function ConvertDialog({ open, onOpenChange, quotationNumber, isService, storedC
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={`Convert ${quotationNumber} to an invoice`}
-      description="The invoice is taxed at its own date and gets a real number, a ledger charge and — for item lines — a stock issue. This cannot be undone."
+      title={`Convert ${quotationNumber} to a proforma invoice`}
+      description="The proforma carries this quotation's customer, items and prices, and gets its own number. It charges nothing — the customer is billed when the proforma is converted to an invoice."
       footer={
         <>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button onClick={submit} pending={submitting} disabled={!canConvert}>
-            Convert
+          <Button onClick={submit} pending={submitting} disabled={date === ""}>
+            Raise proforma
           </Button>
         </>
       }
     >
       <div className="space-y-4">
         {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
-
-        <Select label="Type" value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="Credit">Credit</option>
-          <option value="Cash">Cash</option>
-        </Select>
-
-        <Input label="Invoice date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <Input label="PO number" value={po} onChange={(e) => setPo(e.target.value)} />
-
-        {isService && (
-          <Input
-            label="Cost"
-            inputMode="decimal"
-            value={cost}
-            onChange={(e) => setCost(e.target.value)}
-            placeholder="0"
-            hint="What this work costs you. Required — it is the basis for the invoice's profit, and an invoice with no cost reports as pure profit."
-          />
-        )}
+        <Input label="Proforma date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </div>
     </Dialog>
   );

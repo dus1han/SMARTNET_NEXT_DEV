@@ -53,6 +53,17 @@ public sealed class QuotationEditor : IQuotationEditor
             throw new QuotationAlreadyConvertedException(quotation.Number, invoiceId);
         }
 
+        // While a live proforma carries this quote's content, changing the quote would make the two disagree
+        // about what was offered. Void the proforma first.
+        if (await _db.ProformaInvoices
+                .Where(p => p.QuotationId == quotation.Id)
+                .Select(p => p.Number)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false) is { } proformaNumber)
+        {
+            throw new QuotationHasProformaException(quotation.Number, proformaNumber);
+        }
+
         _db.Entry(quotation).Property(q => q.RowVersion).OriginalValue = request.ExpectedRowVersion;
 
         // A legacy quotation is adopted into the new model first (materialise + version-1), inside this

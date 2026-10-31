@@ -15,10 +15,13 @@ public static class DocumentTypes
     public const string Cheque = "CHEQUE";
     public const string Expense = "EXPENSE";
 
+    /// <summary>Proforma invoices — numbered per company, like every other document.</summary>
+    public const string Proforma = "PROFORMA";
+
     public static readonly IReadOnlyList<string> All =
     [
         Invoice, Quotation, CreditNote, PurchaseOrder,
-        SupplierInvoice, JobCard, Payment, Cheque, Expense,
+        SupplierInvoice, JobCard, Payment, Cheque, Expense, Proforma,
     ];
 
     public static bool IsKnown(string type) => All.Contains(type);

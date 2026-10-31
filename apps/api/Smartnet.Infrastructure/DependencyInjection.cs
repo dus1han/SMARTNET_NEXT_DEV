@@ -43,6 +43,7 @@ public static class DependencyInjection
         // that turns a quote into an invoice through the invoice pipeline, once only.
         services.AddScoped<IQuotationCreator, QuotationCreator>();
         services.AddScoped<IQuotationConverter, QuotationConverter>();
+        services.AddScoped<IProformaInvoiceService, ProformaInvoiceService>();
 
         // Quotation edit/void + legacy adoption (Phase 5, slice 5, legacy parity): the mirror of the invoice
         // edit/void without a ledger or stock; a spent (converted) quote is not editable.
@@ -119,6 +120,7 @@ public static class DependencyInjection
         services.AddScoped<ICreditNoteRenderer, Pdf.CreditNoteRenderer>();
         services.AddScoped<IChequeRenderer, Pdf.ChequeRenderer>();
         services.AddScoped<IDraftDocumentRenderer, Pdf.DraftDocumentRenderer>();
+        services.AddScoped<IProformaRenderer, Pdf.ProformaRenderer>();
 
         // Supplier payments (Phase 7): the payables mirror — money paid, allocated across supplier invoices
         // (new and adopted-legacy alike), Payment entries on the payables ledger dual-writing supplier_inv_pay

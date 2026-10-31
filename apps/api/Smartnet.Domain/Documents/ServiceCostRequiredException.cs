@@ -17,9 +17,11 @@ namespace Smartnet.Domain.Documents;
 /// than a blocked conversion, because nobody goes looking for it.
 /// </para>
 /// </remarks>
-public sealed class ServiceCostRequiredException(string quotationNumber)
+/// <param name="document">What is being converted — "Quotation", or "Proforma invoice" when the service work
+/// reaches the invoice through a proforma.</param>
+public sealed class ServiceCostRequiredException(string quotationNumber, string document = "Quotation")
     : Exception(
-        $"Quotation {quotationNumber} is a service quotation, so its cost must be entered to convert it. " +
+        $"{document} {quotationNumber} is for service work only, so its cost must be entered to convert it. " +
         "Without one the invoice would report as pure profit.")
 {
     public string QuotationNumber { get; } = quotationNumber;
