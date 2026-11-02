@@ -18660,6 +18660,16 @@
             "items": {
               "$ref": "#/components/schemas/SupplierInvoicePaymentLine"
             }
+          },
+          "companyId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "supplierId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
           }
         },
         "additionalProperties": false

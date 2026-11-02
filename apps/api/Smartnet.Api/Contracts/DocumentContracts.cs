@@ -694,7 +694,10 @@ public sealed record SupplierInvoiceDetail(
     string Status,
     int RowVersion,
     string Origin,
-    IReadOnlyList<SupplierInvoicePaymentLine> Payments);
+    IReadOnlyList<SupplierInvoicePaymentLine> Payments,
+    // So a payment can be recorded from the invoice through the full supplier-payment flow.
+    long? CompanyId,
+    long? SupplierId);
 
 /// <summary>A payment against a supplier invoice — part or all of what is outstanding.</summary>
 public sealed record RecordSupplierPaymentRequest(decimal Amount, DateOnly Date, string? Method, string? Reference);

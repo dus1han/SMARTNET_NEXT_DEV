@@ -168,7 +168,7 @@ public sealed class SupplierInvoicesController : ControllerBase
             invoice.Id, invoice.SupplierReference, invoice.Date, companyName,
             supplier?.Name, supplier?.Code, invoice.NetTotal, invoice.TaxRatePercentage, invoice.TaxAmount,
             invoice.Amount, outstanding, outstanding == 0m ? "Paid" : "Pending",
-            invoice.RowVersion, "new", payments));
+            invoice.RowVersion, "new", payments, invoice.CompanyId, invoice.SupplierId));
     }
 
     private async Task<ActionResult<SupplierInvoiceDetail>> LegacySupplierInvoiceDetail(
@@ -209,7 +209,8 @@ public sealed class SupplierInvoicesController : ControllerBase
         return Ok(new SupplierInvoiceDetail(
             h.Id, h.Invno, LegacyValue.Date(h.Invdate) ?? DateOnly.MinValue, companyName,
             supplier?.Name ?? h.Supcode, supplier?.Code ?? h.Supcode, net, LegacyValue.Money(h.Vper),
-            amount - net, amount, paid ? 0m : amount, paid ? "Paid" : "Pending", 0, "legacy", payments));
+            amount - net, amount, paid ? 0m : amount, paid ? "Paid" : "Pending", 0, "legacy", payments,
+            companyName is null ? null : cid, supplier?.Id));
     }
 
     /// <summary>Record a supplier invoice — a header-only AP record; posts the payable.</summary>

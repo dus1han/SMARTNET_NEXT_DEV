@@ -10926,6 +10926,10 @@ export interface components {
             rowVersion: number;
             origin: string;
             payments: components["schemas"]["SupplierInvoicePaymentLine"][];
+            /** Format: int64 */
+            companyId?: number | null;
+            /** Format: int64 */
+            supplierId?: number | null;
         };
         SupplierInvoicePaymentLine: {
             /** Format: date */
