@@ -76,7 +76,7 @@ public sealed class ProformaInvoicesController : ControllerBase
 
             query = query.Where(p =>
                 EF.Functions.Like(p.Number, pattern)
-                || EF.Functions.Like(p.QuotationNumber, pattern)
+                || (p.QuotationNumber != null && EF.Functions.Like(p.QuotationNumber, pattern))
                 || matchedCustomers.Contains(p.CustomerId));
         }
 
@@ -211,6 +211,42 @@ public sealed class ProformaInvoicesController : ControllerBase
         {
             // A legacy quotation whose customer has gone from the master, or with nothing on it.
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: unreadable.Message);
+        }
+    }
+
+    /// <summary>Raise a proforma entered on its own — no quotation behind it.</summary>
+    [HttpPost("standalone")]
+    [RequirePermission(Permissions.ItemQuotation)]
+    public async Task<ActionResult<ProformaCreatedResponse>> CreateStandalone(
+        CreateStandaloneProformaRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!_company.Accessible.Contains(request.CompanyId))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status403Forbidden,
+                title: "You cannot raise a proforma invoice in that company.");
+        }
+
+        try
+        {
+            var created = await _proformas.CreateAsync(
+                new NewProforma(
+                    request.CompanyId,
+                    request.CustomerId,
+                    request.Date,
+                    request.ContactPerson,
+                    request.Validity,
+                    [.. request.Lines.Select(l => new NewInvoiceLine(
+                        l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Cost))],
+                    request.DocumentDiscountPercent),
+                cancellationToken).ConfigureAwait(false);
+
+            return Ok(new ProformaCreatedResponse(created.Id, created.Number, created.Total));
+        }
+        catch (TaxRateNotResolvableException notInForce)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, title: notInForce.Message);
         }
     }
 

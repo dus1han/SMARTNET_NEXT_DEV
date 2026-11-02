@@ -5840,6 +5840,66 @@
         }
       }
     },
+    "/api/proforma-invoices/standalone": {
+      "post": {
+        "tags": [
+          "ProformaInvoices"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateStandaloneProformaRequest"
+                  }
+                ]
+              }
+            },
+            "text/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateStandaloneProformaRequest"
+                  }
+                ]
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CreateStandaloneProformaRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProformaCreatedResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProformaCreatedResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProformaCreatedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/proforma-invoices/{id}/convert": {
       "post": {
         "tags": [
@@ -12095,6 +12155,49 @@
         },
         "additionalProperties": false
       },
+      "CreateStandaloneProformaRequest": {
+        "required": [
+          "companyId",
+          "customerId",
+          "date",
+          "documentDiscountPercent",
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "companyId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "customerId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "contactPerson": {
+            "type": "string",
+            "nullable": true
+          },
+          "validity": {
+            "type": "string",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateInvoiceLineRequest"
+            }
+          },
+          "documentDiscountPercent": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateStockAdjustmentRequest": {
         "required": [
           "quantity",
@@ -16563,8 +16666,6 @@
           "lines",
           "netTotal",
           "number",
-          "quotationId",
-          "quotationNumber",
           "rowVersion",
           "status",
           "subtotal",
@@ -16610,10 +16711,12 @@
           },
           "quotationId": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "nullable": true
           },
           "quotationNumber": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "subtotal": {
             "type": "number",
@@ -16678,8 +16781,6 @@
           "date",
           "id",
           "number",
-          "quotationId",
-          "quotationNumber",
           "status",
           "total"
         ],
@@ -16698,10 +16799,12 @@
           },
           "quotationId": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "nullable": true
           },
           "quotationNumber": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "customerName": {
             "type": "string",

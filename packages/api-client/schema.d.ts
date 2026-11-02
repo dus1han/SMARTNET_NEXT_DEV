@@ -4576,6 +4576,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/proforma-invoices/standalone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateStandaloneProformaRequest"];
+                    "text/json": components["schemas"]["CreateStandaloneProformaRequest"];
+                    "application/*+json": components["schemas"]["CreateStandaloneProformaRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProformaCreatedResponse"];
+                        "application/json": components["schemas"]["ProformaCreatedResponse"];
+                        "text/json": components["schemas"]["ProformaCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/proforma-invoices/{id}/convert": {
         parameters: {
             query?: never;
@@ -8908,6 +8951,19 @@ export interface components {
             /** Format: double */
             amount: number;
         };
+        CreateStandaloneProformaRequest: {
+            /** Format: int64 */
+            companyId: number;
+            /** Format: int64 */
+            customerId: number;
+            /** Format: date */
+            date: string;
+            contactPerson?: string | null;
+            validity?: string | null;
+            lines: components["schemas"]["CreateInvoiceLineRequest"][];
+            /** Format: double */
+            documentDiscountPercent: number;
+        };
         CreateStockAdjustmentRequest: {
             /** Format: double */
             quantity: number;
@@ -10276,8 +10332,8 @@ export interface components {
             contactPerson?: string | null;
             validity?: string | null;
             /** Format: int64 */
-            quotationId: number;
-            quotationNumber: string;
+            quotationId?: number | null;
+            quotationNumber?: string | null;
             /** Format: double */
             subtotal: number;
             /** Format: double */
@@ -10309,8 +10365,8 @@ export interface components {
             /** Format: date */
             date: string;
             /** Format: int64 */
-            quotationId: number;
-            quotationNumber: string;
+            quotationId?: number | null;
+            quotationNumber?: string | null;
             customerName?: string | null;
             /** Format: double */
             total: number;

@@ -829,6 +829,43 @@ public sealed record QuotationRecipients(
 /// <summary>Raise a proforma from a quotation, dated <see cref="Date"/> (the date its VAT is valued at).</summary>
 public sealed record CreateProformaRequest(long QuotationId, DateOnly Date);
 
+/// <summary>
+/// A proforma entered on its own, posted whole — the same lines a quotation or invoice takes. No quotation is
+/// behind it; it converts to an invoice all the same.
+/// </summary>
+public sealed record CreateStandaloneProformaRequest(
+    long CompanyId,
+    long CustomerId,
+    DateOnly Date,
+    string? ContactPerson,
+    string? Validity,
+    IReadOnlyList<CreateInvoiceLineRequest> Lines,
+    decimal DocumentDiscountPercent = 0m);
+
+/// <summary>The same rules a quotation's lines are held to.</summary>
+public sealed class CreateStandaloneProformaRequestValidator : AbstractValidator<CreateStandaloneProformaRequest>
+{
+    public CreateStandaloneProformaRequestValidator()
+    {
+        RuleFor(r => r.CompanyId).GreaterThan(0);
+        RuleFor(r => r.CustomerId).GreaterThan(0);
+        RuleFor(r => r.DocumentDiscountPercent).InclusiveBetween(0m, 100m);
+
+        RuleFor(r => r.Lines).NotEmpty().WithMessage("A proforma invoice needs at least one line.");
+
+        RuleForEach(r => r.Lines).ChildRules(line =>
+        {
+            line.RuleFor(l => l.Quantity).GreaterThan(0);
+            line.RuleFor(l => l.UnitPrice).GreaterThanOrEqualTo(0);
+            line.RuleFor(l => l.DiscountPercent).InclusiveBetween(0m, 100m);
+
+            line.RuleFor(l => l)
+                .Must(l => l.ItemId is not null || !string.IsNullOrWhiteSpace(l.Description))
+                .WithMessage("A line must reference an item or carry a description.");
+        });
+    }
+}
+
 public sealed record ProformaCreatedResponse(long Id, string Number, decimal Total);
 
 /// <summary>One row of the proforma list.</summary>
@@ -837,8 +874,9 @@ public sealed record ProformaSummary(
     long Id,
     string Number,
     DateOnly Date,
-    long QuotationId,
-    string QuotationNumber,
+    // Null for a proforma entered on its own.
+    long? QuotationId,
+    string? QuotationNumber,
     string? CustomerName,
     decimal Total,
     long? ConvertedInvoiceId,
@@ -857,8 +895,9 @@ public sealed record ProformaDetail(
     string? CustomerCode,
     string? ContactPerson,
     string? Validity,
-    long QuotationId,
-    string QuotationNumber,
+    // Null for a proforma entered on its own.
+    long? QuotationId,
+    string? QuotationNumber,
     decimal Subtotal,
     decimal DiscountPercent,
     decimal DiscountAmount,

@@ -1,5 +1,6 @@
 import type {
   ConvertQuotationRequest,
+  CreateStandaloneProformaRequest,
   EmailDocumentRequest,
   EmailDocumentResponse,
   InvoiceCreatedResponse,
@@ -34,6 +35,10 @@ export const getProforma = (id: number) => api<ProformaDetail>(`/api/proforma-in
 /** Raise a proforma from a quotation. One live proforma per quotation; a second is refused (409). */
 export const createProforma = (quotationId: number, date: string) =>
   api<ProformaCreatedResponse>("/api/proforma-invoices", { method: "POST", body: { quotationId, date } });
+
+/** Raise a proforma entered on its own — no quotation behind it. */
+export const createStandaloneProforma = (request: CreateStandaloneProformaRequest) =>
+  api<ProformaCreatedResponse>("/api/proforma-invoices/standalone", { method: "POST", body: request });
 
 /** Convert the proforma into an invoice — once only, through the ordinary invoice pipeline. */
 export const convertProforma = (id: number, request: ConvertQuotationRequest) =>

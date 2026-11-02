@@ -125,8 +125,8 @@ public sealed class QuotationsController : ControllerBase
         // Which of this page's quotations have a live proforma, for the status column.
         var pageIds = page.Select(h => h.Id).ToList();
         var proformas = (await _db.ProformaInvoices
-                .Where(p => pageIds.Contains(p.QuotationId) && p.ConvertedToInvoiceId == null)
-                .Select(p => new { p.QuotationId, p.Number })
+                .Where(p => p.QuotationId != null && pageIds.Contains(p.QuotationId.Value) && p.ConvertedToInvoiceId == null)
+                .Select(p => new { QuotationId = p.QuotationId!.Value, p.Number })
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false))
             .ToDictionary(p => p.QuotationId, p => p.Number);

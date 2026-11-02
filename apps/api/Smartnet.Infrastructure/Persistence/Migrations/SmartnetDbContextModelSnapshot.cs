@@ -1632,12 +1632,11 @@ namespace Smartnet.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("prepared_by");
 
-                    b.Property<long>("QuotationId")
+                    b.Property<long?>("QuotationId")
                         .HasColumnType("bigint")
                         .HasColumnName("quotation_id");
 
                     b.Property<string>("QuotationNumber")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)")
                         .HasColumnName("quotation_number");

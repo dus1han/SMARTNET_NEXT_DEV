@@ -3,8 +3,8 @@ using Smartnet.Domain.Auditing;
 namespace Smartnet.Domain.Documents;
 
 /// <summary>
-/// A proforma invoice — the step between a quotation and an invoice. Raised from a quotation, it is the
-/// priced document a customer pays against; converting it raises the real invoice.
+/// A proforma invoice — the priced document a customer pays against before there is an invoice. Raised from
+/// a quotation, or entered on its own; converting it raises the real invoice.
 /// </summary>
 /// <remarks>
 /// <para><b>It charges nothing.</b> Like a quotation: no receivables-ledger entry, no stock movement, no
@@ -14,9 +14,9 @@ namespace Smartnet.Domain.Documents;
 /// <para><b>A table of its own, unlike the quotation.</b> The legacy app has no proforma at all, so there is
 /// no legacy table to adopt and no shadow to keep in step — it lives only in the new app.</para>
 ///
-/// <para><b>Not editable.</b> Its content is the quotation's, valued at the proforma's own date. To change
-/// it, void it (which frees the quotation), edit the quotation, and raise a new one — so the quotation, the
-/// proforma and the invoice can never disagree about what was offered.</para>
+/// <para><b>Not editable.</b> To change one, void it and raise a new one. For a proforma raised from a
+/// quotation, voiding frees the quotation to be edited first — so the quotation, the proforma and the invoice
+/// can never disagree about what was offered.</para>
 ///
 /// <para><b>Numbered per company</b> from its own series (<see cref="Settings.DocumentTypes.Proforma"/>),
 /// so each company's proformas run in their own sequence with their own prefix.</para>
@@ -29,11 +29,14 @@ public class ProformaInvoice : IAuditable, ISoftDeletable
 
     public long CompanyId { get; set; }
 
-    /// <summary>The quotation this was raised from — new or legacy, both live in <c>quotation_h</c>.</summary>
-    public long QuotationId { get; set; }
+    /// <summary>
+    /// The quotation this was raised from — new or legacy, both live in <c>quotation_h</c> — or null for a
+    /// proforma entered on its own.
+    /// </summary>
+    public long? QuotationId { get; set; }
 
-    /// <summary>The quotation's number as it stood, so the link reads without a join.</summary>
-    public string QuotationNumber { get; set; } = null!;
+    /// <summary>The quotation's number as it stood, so the link reads without a join. Null with no quotation.</summary>
+    public string? QuotationNumber { get; set; }
 
     public long CustomerId { get; set; }
 

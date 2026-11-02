@@ -192,6 +192,7 @@ export type QuotationRecipients = Schemas["QuotationRecipients"];
 // --- Proforma invoices ---------------------------------------------------------------------------
 
 export type CreateProformaRequest = Schemas["CreateProformaRequest"];
+export type CreateStandaloneProformaRequest = Schemas["CreateStandaloneProformaRequest"];
 export type ProformaCreatedResponse = Schemas["ProformaCreatedResponse"];
 export type ProformaSummary = Schemas["ProformaSummary"];
 export type ProformaDetail = Schemas["ProformaDetail"];

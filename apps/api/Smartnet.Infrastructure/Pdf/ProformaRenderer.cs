@@ -68,7 +68,7 @@ public sealed class ProformaRenderer : IProformaRenderer
             CompanyContact: CompanyHeader.Build(company),
             AccentColour: CompanyTheme.AccentFor(p.CompanyId),
             ProformaNo: p.Number,
-            QuotationNo: p.QuotationNumber,
+            QuotationNo: Trim(p.QuotationNumber),
             Date: p.Date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture),
             ClientName: Trim(customer?.Name),
             ClientAddress: Trim(customer?.Address),

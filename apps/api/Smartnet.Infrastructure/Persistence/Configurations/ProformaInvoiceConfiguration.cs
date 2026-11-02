@@ -20,7 +20,7 @@ public class ProformaInvoiceConfiguration : IEntityTypeConfiguration<ProformaInv
         builder.Property(p => p.Number).HasColumnName("number").HasMaxLength(100).IsRequired();
         builder.Property(p => p.CompanyId).HasColumnName("company_id");
         builder.Property(p => p.QuotationId).HasColumnName("quotation_id");
-        builder.Property(p => p.QuotationNumber).HasColumnName("quotation_number").HasMaxLength(100).IsRequired();
+        builder.Property(p => p.QuotationNumber).HasColumnName("quotation_number").HasMaxLength(100);
         builder.Property(p => p.CustomerId).HasColumnName("customer_id");
         builder.Property(p => p.Date).HasColumnName("proforma_date");
         builder.Property(p => p.ContactPerson).HasColumnName("contact_person").HasMaxLength(100);

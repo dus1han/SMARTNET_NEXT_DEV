@@ -3,8 +3,8 @@
 /**
  * One proforma invoice — the read view, with its place in the chain.
  *
- * Quotation → proforma → invoice. This screen links back to the quotation it was raised from and forward to
- * the invoice it became, prints and emails the proforma, converts it to an invoice (once), and voids it —
+ * Quotation → proforma → invoice, or a proforma entered on its own → invoice. This screen links back to the
+ * quotation it was raised from (when there is one) and forward to the invoice it became, prints and emails the proforma, converts it to an invoice (once), and voids it —
  * which frees the quotation to be changed or converted again. A proforma is never edited: its content is the
  * quotation's, so a change is made to the quotation and a new proforma raised.
  */
@@ -146,7 +146,7 @@ export default function ProformaViewPage() {
               <p className="font-medium text-text">Voided</p>
               <p className="text-sm text-muted">
                 This proforma was voided{data.voidedAt ? ` on ${formatReportDate(data.voidedAt.slice(0, 10))}` : ""} and is
-                kept for the record. Its quotation is free to be changed or converted again.
+                kept for the record.{data.quotationId != null && " Its quotation is free to be changed or converted again."}
               </p>
             </Card>
           )}
@@ -156,9 +156,13 @@ export default function ProformaViewPage() {
             <Detail label="Customer" value={data.customerName ?? "—"} sub={data.customerCode ?? undefined} />
             <Card className="p-4">
               <p className="stat-label text-xs font-semibold uppercase tracking-wider">Quotation</p>
-              <Link href={`/quotations/${data.quotationId}`} className="mt-1 block font-medium text-primary hover:underline">
-                {data.quotationNumber}
-              </Link>
+              {data.quotationId != null ? (
+                <Link href={`/quotations/${data.quotationId}`} className="mt-1 block font-medium text-primary hover:underline">
+                  {data.quotationNumber}
+                </Link>
+              ) : (
+                <p className="mt-1 font-medium text-muted">Entered on its own</p>
+              )}
             </Card>
             <Detail label="Contact" value={data.contactPerson || "—"} sub={data.validity ? `Valid for ${data.validity}` : undefined} />
           </div>
@@ -197,7 +201,7 @@ export default function ProformaViewPage() {
             onConverted={(invoiceId) => {
               void queryClient.invalidateQueries({ queryKey: ["proforma", proformaId] });
               void queryClient.invalidateQueries({ queryKey: ["proformas"] });
-              void queryClient.invalidateQueries({ queryKey: ["quotation", data.quotationId] });
+              if (data.quotationId != null) void queryClient.invalidateQueries({ queryKey: ["quotation", data.quotationId] });
               router.push(`/invoices/${invoiceId}`);
             }}
           />
@@ -206,12 +210,16 @@ export default function ProformaViewPage() {
             open={voiding}
             onOpenChange={setVoiding}
             documentLabel={`proforma invoice ${data.number}`}
-            description="The proforma is kept on record, marked voided. Its quotation becomes free to edit, convert to a new proforma, or invoice directly."
+            description={
+              data.quotationId != null
+                ? "The proforma is kept on record, marked voided. Its quotation becomes free to edit, convert to a new proforma, or invoice directly."
+                : "The proforma is kept on record, marked voided."
+            }
             voidDocument={(reason) => voidProforma(proformaId, data.rowVersion, reason)}
             onVoided={() => {
               void queryClient.invalidateQueries({ queryKey: ["proformas"] });
               void queryClient.invalidateQueries({ queryKey: ["proforma", proformaId] });
-              void queryClient.invalidateQueries({ queryKey: ["quotation", data.quotationId] });
+              if (data.quotationId != null) void queryClient.invalidateQueries({ queryKey: ["quotation", data.quotationId] });
               toast.success(`Proforma invoice ${data.number} voided.`);
             }}
           />

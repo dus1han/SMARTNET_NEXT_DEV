@@ -186,6 +186,53 @@ public sealed class ProformaInvoiceTests
         }
     }
 
+    [Fact]
+    public async Task A_proforma_entered_on_its_own_converts_to_an_invoice_with_no_quotation_behind_it()
+    {
+        var (companyId, customerId, itemId) = await Seed();
+        var change = new FakeChangeContext { UserId = 1, CompanyId = companyId };
+
+        ProformaCreated created;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            // An item line 2 × 100 less 10% (net 180) and a service line 1 × 50: net 230, + 18% VAT.
+            created = await ServiceFor(db, change).CreateAsync(new NewProforma(
+                companyId, customerId, new DateOnly(2026, 8, 1), "Mr Khan", "14 Days",
+                [
+                    new NewInvoiceLine(itemId, $"I-{companyId}", "Widget", 2m, 100m, 10m, 60m),
+                    new NewInvoiceLine(null, null, "Labour", 1m, 50m, 0m, null),
+                ]));
+        }
+
+        created.Number.Should().Be($"PI{companyId}-1");
+        created.Total.Should().Be(271.40m);
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            var proforma = await db.ProformaInvoices.Include(p => p.Lines).SingleAsync(p => p.Id == created.Id);
+            proforma.QuotationId.Should().BeNull();
+            proforma.QuotationNumber.Should().BeNull();
+            proforma.Validity.Should().Be("14 Days");
+            proforma.Lines.Should().HaveCount(2);
+            (await new ReceivablesLedger(db).BalanceForCustomerAsync(customerId)).Should().Be(0m);
+        }
+
+        InvoiceCreated invoice;
+        await using (var db = _fixture.CreateContext(change))
+        {
+            invoice = await ServiceFor(db, change).ConvertToInvoiceAsync(
+                created.Id, new ConvertQuotation(InvoiceType.Credit, new DateOnly(2026, 8, 5), null, null));
+        }
+
+        await using (var db = _fixture.CreateContext(change))
+        {
+            invoice.Total.Should().Be(271.40m);
+            (await new ReceivablesLedger(db).BalanceForCustomerAsync(customerId)).Should().Be(271.40m);
+            (await db.ProformaInvoices.SingleAsync(p => p.Id == created.Id)).ConvertedToInvoiceId.Should().Be(invoice.Id);
+            (await db.Invoices.SingleAsync(i => i.Id == invoice.Id)).SourceQuotationId.Should().BeNull();
+        }
+    }
+
     // --- Seeding ---------------------------------------------------------------------------------
 
     private ProformaInvoiceService ServiceFor(TestDbContext db, FakeChangeContext change) => new(

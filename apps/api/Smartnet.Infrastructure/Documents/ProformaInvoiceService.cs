@@ -71,10 +71,54 @@ public sealed class ProformaInvoiceService : IProformaInvoiceService
 
         var content = await QuotationContentReader.ReadAsync(quotation, _db, _legacy, cancellationToken).ConfigureAwait(false);
 
-        var company = await _db.Companies
-            .FirstOrDefaultAsync(c => c.Id == content.CompanyId, cancellationToken)
+        var created = await RaiseAsync(
+                content.CompanyId, content.CustomerId, proformaDate, content.ContactPerson, quotation.Validity,
+                content.Lines, content.DocumentDiscountPercent, quotation, cancellationToken)
+            .ConfigureAwait(false);
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+        return created;
+    }
+
+    public async Task<ProformaCreated> CreateAsync(NewProforma request, CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        _ = await _db.Customers
+            .FirstOrDefaultAsync(c => c.Id == request.CustomerId, cancellationToken)
             .ConfigureAwait(false)
-            ?? throw new InvalidOperationException($"Company {content.CompanyId} does not exist.");
+            ?? throw new InvalidOperationException($"Customer {request.CustomerId} does not exist.");
+
+        var created = await RaiseAsync(
+                request.CompanyId, request.CustomerId, request.Date, request.ContactPerson, request.Validity,
+                request.Lines, request.DocumentDiscountPercent, quotation: null, cancellationToken)
+            .ConfigureAwait(false);
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+        return created;
+    }
+
+    /// <summary>
+    /// Values, numbers and saves a proforma, in the caller's transaction — the part a proforma raised from a
+    /// quotation and one entered on its own have in common.
+    /// </summary>
+    private async Task<ProformaCreated> RaiseAsync(
+        long companyId,
+        long customerId,
+        DateOnly proformaDate,
+        string? contactPerson,
+        string? validity,
+        IReadOnlyList<NewInvoiceLine> lines,
+        decimal documentDiscountPercent,
+        Quotation? quotation,
+        CancellationToken cancellationToken)
+    {
+        var company = await _db.Companies
+            .FirstOrDefaultAsync(c => c.Id == companyId, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException($"Company {companyId} does not exist.");
 
         var rates = await _db.TaxRates
             .Where(r => r.CompanyId == company.Id)
@@ -93,9 +137,9 @@ public sealed class ProformaInvoiceService : IProformaInvoiceService
             proformaDate,
             company.IsVatRegistered,
             rounding,
-            [.. content.Lines.Select(l => new TaxLineInput(l.Quantity, l.UnitPrice, l.DiscountPercent))],
+            [.. lines.Select(l => new TaxLineInput(l.Quantity, l.UnitPrice, l.DiscountPercent))],
             rates,
-            content.DocumentDiscountPercent));
+            documentDiscountPercent));
 
         // The company's own proforma series — each company numbers its proformas separately.
         var number = await _numbers
@@ -106,22 +150,22 @@ public sealed class ProformaInvoiceService : IProformaInvoiceService
         {
             Number = number,
             CompanyId = company.Id,
-            QuotationId = quotation.Id,
-            QuotationNumber = quotation.Number,
-            CustomerId = content.CustomerId,
+            QuotationId = quotation?.Id,
+            QuotationNumber = quotation?.Number,
+            CustomerId = customerId,
             Date = proformaDate,
-            ContactPerson = content.ContactPerson,
-            Validity = quotation.Validity,
+            ContactPerson = contactPerson,
+            Validity = validity,
             PreparedBy = _change.UserId,
             Subtotal = calc.Totals.Subtotal,
-            DiscountPercent = content.DocumentDiscountPercent,
+            DiscountPercent = documentDiscountPercent,
             DiscountAmount = calc.Totals.Discount,
             NetTotal = calc.Totals.Net,
             TaxRateId = calc.TaxRateId,
             TaxRatePercentage = calc.TaxRatePercentage,
             TaxAmount = calc.Totals.Tax,
             Total = calc.Totals.Total,
-            Lines = [.. content.Lines.Zip(calc.Lines, (input, line) => new ProformaInvoiceLine
+            Lines = [.. lines.Zip(calc.Lines, (input, line) => new ProformaInvoiceLine
             {
                 ItemId = input.ItemId,
                 ItemCode = input.ItemCode,
@@ -141,8 +185,6 @@ public sealed class ProformaInvoiceService : IProformaInvoiceService
         await _versions
             .WriteAsync(DocumentTypes.Proforma, proforma.Id, company.Id, Snapshot(proforma, calc), reason: null, cancellationToken)
             .ConfigureAwait(false);
-
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 
         return new ProformaCreated(proforma.Id, number, proforma.Total);
     }
@@ -197,12 +239,14 @@ public sealed class ProformaInvoiceService : IProformaInvoiceService
         proforma.ConvertedAt = now;
         proforma.ConvertedBy = _change.UserId;
 
-        // The quotation is spent too, pointing at the same invoice — so it reads "converted" and can never be
-        // converted again by any route.
-        var quotation = await _db.Quotations
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(q => q.Id == proforma.QuotationId, cancellationToken)
-            .ConfigureAwait(false);
+        // The quotation, when there is one, is spent too, pointing at the same invoice — so it reads
+        // "converted" and can never be converted again by any route. A proforma entered on its own has none.
+        var quotation = proforma.QuotationId is { } quotationId
+            ? await _db.Quotations
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(q => q.Id == quotationId, cancellationToken)
+                .ConfigureAwait(false)
+            : null;
         if (quotation is not null)
         {
             quotation.ConvertedToInvoiceId = created.Id;

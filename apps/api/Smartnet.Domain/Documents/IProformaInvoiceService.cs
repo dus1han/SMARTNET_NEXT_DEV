@@ -1,7 +1,7 @@
 namespace Smartnet.Domain.Documents;
 
 /// <summary>
-/// Quotation → proforma → invoice.
+/// Quotation → proforma → invoice — or a proforma entered on its own → invoice.
 /// </summary>
 /// <remarks>
 /// The rules, each enforced here rather than left to the screens:
@@ -17,6 +17,9 @@ namespace Smartnet.Domain.Documents;
 /// </remarks>
 public interface IProformaInvoiceService
 {
+    /// <summary>Raises a proforma entered on its own, with no quotation behind it.</summary>
+    Task<ProformaCreated> CreateAsync(NewProforma request, CancellationToken cancellationToken = default);
+
     /// <summary>Raises a proforma from a quotation, valued at <paramref name="proformaDate"/>.</summary>
     Task<ProformaCreated> CreateFromQuotationAsync(long quotationId, DateOnly proformaDate, CancellationToken cancellationToken = default);
 
@@ -26,6 +29,16 @@ public interface IProformaInvoiceService
     /// <summary>Voids the proforma — soft, and only while it has not been converted.</summary>
     Task<ProformaVoided> VoidAsync(long proformaId, int expectedRowVersion, CancellationToken cancellationToken = default);
 }
+
+/// <summary>A proforma entered on its own — the document a quotation would otherwise have supplied.</summary>
+public sealed record NewProforma(
+    long CompanyId,
+    long CustomerId,
+    DateOnly Date,
+    string? ContactPerson,
+    string? Validity,
+    IReadOnlyList<NewInvoiceLine> Lines,
+    decimal DocumentDiscountPercent = 0m);
 
 public sealed record ProformaCreated(long Id, string Number, decimal Total);
 

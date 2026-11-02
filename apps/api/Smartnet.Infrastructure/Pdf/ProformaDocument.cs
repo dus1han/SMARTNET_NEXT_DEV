@@ -12,6 +12,7 @@ public sealed record ProformaModel(
     string CompanyContact,
     string? AccentColour,
     string ProformaNo,
+    /// <summary>The quotation it was raised from; empty for a proforma entered on its own.</summary>
     string QuotationNo,
     string Date,
     string ClientName,
@@ -65,8 +66,12 @@ public sealed class ProformaDocument : HouseDocument
                 // "PI No", not "Proforma No": the longer label wraps in the masthead's reference column.
                 ("PI No", _m.ProformaNo),
                 ("Date", _m.Date),
-                ("Quote Ref", _m.QuotationNo),
             };
+
+            if (Clean(_m.QuotationNo).Length > 0)
+            {
+                rows.Add(("Quote Ref", Clean(_m.QuotationNo)));
+            }
 
             if (Clean(_m.Validity).Length > 0)
             {

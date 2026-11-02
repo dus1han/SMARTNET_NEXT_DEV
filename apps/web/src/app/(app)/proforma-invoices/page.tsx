@@ -3,16 +3,15 @@
 /**
  * The proforma invoice list.
  *
- * Every proforma raised from a quotation, newest first. A proforma charges nothing — its status says where
+ * Every proforma, newest first — raised from a quotation, or entered on its own with New proforma. A proforma charges nothing — its status says where
  * it is in the chain: Open (waiting to be converted), or Invoiced (it became the invoice it links to).
  * Voided proformas sit behind their own tab: kept on record, but out of the way of the live ones.
- *
- * There is no New button. A proforma is always raised from a quotation, on the quotation's screen.
  */
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import { Plus } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { FIRST_PAGE } from "@/lib/paging";
@@ -20,7 +19,7 @@ import { getProformas, type ProformaSummary } from "@/lib/proformas";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
-import { ErrorBanner, FadeIn } from "@/components/ui";
+import { Button, ErrorBanner, FadeIn } from "@/components/ui";
 import { ProformaStatusBadge } from "@/components/documents/proforma-status";
 
 export default function ProformaInvoicesPage() {
@@ -46,7 +45,7 @@ export default function ProformaInvoicesPage() {
     <FadeIn className="space-y-6">
       <PageHeader
         title="Proforma invoices"
-        description="Raised from quotations. A proforma charges nothing — the customer is billed when it is converted to an invoice."
+        description="Raised from a quotation or on their own. A proforma charges nothing — the customer is billed when it is converted to an invoice."
       />
 
       <div className="flex w-fit items-center gap-1 rounded-lg border border-subtle bg-surface-sunken p-1">
@@ -60,7 +59,7 @@ export default function ProformaInvoicesPage() {
         columns={columns}
         rows={proformas.data?.rows}
         loading={proformas.isPending}
-        searchable={(row) => `${row.number} ${row.quotationNumber} ${row.customerName ?? ""}`}
+        searchable={(row) => `${row.number} ${row.quotationNumber ?? ""} ${row.customerName ?? ""}`}
         server={{
           total: proformas.data?.total ?? 0,
           page,
@@ -69,6 +68,12 @@ export default function ProformaInvoicesPage() {
           onSearchChange: setSearch,
         }}
         searchPlaceholder="Search by proforma number, quotation number or customer…"
+        actions={
+          <Button size="sm" onClick={() => router.push("/proforma-invoices/new")}>
+            <Plus />
+            New proforma
+          </Button>
+        }
         defaultSort={{ id: "date", desc: true }}
         onRowClick={(row) => router.push(`/proforma-invoices/${row.id}`)}
         empty={
@@ -76,7 +81,7 @@ export default function ProformaInvoicesPage() {
             ? { title: "No voided proformas", description: "A voided proforma is kept here for the record." }
             : {
                 title: "No proforma invoices yet",
-                description: "Open a quotation and choose Convert to proforma to raise one.",
+                description: "Use New proforma, or open a quotation and choose Convert to proforma.",
               }
         }
       />
@@ -115,9 +120,9 @@ const columns: ColumnDef<ProformaSummary, unknown>[] = [
   },
   {
     id: "quotation",
-    accessorFn: (row) => row.quotationNumber,
+    accessorFn: (row) => row.quotationNumber ?? "",
     header: "Quotation",
-    cell: ({ row }) => <span className="whitespace-nowrap text-muted">{row.original.quotationNumber}</span>,
+    cell: ({ row }) => <span className="whitespace-nowrap text-muted">{row.original.quotationNumber ?? "—"}</span>,
   },
   {
     id: "customer",
