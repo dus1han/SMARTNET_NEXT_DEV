@@ -110,7 +110,11 @@ public sealed class CustomerReceiptService : ICustomerReceiptCreator, ICustomerR
         var occurredAt = request.Date.ToDateTime(TimeOnly.MinValue);
         var enteredBy = await ActingUserNameAsync(cancellationToken).ConfigureAwait(false);
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        // Joins the caller's transaction when there is one — settling a suspended amount reinstates it and
+        // takes the receipt as one act — and otherwise is its own.
+        await using var transaction = _db.Database.CurrentTransaction is null
+            ? await _db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false)
+            : null;
 
         var receipt = new CustomerReceipt
         {
@@ -162,7 +166,10 @@ public sealed class CustomerReceiptService : ICustomerReceiptCreator, ICustomerR
                 GlChart.Receivable(0m, total),
             ]), cancellationToken).ConfigureAwait(false);
 
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         return new CustomerReceiptCreated(receipt.Id, receipt.Amount, AlreadyExisted: false);
     }

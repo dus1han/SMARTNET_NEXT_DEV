@@ -29,6 +29,7 @@ import {
   TrendingUp,
   Truck,
   Users,
+  PauseCircle,
   Wallet,
   Wrench,
   type LucideIcon,
@@ -74,6 +75,7 @@ export const NAVIGATION: NavSection[] = [
       { href: "/invoices/deleted", label: "Deleted invoices", icon: Trash2, permission: "deleted_in" },
       { href: "/credit-notes", label: "Credit notes", icon: FileMinus, permission: "search_cn" },
       { href: "/payments", label: "Payments", icon: Wallet, permission: "payments" },
+      { href: "/suspended-receivables", label: "Suspended account", icon: PauseCircle, permission: "receivables.suspend" },
     ],
   },
   {

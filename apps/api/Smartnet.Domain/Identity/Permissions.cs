@@ -53,6 +53,12 @@ public static class Permissions
     public const string GeneralLedger = "general_ledger";
 
     /// <summary>
+    /// The suspended account — moving an invoice's outstanding off the books' receivables and back. It
+    /// hides debt from every outstanding figure, so it is its own grant rather than riding on payments.
+    /// </summary>
+    public const string ReceivablesSuspend = "receivables.suspend";
+
+    /// <summary>
     /// The operations dashboard — the day-to-day one, without the money insights.
     /// </summary>
     /// <remarks>
@@ -77,7 +83,7 @@ public static class Permissions
 
     /// <summary>The new permissions, in the order they should appear in the admin UI.</summary>
     public static readonly IReadOnlyList<string> NewPermissions =
-        [SystemDevAdmin, RolesManage, SettingsManage, MailAccounts, AuditView, GeneralLedger, DashboardOperations];
+        [SystemDevAdmin, RolesManage, SettingsManage, MailAccounts, AuditView, GeneralLedger, ReceivablesSuspend, DashboardOperations];
 
     // --- The 35 legacy flags -----------------------------------------------------------------
 

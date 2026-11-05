@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<IQuotationCreator, QuotationCreator>();
         services.AddScoped<IQuotationConverter, QuotationConverter>();
         services.AddScoped<IProformaInvoiceService, ProformaInvoiceService>();
+        services.AddScoped<IReceivableSuspensions, ReceivableSuspensionService>();
 
         // Quotation edit/void + legacy adoption (Phase 5, slice 5, legacy parity): the mirror of the invoice
         // edit/void without a ledger or stock; a spent (converted) quote is not editable.

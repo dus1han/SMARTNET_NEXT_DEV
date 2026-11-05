@@ -63,6 +63,9 @@ public static class GlAccountCodes
     public const string Cash = "1000";
     public const string Bank = "1010";
     public const string AccountsReceivable = "1100";
+
+    /// <summary>Receivables parked on the suspended account — still owed, kept off the outstanding.</summary>
+    public const string SuspendedReceivables = "1150";
     public const string InputVat = "1200";
     public const string AccountsPayable = "2000";
     public const string OutputVat = "2100";

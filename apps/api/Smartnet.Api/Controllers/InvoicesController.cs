@@ -184,6 +184,16 @@ public sealed class InvoicesController : ControllerBase
                 .ToDictionaryAsync(x => x.InvoiceId, x => x.Balance, cancellationToken)
                 .ConfigureAwait(false);
 
+        // Which of the page's invoices have money on the suspended account — so a zero there reads
+        // "Suspended", not "Paid".
+        var pageIds = page.Select(h => h.Id).ToList();
+        var suspended = await _db.SuspendedReceivables
+            .Where(x => pageIds.Contains(x.InvoiceId) && x.Status == SuspendedReceivableStatus.Suspended)
+            .GroupBy(x => x.InvoiceId)
+            .Select(g => new { InvoiceId = g.Key, Amount = g.Sum(x => x.Amount) })
+            .ToDictionaryAsync(x => x.InvoiceId, x => x.Amount, cancellationToken)
+            .ConfigureAwait(false);
+
         var codes = page.Select(h => h.Customer).Where(c => c != null).Select(c => c!).Distinct().ToList();
         var namesByCode = (await _db.Customers
                 .Where(c => c.Code != null && codes.Contains(c.Code))
@@ -204,7 +214,8 @@ public sealed class InvoicesController : ControllerBase
                 ? outstanding.GetValueOrDefault(h.Id)
                 : LegacyValue.Money(h.Balance),
             h.DataOrigin == "new" ? "new" : "legacy",
-            LegacyValue.PurchaseOrderNo(h.Pono) is { Length: > 0 } po ? po : null)).ToList();
+            LegacyValue.PurchaseOrderNo(h.Pono) is { Length: > 0 } po ? po : null,
+            suspended.GetValueOrDefault(h.Id))).ToList();
 
         return Ok(new PagedResult<InvoiceSummary>(rows, total, paging.SafePage, paging.SafePageSize));
     }
@@ -395,8 +406,16 @@ public sealed class InvoicesController : ControllerBase
                 l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))],
             payments,
             proforma?.Id,
-            proforma?.Number));
+            proforma?.Number,
+            await SuspensionOfAsync(invoice.Id, cancellationToken).ConfigureAwait(false)));
     }
+
+    /// <summary>The invoice's live suspension, if it has money on the suspended account.</summary>
+    private Task<InvoiceSuspension?> SuspensionOfAsync(long invoiceId, CancellationToken cancellationToken) =>
+        _db.SuspendedReceivables
+            .Where(s => s.InvoiceId == invoiceId && s.Status == SuspendedReceivableStatus.Suspended)
+            .Select(s => new InvoiceSuspension(s.Id, s.Amount, s.SuspendedOn, s.Reason, s.RowVersion))
+            .FirstOrDefaultAsync(cancellationToken);
 
     /// <summary>
     /// The read view for a legacy invoice — the same shape, built from the old system's <c>varchar</c>
@@ -511,7 +530,8 @@ public sealed class InvoicesController : ControllerBase
                 LegacyValue.Money(l.Tot),
                 LegacyValue.Money(l.Tot),
                 null))],
-            payments));
+            payments,
+            Suspension: await SuspensionOfAsync(h.Id, cancellationToken).ConfigureAwait(false)));
     }
 
     /// <summary>
@@ -728,6 +748,12 @@ public sealed class InvoicesController : ControllerBase
             problem.Extensions["code"] = "invoice_has_credit_notes";
             return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
         }
+        catch (InvoiceIsSuspendedException suspended)
+        {
+            var problem = new ProblemDetails { Status = StatusCodes.Status409Conflict, Title = suspended.Message };
+            problem.Extensions["code"] = "invoice_is_suspended";
+            return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
+        }
 
         return Ok(new InvoiceEditedResponse(edited.Id, edited.Number, edited.Total, edited.Outstanding, edited.VersionNo));
     }
@@ -784,6 +810,12 @@ public sealed class InvoicesController : ControllerBase
         {
             var problem = new ProblemDetails { Status = StatusCodes.Status409Conflict, Title = credited.Message };
             problem.Extensions["code"] = "invoice_has_credit_notes";
+            return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
+        }
+        catch (InvoiceIsSuspendedException suspended)
+        {
+            var problem = new ProblemDetails { Status = StatusCodes.Status409Conflict, Title = suspended.Message };
+            problem.Extensions["code"] = "invoice_is_suspended";
             return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
         }
     }

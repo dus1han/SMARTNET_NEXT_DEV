@@ -38,6 +38,10 @@ const LABELS: Record<string, PermissionMeta> = {
   search_cn: { label: "Search credit notes" },
   payments: { label: "Customer payments" },
   customer_outstanding: { label: "Customer outstanding" },
+  "receivables.suspend": {
+    label: "Suspended account",
+    hint: "Move an invoice's outstanding off the books' receivables, and bring it back.",
+  },
 
   // Purchasing
   purchaseorder: { label: "Purchase orders" },
@@ -100,7 +104,7 @@ const GROUPS: { title: string; keys: string[]; exclusive?: boolean }[] = [
     title: "Sales",
     keys: [
       "item_qu", "service_qu", "search_qu", "item_in", "service_in", "search_in",
-      "deleted_in", "new_cn", "search_cn", "payments", "customer_outstanding",
+      "deleted_in", "new_cn", "search_cn", "payments", "customer_outstanding", "receivables.suspend",
     ],
   },
   { title: "Purchasing", keys: ["purchaseorder", "search_po", "supplier_in"] },

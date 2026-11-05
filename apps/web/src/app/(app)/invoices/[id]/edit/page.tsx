@@ -25,6 +25,7 @@ import { formatReportDate } from "@/components/reports";
 import { Button, Card, ErrorBanner, FadeIn, Input, Select, Skeleton, toast } from "@/components/ui";
 import {
   customerContactNames,
+  DraftCostRow,
   LineDraftEditor,
   linesArePostable,
   toMinor,
@@ -203,7 +204,7 @@ function EditForm({ invoice, invoiceId }: { invoice: InvoiceDetail; invoiceId: n
         )}
       </Card>
 
-      <LineDraftEditor kind={kind} onKindChange={setKind} lines={lines} onLinesChange={setLines} items={items.data ?? []} />
+      <LineDraftEditor kind={kind} onKindChange={setKind} lines={lines} onLinesChange={setLines} items={items.data ?? []} cost={{ vatPercent: ratePercent }} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="space-y-3 p-5">
@@ -242,6 +243,7 @@ function EditForm({ invoice, invoiceId }: { invoice: InvoiceDetail; invoiceId: n
           </div>
 
           {/* A service invoice's cost (item invoices derive it from the item master) — the margin basis. */}
+          {kind === "item" && <DraftCostRow lines={lines} vatPercent={ratePercent} />}
           {kind === "service" && (
             <div className="flex items-center justify-between gap-3 border-t border-subtle pt-2">
               <label htmlFor="service-cost" className="text-muted">Cost</label>

@@ -383,16 +383,24 @@ function StockPanel({ item, onChanged }: { item: ItemSummary; onChanged: () => v
 
   const [quantity, setQuantity] = useState("");
   const [why, setWhy] = useState("");
+  const [unitCost, setUnitCost] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // A cost belongs to stock coming in. Entered, it becomes the item's latest cost — what new quotation,
+  // proforma and invoice lines take.
+  const incoming = Number(quantity) > 0;
+  const cost = incoming && unitCost.trim() !== "" ? Number(unitCost) : null;
+
   const adjust = useMutation({
-    mutationFn: () => adjustStock(item.id, { quantity: Number(quantity), reason: why }),
+    mutationFn: () => adjustStock(item.id, { quantity: Number(quantity), reason: why, unitCost: cost }),
     onSuccess: () => {
-      toast.success("Stock adjusted.");
+      toast.success(cost != null ? `Stock received — the item's cost is now ${formatMoney(cost)}.` : "Stock adjusted.");
       setQuantity("");
       setWhy("");
+      setUnitCost("");
       setError(null);
       void queryClient.invalidateQueries({ queryKey: ["item-stock", item.id] });
+      void queryClient.invalidateQueries({ queryKey: ["items"] }); // the cost new lines take
       onChanged(); // the list's balance changed too
     },
     onError: (e: unknown) => setError(message(e)),
@@ -402,6 +410,7 @@ function StockPanel({ item, onChanged }: { item: ItemSummary; onChanged: () => v
     const q = Number(quantity);
     if (!quantity || Number.isNaN(q) || q === 0) return setError("Enter a quantity to add or remove.");
     if (!why.trim()) return setError("A stock adjustment needs a reason.");
+    if (cost != null && (Number.isNaN(cost) || cost < 0)) return setError("Enter the unit cost as a positive amount.");
     adjust.mutate();
   }
 
@@ -435,7 +444,7 @@ function StockPanel({ item, onChanged }: { item: ItemSummary; onChanged: () => v
       <div className="rounded-xl border border-subtle p-4">
         <p className="mb-3 text-sm font-medium text-text">Adjust stock</p>
         {error && <div className="mb-3"><ErrorBanner message={error} /></div>}
-        <div className="grid gap-3 sm:grid-cols-[8rem_1fr_auto] sm:items-end">
+        <div className="grid gap-3 sm:grid-cols-[8rem_9rem_1fr_auto] sm:items-end">
           <Input
             label="Quantity"
             type="number"
@@ -444,6 +453,15 @@ function StockPanel({ item, onChanged }: { item: ItemSummary; onChanged: () => v
             placeholder="+10 / −3"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
+          />
+          <Input
+            label="Unit cost"
+            inputMode="decimal"
+            placeholder={item.cost != null ? String(item.cost) : "0.00"}
+            value={incoming ? unitCost : ""}
+            onChange={(e) => setUnitCost(e.target.value)}
+            disabled={!incoming}
+            hint={incoming ? "Updates the item's cost." : "For stock coming in."}
           />
           <Input
             label="Reason"
@@ -470,7 +488,10 @@ function StockPanel({ item, onChanged }: { item: ItemSummary; onChanged: () => v
               <li key={m.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
                 <div className="min-w-0">
                   <p className="truncate text-text">{m.reason || m.type}</p>
-                  <p className="text-xs text-muted">{formatDate(m.occurredAt)}</p>
+                  <p className="text-xs text-muted">
+                    {formatDate(m.occurredAt)}
+                    {m.unitCost != null && ` · at ${formatMoney(m.unitCost)} each`}
+                  </p>
                 </div>
                 <div className="flex items-center gap-4 tabular">
                   <span className={cn("font-medium", m.quantity < 0 ? "text-danger" : "text-success-text")}>

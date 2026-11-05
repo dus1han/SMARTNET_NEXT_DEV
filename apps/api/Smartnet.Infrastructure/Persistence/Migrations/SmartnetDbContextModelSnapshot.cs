@@ -2761,6 +2761,110 @@ namespace Smartnet.Infrastructure.Persistence.Migrations
                     b.ToTable("supplier_payment_allocations", (string)null);
                 });
 
+            modelBuilder.Entity("Smartnet.Domain.Documents.SuspendedReceivable", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("amount");
+
+                    b.Property<long>("CompanyId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("created_by");
+
+                    b.Property<long>("CustomerId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("customer_id");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("deleted_by");
+
+                    b.Property<long>("InvoiceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("invoice_id");
+
+                    b.Property<string>("InvoiceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("invoice_number");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<long?>("ReceiptId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("receipt_id");
+
+                    b.Property<string>("ReinstateNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("reinstate_note");
+
+                    b.Property<DateTime?>("ReinstatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("reinstated_at");
+
+                    b.Property<long?>("ReinstatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reinstated_by");
+
+                    b.Property<int>("RowVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("row_version");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("varchar(24)")
+                        .HasColumnName("status");
+
+                    b.Property<DateOnly>("SuspendedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("suspended_on");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("InvoiceId", "Status");
+
+                    b.HasIndex("Status", "CompanyId");
+
+                    b.ToTable("suspended_receivables", (string)null);
+                });
+
             modelBuilder.Entity("Smartnet.Domain.Identity.Role", b =>
                 {
                     b.Property<long>("Id")
@@ -3921,6 +4025,10 @@ namespace Smartnet.Infrastructure.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("varchar(16)")
                         .HasColumnName("type");
+
+                    b.Property<decimal?>("UnitCost")
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("unit_cost");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime(6)")

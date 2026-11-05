@@ -22,6 +22,15 @@ public enum LedgerEntryType
 
     /// <summary>A credit note — reduces what is owed.</summary>
     Credit,
+
+    /// <summary>
+    /// Part or all of an invoice's outstanding moved to the suspended account — negative, so the invoice
+    /// stops reading as owed everywhere. The customer still owes it: see <see cref="Reinstated"/>.
+    /// </summary>
+    Suspended,
+
+    /// <summary>A suspended amount brought back onto the invoice — positive, the exact reverse of a <see cref="Suspended"/>.</summary>
+    Reinstated,
 }
 
 /// <summary>

@@ -35,7 +35,7 @@ import { useDraftAutosave, useDraftResume } from "@/components/documents/use-dra
 import {
   CustomerCombobox,
   customerContactNames,
-  draftCostBasis,
+  DraftCostRow,
   LineDraftEditor,
   linesArePostable,
   useDraftTotals,
@@ -125,7 +125,6 @@ function NewQuotationForm() {
   });
   // Σ (unit cost × quantity), the same arithmetic the server will apply — so the read-only figure below is
   // the one that gets stored, not an approximation of it.
-  const costBasis = draftCostBasis(lines);
   const canSubmit = companyId !== "" && customerId !== "" && linesArePostable(lines);
 
   async function submit() {
@@ -227,6 +226,7 @@ function NewQuotationForm() {
         lines={lines}
         onLinesChange={setLines}
         items={items.data ?? []}
+        cost={{ vatPercent: ratePercent }}
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -274,12 +274,7 @@ function NewQuotationForm() {
 
               A SERVICE quotation shows nothing here. Its cost cannot be derived, is not known while quoting,
               and is asked for at conversion instead. */}
-          {kind === "item" && (
-            <div className="flex items-center justify-between gap-3 border-t border-subtle pt-2">
-              <span className="text-muted">Cost</span>
-              <span className="tabular text-text">{formatAmount(costBasis)}</span>
-            </div>
-          )}
+          {kind === "item" && <DraftCostRow lines={lines} vatPercent={ratePercent} />}
 
           {/* draft.blocked: a colleague has moved this draft on, so this screen is working from a
               version they have already replaced. Raising it here would issue a second quotation for the

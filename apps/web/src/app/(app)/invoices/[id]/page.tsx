@@ -13,11 +13,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, CheckCircle2, Download, Mail, Pencil, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Mail, PauseCircle, Pencil, Printer, Trash2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { deleteInvoice, emailInvoice, getInvoice, invoiceRecipients } from "@/lib/invoices";
+import { suspendReceivable } from "@/lib/suspended-receivables";
 import { me } from "@/lib/auth";
-import { daysDueLabel } from "@/lib/period";
+import { daysDueLabel, today } from "@/lib/period";
 import { PageHeader } from "@/components/shell/app-shell";
 import { DataTable, downloadExcel, type ColumnDef } from "@/components/data-table";
 import { formatMoney, formatReportDate } from "@/components/reports";
@@ -36,6 +37,7 @@ export default function InvoiceViewPage() {
   const [printing, setPrinting] = useState(false);
   const [emailing, setEmailing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [suspending, setSuspending] = useState(false);
 
   const invoice = useQuery({
     queryKey: ["invoice", invoiceId],
@@ -51,6 +53,10 @@ export default function InvoiceViewPage() {
   // Any invoice can be edited or voided by someone with the invoice right — a legacy one is adopted into
   // the new model on the first change. The server re-checks; this only decides whether to draw the buttons.
   const canModify = data != null && (user.data?.permissions.includes("item_in") ?? false);
+  const suspension = data?.suspension ?? null;
+  // One suspension per invoice at a time; a second part is moved by reinstating and suspending the whole.
+  const canSuspend =
+    data != null && suspension == null && data.outstanding > 0 && (user.data?.permissions.includes("receivables.suspend") ?? false);
 
   return (
     <FadeIn className="space-y-6">
@@ -110,6 +116,12 @@ export default function InvoiceViewPage() {
               </Button>
             </>
           )}
+          {canSuspend && (
+            <Button variant="secondary" onClick={() => setSuspending(true)}>
+              <PauseCircle />
+              Suspend
+            </Button>
+          )}
           {canModify && (
             <>
               <Button variant="secondary" onClick={() => router.push(`/invoices/${invoiceId}/edit`)}>
@@ -131,6 +143,23 @@ export default function InvoiceViewPage() {
 
       {data && (
         <>
+          {suspension && (
+            <Card className="flex flex-wrap items-center justify-between gap-3 border-warning/40 p-4">
+              <div>
+                <p className="font-medium text-text">
+                  {formatMoney(suspension.amount)} is on the suspended account
+                </p>
+                <p className="text-sm text-muted">
+                  Since {formatReportDate(suspension.suspendedOn)} — {suspension.reason}. It is left out of the outstanding
+                  below and everywhere else, but the customer still owes it. Reinstate it before editing or voiding the invoice.
+                </p>
+              </div>
+              <Link href="/suspended-receivables" className="text-sm font-medium text-primary hover:underline">
+                Open the suspended account
+              </Link>
+            </Card>
+          )}
+
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Detail label="Company" value={data.companyName ?? "—"} />
             <Detail label="Customer" value={data.customerName ?? "—"} sub={data.customerCode ?? undefined} />
@@ -149,13 +178,29 @@ export default function InvoiceViewPage() {
               <div className="border-t border-subtle pt-2">
                 <Row label="Total" value={formatMoney(data.total)} strong />
               </div>
+              {/* The cost basis — an item invoice's summed line costs, or a service invoice's entered figure.
+                  A VAT-registered company pays VAT on what it buys in, so its cost is shown with VAT added at
+                  the invoice's own rate; a company that is not registered carries no rate, and the cost is as is. */}
+              <div className="border-t border-dashed border-subtle pt-2">
+                <Row
+                  label={data.taxRatePercentage > 0 ? `Cost + VAT (${data.taxRatePercentage}%)` : "Cost"}
+                  value={formatMoney(costWithVat(data.cost, data.taxRatePercentage))}
+                />
+                {data.taxRatePercentage > 0 && (
+                  <p className="text-right text-xs text-muted">{formatMoney(data.cost)} before VAT</p>
+                )}
+              </div>
             </Card>
 
             <Card className="flex flex-col justify-center gap-2 p-5">
               <p className="stat-label text-xs font-semibold uppercase tracking-wider">Outstanding</p>
               <div className="flex items-center gap-3">
                 <span className="tabular text-3xl font-bold text-text">{formatMoney(data.outstanding)}</span>
-                <Badge tone={settled ? "success" : "warning"}>{settled ? "Paid" : daysDueLabel(data.date)}</Badge>
+                {settled && suspension ? (
+                  <Badge tone="neutral">Suspended</Badge>
+                ) : (
+                  <Badge tone={settled ? "success" : "warning"}>{settled ? "Paid" : daysDueLabel(data.date)}</Badge>
+                )}
               </div>
               <p className="text-sm text-muted">
                 {isLegacy ? "The legacy system's stored balance, as imported." : "Derived from the ledger — not a stored figure."}
@@ -240,6 +285,22 @@ export default function InvoiceViewPage() {
             voidInvoice={(reason) => deleteInvoice(invoiceId, data.rowVersion, reason)}
           />
 
+          {canSuspend && (
+            <SuspendDialog
+              open={suspending}
+              onOpenChange={setSuspending}
+              invoiceId={invoiceId}
+              invoiceNumber={data.number}
+              outstanding={data.outstanding}
+              onSuspended={(amount) => {
+                void queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+                void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+                void queryClient.invalidateQueries({ queryKey: ["suspended-receivables"] });
+                toast.success(`${formatMoney(amount)} moved to the suspended account.`);
+              }}
+            />
+          )}
+
           <PrintPreview
             open={printing}
             onOpenChange={setPrinting}
@@ -262,6 +323,77 @@ export default function InvoiceViewPage() {
         </>
       )}
     </FadeIn>
+  );
+}
+
+/**
+ * Move part or all of the outstanding to the suspended account. It drops out of every outstanding figure
+ * — the invoice, dashboard, reports, dunning — until it is reinstated or paid from the suspended account.
+ */
+function SuspendDialog({ open, onOpenChange, invoiceId, invoiceNumber, outstanding, onSuspended }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  invoiceId: number;
+  invoiceNumber: string;
+  outstanding: number;
+  onSuspended: (amount: number) => void;
+}) {
+  const [amount, setAmount] = useState(String(outstanding));
+  const [date, setDate] = useState(today);
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  const value = Number(amount);
+  const valid = Number.isFinite(value) && value > 0 && value <= outstanding + 1e-9 && reason.trim().length >= 5;
+
+  async function submit() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const created = await suspendReceivable({ invoiceId, amount: value, date, reason: reason.trim() });
+      onOpenChange(false);
+      setReason("");
+      onSuspended(created.amount);
+    } catch (e) {
+      setError(e as ApiError);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Suspend invoice ${invoiceNumber}`}
+      description={`${formatMoney(outstanding)} outstanding. The amount suspended stops showing as owed anywhere until it is reinstated or paid — the customer still owes it, and it still counts against their credit limit.`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
+          <Button onClick={submit} pending={submitting} disabled={!valid}>Suspend</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {error && <ErrorBanner message={error.message} correlationId={error.correlationId} />}
+        <Input
+          label="Amount"
+          inputMode="decimal"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          hint={value > outstanding ? `More than the ${formatMoney(outstanding)} outstanding.` : undefined}
+        />
+        <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <Input
+          label="Reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Customer disputing the delivery…"
+          hint="Required — it is shown on the suspended account."
+        />
+      </div>
+    </Dialog>
   );
 }
 
@@ -321,6 +453,11 @@ function VoidDialog({ open, onOpenChange, invoiceNumber, onVoided, voidInvoice }
       </div>
     </Dialog>
   );
+}
+
+/** The cost with VAT added at the given rate, to the cent. A rate of 0 leaves it unchanged. */
+function costWithVat(cost: number, ratePercent: number): number {
+  return Math.round(cost * (1 + ratePercent / 100) * 100) / 100;
 }
 
 function Detail({ label, value, sub }: { label: string; value: string; sub?: string }) {

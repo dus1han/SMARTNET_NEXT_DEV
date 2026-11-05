@@ -166,6 +166,7 @@ public class StockMovementConfiguration : IEntityTypeConfiguration<StockMovement
 
         builder.Property(m => m.Quantity).HasColumnName("quantity").HasColumnType("decimal(18,4)");
         builder.Property(m => m.Reason).HasColumnName("reason").HasMaxLength(500);
+        builder.Property(m => m.UnitCost).HasColumnName("unit_cost").HasColumnType("decimal(18,4)");
         builder.Property(m => m.OccurredAt).HasColumnName("occurred_at");
 
         builder.ConfigureAuditColumns();

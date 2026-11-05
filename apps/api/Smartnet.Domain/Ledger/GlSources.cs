@@ -11,6 +11,8 @@ public static class GlSources
     public const string CreditNote = "CreditNote";
     public const string CustomerReceipt = "CustomerReceipt";
     public const string CustomerReceiptVoid = "CustomerReceiptVoid";
+    public const string ReceivableSuspension = "ReceivableSuspension";
+    public const string ReceivableReinstatement = "ReceivableReinstatement";
     public const string SupplierInvoice = "SupplierInvoice";
     public const string SupplierInvoiceVoid = "SupplierInvoiceVoid";
     public const string SupplierPayment = "SupplierPayment";

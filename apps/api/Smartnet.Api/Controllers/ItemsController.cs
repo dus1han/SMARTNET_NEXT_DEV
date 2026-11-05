@@ -251,7 +251,7 @@ public sealed class ItemsController : ControllerBase
             {
                 running += m.Quantity;
                 return new StockMovementDto(
-                    m.Id, m.Type.ToString(), m.Quantity, running, m.Reason, m.OccurredAt, m.CreatedBy, m.CreatedAt);
+                    m.Id, m.Type.ToString(), m.Quantity, running, m.Reason, m.OccurredAt, m.CreatedBy, m.CreatedAt, m.UnitCost);
             })
             .ToList();
 
@@ -290,6 +290,7 @@ public sealed class ItemsController : ControllerBase
             Type = StockMovementType.Adjustment,
             Quantity = request.Quantity,
             Reason = request.Reason,
+            UnitCost = request.Quantity > 0 ? request.UnitCost : null,
             // Back-dateable to the count, but never into the future — a movement cannot happen later
             // than the moment it is recorded.
             OccurredAt = request.OccurredAt is { } when && when <= _time.GetUtcNow().UtcDateTime
@@ -298,6 +299,14 @@ public sealed class ItemsController : ControllerBase
         };
 
         _db.StockMovements.Add(movement);
+
+        // New stock at a cost is the item's cost from now on — the latest price paid, which every new
+        // document line takes off the master. Lines already on documents keep the cost they were saved with.
+        if (movement.UnitCost is { } unitCost)
+        {
+            item.Cost = unitCost;
+        }
+
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return NoContent();

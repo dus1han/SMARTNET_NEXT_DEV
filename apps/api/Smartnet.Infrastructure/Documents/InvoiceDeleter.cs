@@ -71,6 +71,15 @@ public sealed class InvoiceDeleter : IInvoiceDeleter
             throw new InvoiceHasCreditNotesException(invoice.Number);
         }
 
+        // Money on the suspended account was taken off these figures. Changing or voiding the invoice under
+        // it would leave the suspension reversing an amount the invoice no longer carries — reinstate first.
+        if (await _db.SuspendedReceivables
+                .AnyAsync(s => s.InvoiceId == invoice.Id && s.Status == SuspendedReceivableStatus.Suspended, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            throw new InvoiceIsSuspendedException(invoice.Number);
+        }
+
         // Void a stale copy → concurrency conflict, same as the editor.
         _db.Entry(invoice).Property(i => i.RowVersion).OriginalValue = expectedRowVersion;
 

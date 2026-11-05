@@ -8058,6 +8058,158 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/suspended-receivables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    active?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SuspendedReceivableSummary"][];
+                        "application/json": components["schemas"]["SuspendedReceivableSummary"][];
+                        "text/json": components["schemas"]["SuspendedReceivableSummary"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SuspendReceivableRequest"];
+                    "text/json": components["schemas"]["SuspendReceivableRequest"];
+                    "application/*+json": components["schemas"]["SuspendReceivableRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["SuspensionCreatedResponse"];
+                        "application/json": components["schemas"]["SuspensionCreatedResponse"];
+                        "text/json": components["schemas"]["SuspensionCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suspended-receivables/{id}/reinstate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["ReinstateSuspensionRequest"];
+                    "text/json": components["schemas"]["ReinstateSuspensionRequest"];
+                    "application/*+json": components["schemas"]["ReinstateSuspensionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suspended-receivables/{id}/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SettleSuspensionRequest"];
+                    "text/json": components["schemas"]["SettleSuspensionRequest"];
+                    "application/*+json": components["schemas"]["SettleSuspensionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CustomerReceiptCreatedResponse"];
+                        "application/json": components["schemas"]["CustomerReceiptCreatedResponse"];
+                        "text/json": components["schemas"]["CustomerReceiptCreatedResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/users": {
         parameters: {
             query?: never;
@@ -8970,6 +9122,8 @@ export interface components {
             reason: string;
             /** Format: date-time */
             occurredAt?: string | null;
+            /** Format: double */
+            unitCost?: number | null;
         };
         CreateSupplierInvoiceRequest: {
             /** Format: int64 */
@@ -9802,6 +9956,7 @@ export interface components {
             /** Format: int64 */
             proformaId?: number | null;
             proformaNumber?: string | null;
+            suspension?: components["schemas"]["InvoiceSuspension"] | null;
         };
         InvoiceEditedResponse: {
             /** Format: int64 */
@@ -9891,6 +10046,8 @@ export interface components {
             outstanding: number;
             origin: string;
             purchaseOrderNo?: string | null;
+            /** Format: double */
+            suspended: number;
         };
         InvoiceSummaryPagedResult: {
             rows: components["schemas"]["InvoiceSummary"][];
@@ -9900,6 +10057,17 @@ export interface components {
             page: number;
             /** Format: int32 */
             pageSize: number;
+        };
+        InvoiceSuspension: {
+            /** Format: int64 */
+            id: number;
+            /** Format: double */
+            amount: number;
+            /** Format: date */
+            suspendedOn: string;
+            reason: string;
+            /** Format: int32 */
+            rowVersion: number;
         };
         InvoiceTaxRate: {
             /** Format: int64 */
@@ -10622,6 +10790,11 @@ export interface components {
             method?: string | null;
             reference?: string | null;
         };
+        ReinstateSuspensionRequest: {
+            /** Format: int32 */
+            rowVersion: number;
+            note?: string | null;
+        };
         ResetPasswordResponse: {
             temporaryPassword: string;
         };
@@ -10862,6 +11035,17 @@ export interface components {
             /** Format: date */
             effectiveFrom: string;
         };
+        SettleSuspensionRequest: {
+            /** Format: int32 */
+            rowVersion: number;
+            /** Format: double */
+            amount: number;
+            /** Format: date */
+            date: string;
+            method?: string | null;
+            reference?: string | null;
+            idempotencyKey: string;
+        };
         StatementRecipients: {
             contacts: components["schemas"]["DocumentContact"][];
             blocked?: string | null;
@@ -10894,6 +11078,8 @@ export interface components {
             createdBy?: number | null;
             /** Format: date-time */
             createdAt: string;
+            /** Format: double */
+            unitCost?: number | null;
         };
         SupplierInvoiceCreatedResponse: {
             /** Format: int64 */
@@ -11116,6 +11302,52 @@ export interface components {
             /** Format: double */
             vat: number;
             hasDataIssue: boolean;
+        };
+        SuspendReceivableRequest: {
+            /** Format: int64 */
+            invoiceId: number;
+            /** Format: double */
+            amount: number;
+            /** Format: date */
+            date: string;
+            reason: string;
+        };
+        SuspendedReceivableSummary: {
+            /** Format: int64 */
+            id: number;
+            companyName?: string | null;
+            /** Format: int64 */
+            customerId: number;
+            customerName?: string | null;
+            customerCode?: string | null;
+            /** Format: int64 */
+            invoiceId: number;
+            invoiceNumber: string;
+            /** Format: date */
+            invoiceDate?: string | null;
+            /** Format: double */
+            invoiceTotal: number;
+            /** Format: double */
+            amount: number;
+            /** Format: date */
+            suspendedOn: string;
+            reason: string;
+            suspendedBy?: string | null;
+            status: string;
+            /** Format: date-time */
+            reinstatedAt?: string | null;
+            reinstateNote?: string | null;
+            /** Format: int64 */
+            receiptId?: number | null;
+            /** Format: int32 */
+            rowVersion: number;
+            origin: string;
+        };
+        SuspensionCreatedResponse: {
+            /** Format: int64 */
+            id: number;
+            /** Format: double */
+            amount: number;
         };
         TaxRateDto: {
             /** Format: int64 */

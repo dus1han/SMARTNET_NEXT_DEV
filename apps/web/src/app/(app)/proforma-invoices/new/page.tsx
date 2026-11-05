@@ -30,6 +30,7 @@ import { Button, Card, ErrorBanner, FadeIn, Input, Select, toast } from "@/compo
 import {
   CustomerCombobox,
   customerContactNames,
+  DraftCostRow,
   LineDraftEditor,
   linesArePostable,
   useDraftTotals,
@@ -161,6 +162,7 @@ export default function NewProformaPage() {
         lines={lines}
         onLinesChange={setLines}
         items={items.data ?? []}
+        cost={{ vatPercent: ratePercent }}
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -200,6 +202,7 @@ export default function NewProformaPage() {
           <div className="border-t border-subtle pt-2">
             <Row label="Amount due" value={formatAmount(totals.total)} strong />
           </div>
+          {kind === "item" && <DraftCostRow lines={lines} vatPercent={ratePercent} />}
 
           <Button className="mt-2 w-full" onClick={submit} pending={submitting} disabled={!canSubmit}>
             Raise proforma invoice

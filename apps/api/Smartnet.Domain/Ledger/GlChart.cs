@@ -19,6 +19,9 @@ public static class GlChart
     public static GlPostingLine Receivable(decimal debit, decimal credit) =>
         new(GlAccountCodes.AccountsReceivable, "Accounts Receivable", AccountType.Asset, false, debit, credit);
 
+    public static GlPostingLine SuspendedReceivable(decimal debit, decimal credit) =>
+        new(GlAccountCodes.SuspendedReceivables, "Suspended Receivables", AccountType.Asset, false, debit, credit);
+
     public static GlPostingLine Payable(decimal debit, decimal credit) =>
         new(GlAccountCodes.AccountsPayable, "Accounts Payable", AccountType.Liability, false, debit, credit);
 

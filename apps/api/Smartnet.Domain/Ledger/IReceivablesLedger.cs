@@ -11,6 +11,9 @@ namespace Smartnet.Domain.Ledger;
 /// </remarks>
 public interface IReceivablesLedger
 {
-    /// <summary>What the customer owes: the sum of their ledger entries. Zero when they have none.</summary>
+    /// <summary>
+    /// What the customer owes: the sum of their ledger entries. Zero when they have none. Money on the
+    /// suspended account is still owed, so it counts here — this is what the credit limit is measured on.
+    /// </summary>
     Task<decimal> BalanceForCustomerAsync(long customerId, CancellationToken cancellationToken = default);
 }

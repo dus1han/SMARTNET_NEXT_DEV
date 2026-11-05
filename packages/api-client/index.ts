@@ -217,6 +217,14 @@ export type CustomerReceiptDetail = Schemas["CustomerReceiptDetail"];
 export type ReceiptAllocationLine = Schemas["ReceiptAllocationLine"];
 export type OutstandingInvoiceLine = Schemas["OutstandingInvoiceLine"];
 
+// The suspended account — outstanding moved off an invoice, and brought back.
+export type InvoiceSuspension = Schemas["InvoiceSuspension"];
+export type SuspendReceivableRequest = Schemas["SuspendReceivableRequest"];
+export type SuspensionCreatedResponse = Schemas["SuspensionCreatedResponse"];
+export type ReinstateSuspensionRequest = Schemas["ReinstateSuspensionRequest"];
+export type SettleSuspensionRequest = Schemas["SettleSuspensionRequest"];
+export type SuspendedReceivableSummary = Schemas["SuspendedReceivableSummary"];
+
 export type CreateSupplierPaymentRequest = Schemas["CreateSupplierPaymentRequest"];
 export type CreateSupplierPaymentAllocationRequest = Schemas["CreateSupplierPaymentAllocationRequest"];
 export type SupplierPaymentCreatedResponse = Schemas["SupplierPaymentCreatedResponse"];

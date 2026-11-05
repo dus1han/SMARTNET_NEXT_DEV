@@ -136,6 +136,7 @@ public class SmartnetDbContext : DbContext
 
     /// <summary>The receivables ledger. A customer's balance is the sum of these — see <see cref="LedgerEntry"/>.</summary>
     public DbSet<LedgerEntry> ReceivablesLedger => Set<LedgerEntry>();
+    public DbSet<SuspendedReceivable> SuspendedReceivables => Set<SuspendedReceivable>();
 
     /// <summary>The general-ledger chart of accounts (per company).</summary>
     public DbSet<GlAccount> GlAccounts => Set<GlAccount>();

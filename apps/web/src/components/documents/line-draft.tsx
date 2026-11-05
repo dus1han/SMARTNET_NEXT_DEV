@@ -17,7 +17,7 @@
  * to major-unit decimals only at the moment of posting, by the page.
  */
 
-import { useCallback, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Package, PenLine, Plus, Search, Trash2 } from "lucide-react";
 import type { CustomerSummary } from "@/lib/customers";
 import type { ItemSummary } from "@/lib/items";
@@ -150,6 +150,30 @@ export function useDraftTotals(lines: DraftLine[], ratePercent: number, docPerce
 export const draftCostBasis = (lines: DraftLine[]): Minor =>
   sum(lines.map((l) => (l.cost === null ? 0 : roundHalf((l.cost * l.quantity) / QUANTITY_SCALE))));
 
+/**
+ * A cost as the business reads it: a VAT-registered company pays VAT on what it buys in, so its cost is the
+ * cost plus VAT at the document's rate. A company that is not registered resolves a rate of 0 — cost as is.
+ */
+export const costWithVat = (cost: Minor, vatPercent: number): Minor => roundHalf((cost * (100 + vatPercent)) / 100);
+
+/**
+ * The document's cost at the foot of an item document — Σ unit cost × quantity off the master's latest
+ * costs, plus VAT for a VAT-registered company. Read-only: the master is the authority, and a figure typed
+ * over it would be a private cost basis nothing else knows about. A service document has no row here.
+ */
+export function DraftCostRow({ lines, vatPercent }: { lines: DraftLine[]; vatPercent: number }) {
+  const basis = draftCostBasis(lines);
+  return (
+    <div className="border-t border-subtle pt-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-muted">{vatPercent > 0 ? `Cost + VAT (${vatPercent}%)` : "Cost"}</span>
+        <span className="tabular text-text">{formatAmount(costWithVat(basis, vatPercent))}</span>
+      </div>
+      {vatPercent > 0 && <p className="text-right text-xs text-muted">{formatAmount(basis)} before VAT</p>}
+    </div>
+  );
+}
+
 /** True when every line is complete enough to post: a positive quantity and an item or a description. */
 export const linesArePostable = (lines: DraftLine[]) =>
   lines.length > 0 &&
@@ -168,18 +192,47 @@ export function LineDraftEditor({
   lines,
   onLinesChange,
   items,
+  cost,
 }: {
   kind: DocumentKind;
   onKindChange: (kind: DocumentKind) => void;
   lines: DraftLine[];
   onLinesChange: (updater: (current: DraftLine[]) => DraftLine[]) => void;
   items: readonly ItemSummary[];
+  /**
+   * Show each item line's cost, read-only — for the selling documents (quotation, proforma, invoice). The
+   * cost is the item master's latest (stock received at a cost updates it), with VAT added at
+   * `vatPercent` for a VAT-registered company. Left out on a purchase order or credit note, whose line
+   * costs are their own.
+   */
+  cost?: { vatPercent: number };
 }) {
   const entry = useRef<HTMLInputElement>(null);
   const quantities = useRef(new Map<string, HTMLInputElement>());
   const prices = useRef(new Map<string, HTMLInputElement>());
 
   const focusEntry = useCallback(() => entry.current?.focus(), []);
+
+  // Item lines carry the master's latest cost — a line picked earlier, restored from a draft or loaded from
+  // a saved document is brought up to it, so the cost on screen is the cost saved. Returns the same array
+  // when nothing moved, so it settles after one pass.
+  const showCost = cost != null;
+  useEffect(() => {
+    if (!showCost || items.length === 0) return;
+    const latest = new Map(items.map((i) => [i.id, i.cost == null ? null : toMinor(i.cost)]));
+    onLinesChange((current) => {
+      let moved = false;
+      const next = current.map((l) => {
+        const now = l.itemId == null ? null : latest.get(l.itemId);
+        if (now == null || now === l.cost) return l;
+        moved = true;
+        return { ...l, cost: now };
+      });
+      return moved ? next : current;
+    });
+  }, [showCost, items, lines.length, onLinesChange]);
+
+  const withCost = cost != null && kind === "item";
 
   const patch = (key: string, changes: Partial<DraftLine>) =>
     onLinesChange((current) => current.map((l) => (l.key === key ? { ...l, ...changes } : l)));
@@ -219,6 +272,11 @@ export function LineDraftEditor({
                 <th className="w-32 px-3 py-2 text-right font-medium">Unit price</th>
                 <th className="w-20 px-3 py-2 text-right font-medium">Disc %</th>
                 <th className="w-32 px-3 py-2 text-right font-medium">Net</th>
+                {withCost && (
+                  <th className="w-32 px-3 py-2 text-right font-medium">
+                    {cost.vatPercent > 0 ? `Cost + VAT` : "Cost"}
+                  </th>
+                )}
                 <th className="w-10 px-2 py-2" />
               </tr>
             </thead>
@@ -226,7 +284,7 @@ export function LineDraftEditor({
             <tbody className="divide-y divide-subtle">
               {lines.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-muted">
+                  <td colSpan={withCost ? 7 : 6} className="px-3 py-8 text-center text-muted">
                     {kind === "item"
                       ? "No lines yet. Search the item master below and press Enter."
                       : "No lines yet. Type what you are billing for and press Enter."}
@@ -238,6 +296,7 @@ export function LineDraftEditor({
                 <Row
                   key={line.key}
                   line={line}
+                  costVatPercent={withCost ? cost.vatPercent : null}
                   patch={(changes) => patch(line.key, changes)}
                   remove={() => {
                     onLinesChange((current) => current.filter((l) => l.key !== line.key));
@@ -322,8 +381,10 @@ function DocumentPicker({ kind, onChange }: { kind: DocumentKind; onChange: (kin
   );
 }
 
-function Row({ line, patch, remove, registerQuantity, registerPrice, onDone }: {
+function Row({ line, costVatPercent, patch, remove, registerQuantity, registerPrice, onDone }: {
   line: DraftLine;
+  /** Null hides the cost column; otherwise the VAT rate added to the unit cost (0 for a non-VAT company). */
+  costVatPercent: number | null;
   patch: (changes: Partial<DraftLine>) => void;
   remove: () => void;
   registerQuantity: (el: HTMLInputElement | null) => void;
@@ -378,6 +439,20 @@ function Row({ line, patch, remove, registerQuantity, registerPrice, onDone }: {
 
       {/* Lines are ex-VAT: the net is before tax, and VAT lands once, on the document (the foot). */}
       <td className="px-3 py-1.5 text-right tabular text-text">{formatAmount(lineNet(line))}</td>
+
+      {/* Read-only: the cost is the item master's, not something typed on a document. Per unit. */}
+      {costVatPercent != null && (
+        <td className="px-3 py-1.5 text-right tabular text-muted">
+          {line.cost == null ? (
+            <span className="text-xs">No cost</span>
+          ) : (
+            <>
+              <span className="text-text">{formatAmount(costWithVat(line.cost, costVatPercent))}</span>
+              {costVatPercent > 0 && <span className="block text-xs">{formatAmount(line.cost)} ex-VAT</span>}
+            </>
+          )}
+        </td>
+      )}
 
       <td className="px-2 py-1.5">
         <button

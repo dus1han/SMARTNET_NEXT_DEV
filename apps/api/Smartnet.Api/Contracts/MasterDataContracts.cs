@@ -141,7 +141,9 @@ public sealed record StockMovementDto(
     string? Reason,
     DateTime OccurredAt,
     long? CreatedBy,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    // The unit cost the stock came in at, when one was entered.
+    decimal? UnitCost = null);
 
 /// <summary>One legacy receipt batch — <c>item_stock</c>, shown for reference beside the ledger.</summary>
 public sealed record StockBatchDto(
@@ -164,10 +166,15 @@ public sealed record ItemStockResponse(
 
 /// <param name="Quantity">Signed: positive adds stock, negative removes it. Zero is not a movement.</param>
 /// <param name="OccurredAt">When the count/write-off actually happened. Defaults to now if omitted.</param>
+/// <param name="UnitCost">
+/// For stock coming in (a positive quantity): what one unit cost. Given, it is recorded on the movement and
+/// becomes the item's latest cost — the cost every new quotation, proforma and invoice line takes.
+/// </param>
 public sealed record CreateStockAdjustmentRequest(
     decimal Quantity,
     string Reason,
-    DateTime? OccurredAt);
+    DateTime? OccurredAt,
+    decimal? UnitCost = null);
 
 // --- Validators ----------------------------------------------------------------------------
 
@@ -237,5 +244,10 @@ public sealed class CreateStockAdjustmentRequestValidator : AbstractValidator<Cr
         // "why is the count different?", read back off the stock history forever.
         RuleFor(a => a.Reason).NotEmpty().MaximumLength(500)
             .WithMessage("A stock adjustment needs a reason.");
+
+        // A cost belongs to stock coming in; taking stock out at a "cost" would rewrite the item's price.
+        RuleFor(a => a.UnitCost).GreaterThanOrEqualTo(0m).When(a => a.UnitCost is not null);
+        RuleFor(a => a.UnitCost).Null().When(a => a.Quantity < 0)
+            .WithMessage("A unit cost is entered for stock coming in, not going out.");
     }
 }

@@ -160,7 +160,9 @@ public sealed record InvoiceSummary(
     decimal Total,
     decimal Outstanding,
     string Origin,
-    string? PurchaseOrderNo);
+    string? PurchaseOrderNo,
+    // What is on the suspended account for this invoice — already left out of Outstanding.
+    decimal Suspended = 0m);
 
 /// <param name="Id">
 /// The line's surrogate id, for an edit to reconcile against (new invoice lines only). Null for a legacy
@@ -235,7 +237,12 @@ public sealed record InvoiceDetail(
 
     // The proforma invoice this was converted from, when it came through one.
     long? ProformaId = null,
-    string? ProformaNumber = null);
+    string? ProformaNumber = null,
+    // The amount on the suspended account, when there is one — already left out of Outstanding.
+    InvoiceSuspension? Suspension = null);
+
+/// <summary>An invoice's live suspension — the amount moved to the suspended account, and why.</summary>
+public sealed record InvoiceSuspension(long Id, decimal Amount, DateOnly SuspendedOn, string Reason, int RowVersion);
 
 /// <summary>A payment received against a customer invoice — part or all of what was owed.</summary>
 public sealed record InvoicePaymentLine(DateOnly Date, decimal Amount, string? Method, string? Reference);

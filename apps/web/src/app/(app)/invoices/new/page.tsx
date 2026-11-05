@@ -37,6 +37,7 @@ import { useDraftAutosave, useDraftResume } from "@/components/documents/use-dra
 import {
   CustomerCombobox,
   customerContactNames,
+  DraftCostRow,
   LineDraftEditor,
   linesArePostable,
   useDraftTotals,
@@ -284,6 +285,7 @@ function NewInvoiceForm() {
         lines={lines}
         onLinesChange={setLines}
         items={items.data ?? []}
+        cost={{ vatPercent: ratePercent }}
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -327,6 +329,7 @@ function NewInvoiceForm() {
 
           {/* A service invoice's cost is entered here (item invoices derive it from the item master). It is
               the margin basis — it is not added to the total. */}
+          {kind === "item" && <DraftCostRow lines={lines} vatPercent={ratePercent} />}
           {kind === "service" && (
             <div className="flex items-center justify-between gap-3 border-t border-subtle pt-2">
               <label htmlFor="service-cost" className="text-muted">Cost</label>

@@ -87,6 +87,15 @@ public sealed class InvoiceEditor : IInvoiceEditor
             throw new InvoiceHasCreditNotesException(invoice.Number);
         }
 
+        // Money on the suspended account was taken off these figures. Changing or voiding the invoice under
+        // it would leave the suspension reversing an amount the invoice no longer carries — reinstate first.
+        if (await _db.SuspendedReceivables
+                .AnyAsync(s => s.InvoiceId == invoice.Id && s.Status == SuspendedReceivableStatus.Suspended, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            throw new InvoiceIsSuspendedException(invoice.Number);
+        }
+
         // The load's row_version is replaced by the one the caller edited against, so the UPDATE's WHERE
         // clause checks *their* expectation: if the row moved under them, no row matches and EF throws.
         _db.Entry(invoice).Property(i => i.RowVersion).OriginalValue = request.ExpectedRowVersion;

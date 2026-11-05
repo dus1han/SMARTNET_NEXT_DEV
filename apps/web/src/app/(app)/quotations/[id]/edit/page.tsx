@@ -24,7 +24,7 @@ import { formatReportDate } from "@/components/reports";
 import { Button, Card, ErrorBanner, FadeIn, Input, Select, Skeleton, toast } from "@/components/ui";
 import {
   customerContactNames,
-  draftCostBasis,
+  DraftCostRow,
   LineDraftEditor,
   linesArePostable,
   toMinor,
@@ -123,7 +123,6 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
 
   const totals = useDraftTotals(lines, ratePercent, docPercent);
   // Σ (unit cost × quantity) — the same arithmetic the server applies, so what is shown is what is stored.
-  const costBasis = draftCostBasis(lines);
   const canSubmit = linesArePostable(lines) && reason.trim().length >= 10;
 
   async function submit() {
@@ -207,7 +206,7 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
         <Input label="Valid for" value={validity} onChange={(e) => setValidity(e.target.value)} hint="e.g. 30 Days." />
       </Card>
 
-      <LineDraftEditor kind={kind} onKindChange={setKind} lines={lines} onLinesChange={setLines} items={items.data ?? []} />
+      <LineDraftEditor kind={kind} onKindChange={setKind} lines={lines} onLinesChange={setLines} items={items.data ?? []} cost={{ vatPercent: ratePercent }} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="space-y-3 p-5">
@@ -247,12 +246,7 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
 
           {/* Item: derived from the item master, shown read-only. Service: nothing, because the cost is not
               known while quoting and is asked for at conversion. Mirrors the create screen exactly. */}
-          {kind === "item" && (
-            <div className="flex items-center justify-between gap-3 border-t border-subtle pt-2">
-              <span className="text-muted">Cost</span>
-              <span className="tabular text-text">{formatAmount(costBasis)}</span>
-            </div>
-          )}
+          {kind === "item" && <DraftCostRow lines={lines} vatPercent={ratePercent} />}
 
           <Button className="mt-2 w-full" onClick={submit} pending={submitting} disabled={!canSubmit}>
             Save changes

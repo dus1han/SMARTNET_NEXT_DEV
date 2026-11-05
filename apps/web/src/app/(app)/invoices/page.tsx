@@ -184,9 +184,14 @@ const columns: ColumnDef<InvoiceSummary, unknown>[] = [
           {/* Fixed-width badge slot so the amounts stay right-aligned down the column whatever the
               badge reads ("Paid" vs "45 days due"). */}
           <span className="inline-flex w-28 shrink-0 justify-start">
-            <Badge tone={settled ? "success" : "warning"}>
-              {settled ? "Paid" : daysDueLabel(row.original.date)}
-            </Badge>
+            {/* Fully on the suspended account reads Suspended, not Paid — nothing was received. */}
+            {settled && (row.original.suspended ?? 0) > 0 ? (
+              <Badge tone="neutral">Suspended</Badge>
+            ) : (
+              <Badge tone={settled ? "success" : "warning"}>
+                {settled ? "Paid" : daysDueLabel(row.original.date)}
+              </Badge>
+            )}
           </span>
         </span>
       );

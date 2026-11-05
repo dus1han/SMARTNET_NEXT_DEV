@@ -54,6 +54,13 @@ public class StockMovement : IAuditable
 
     /// <summary>Why the adjustment was made — a stock count, breakage, an opening balance. Required on
     /// an adjustment (it is a change with a mandatory reason, like every other).</summary>
+    /// <summary>
+    /// What one unit cost, for stock coming in — recorded so the item's cost history is readable. Null for
+    /// an issue, a correction, or a receipt entered without a cost. A receipt with a cost becomes the item's
+    /// latest cost (<see cref="Item.Cost"/>).
+    /// </summary>
+    public decimal? UnitCost { get; set; }
+
     public string? Reason { get; set; }
 
     /// <summary>When the movement happened, as distinct from when the row was written
