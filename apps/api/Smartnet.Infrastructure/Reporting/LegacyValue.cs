@@ -53,6 +53,22 @@ public static class LegacyValue
     public static decimal Money(string? raw) => Money(raw, out _);
 
     /// <summary>
+    /// An invoice's cost as the reports read it: the stored <c>cost</c> plus VAT at the invoice's own
+    /// <c>vper</c>. A VAT-registered company pays VAT on what it buys in, so its cost is cost + VAT — the
+    /// same figure the invoice screens show. An invoice raised without VAT (vper 0, or a company that is
+    /// not registered) keeps its cost as is. <paramref name="ok"/> is false when the cost will not read.
+    /// </summary>
+    public static decimal CostWithVat(string? cost, string? vatPercent, out bool ok)
+    {
+        var basis = Money(cost, out ok);
+        var rate = Money(vatPercent);
+        return rate > 0m ? Math.Round(basis * (100m + rate) / 100m, 2, MidpointRounding.AwayFromZero) : basis;
+    }
+
+    /// <inheritdoc cref="CostWithVat(string?, string?, out bool)"/>
+    public static decimal CostWithVat(string? cost, string? vatPercent) => CostWithVat(cost, vatPercent, out _);
+
+    /// <summary>
     /// The customer's order number from <c>pono</c>, or empty when the field holds the clerks' "no PO"
     /// placeholder — a run of Xs in either case (<c>X</c>, <c>xx</c>, <c>XXX</c>…), which 219 invoices carry.
     /// </summary>

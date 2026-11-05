@@ -38,7 +38,9 @@ public static class SalesReport
     {
         var total = LegacyValue.Money(h.Totamount, out var totalOk);
         var balance = LegacyValue.Money(h.Balance, out var balanceOk);
-        var cost = LegacyValue.Money(h.Cost, out var costOk);
+        // Cost + VAT where the invoice carries VAT — the business's reading of cost, set against a total
+        // that includes VAT.
+        var cost = LegacyValue.CostWithVat(h.Cost, h.Vper, out var costOk);
 
         var date = LegacyValue.Date(h.Indate);
         // A blank date is fine (unset); a non-blank one we could not read is a defect.

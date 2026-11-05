@@ -53,6 +53,22 @@ public sealed class SalesReportTests
     }
 
     [Fact]
+    public void A_vat_invoice_costs_cost_plus_vat_and_a_non_vat_one_costs_its_cost()
+    {
+        var vat = Invoice("SNI-1", "Cash", total: "1050", cost: "600");
+        vat.Vper = "5"; // a VAT-registered company's invoice: 600 + 5% = 630
+        var noVat = Invoice("SNI-2", "Cash", total: "1000", cost: "600");
+        noVat.Vper = "0";
+
+        var report = SalesReport.Build([vat, noVat], Names, ReportPeriod.All);
+
+        report.Rows.Single(r => r.InvoiceNo == "SNI-1").Cost.Should().Be(630m);
+        report.Rows.Single(r => r.InvoiceNo == "SNI-1").Profit.Should().Be(420m);
+        report.Rows.Single(r => r.InvoiceNo == "SNI-2").Cost.Should().Be(600m);
+        report.Rows.Single(r => r.InvoiceNo == "SNI-2").Profit.Should().Be(400m);
+    }
+
+    [Fact]
     public void Total_includes_an_invoice_whose_type_is_neither_cash_nor_credit()
     {
         var invoices = new[]

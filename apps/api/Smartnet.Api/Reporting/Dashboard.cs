@@ -45,7 +45,7 @@ public static class Dashboard
         foreach (var h in monthRows)
         {
             var amount = LegacyValue.Money(h.Totamount, out var amountOk);
-            var lineCost = LegacyValue.Money(h.Cost, out var costOk);
+            var lineCost = LegacyValue.CostWithVat(h.Cost, h.Vper, out var costOk);
 
             total += amount;
             cost += lineCost;

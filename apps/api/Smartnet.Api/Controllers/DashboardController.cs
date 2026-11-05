@@ -158,6 +158,8 @@ public sealed class DashboardController : ControllerBase
                 Totamount = h.Totamount,
                 Balance = h.Balance,
                 Cost = h.Cost,
+                // The reports' cost is cost + VAT at the invoice's own rate (LegacyValue.CostWithVat).
+                Vper = h.Vper,
                 Preparedby = h.Preparedby,
                 Company = h.Company,
             })
@@ -296,6 +298,8 @@ public sealed class DashboardController : ControllerBase
                 Totamount = h.Totamount,
                 Balance = h.Balance,
                 Cost = h.Cost,
+                // The reports' cost is cost + VAT at the invoice's own rate (LegacyValue.CostWithVat).
+                Vper = h.Vper,
                 Preparedby = h.Preparedby,
                 Company = h.Company,
             })

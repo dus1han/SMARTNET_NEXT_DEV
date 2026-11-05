@@ -54,7 +54,7 @@ public static class DashboardAnalyticsBuilder
             .Select(h => new Sale(
                 LegacyValue.Date(h.Indate),
                 LegacyValue.Money(h.Totamount),
-                LegacyValue.Money(h.Cost),
+                LegacyValue.CostWithVat(h.Cost, h.Vper),
                 LegacyValue.Money(h.Balance),
                 h.Customer ?? string.Empty,
                 h.Invoiceno ?? string.Empty,
@@ -128,7 +128,7 @@ public static class DashboardAnalyticsBuilder
             .Select(h => new Sale(
                 LegacyValue.Date(h.Indate),
                 LegacyValue.Money(h.Totamount),
-                LegacyValue.Money(h.Cost),
+                LegacyValue.CostWithVat(h.Cost, h.Vper),
                 LegacyValue.Money(h.Balance),
                 h.Customer ?? string.Empty,
                 h.Invoiceno ?? string.Empty,

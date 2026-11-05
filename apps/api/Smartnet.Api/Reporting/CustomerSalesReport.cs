@@ -43,7 +43,7 @@ public static class CustomerSalesReport
         foreach (var h in invoices)
         {
             total += LegacyValue.Money(h.Totamount, out var totalOk);
-            cost += LegacyValue.Money(h.Cost, out var costOk);
+            cost += LegacyValue.CostWithVat(h.Cost, h.Vper, out var costOk);
             balance += LegacyValue.Money(h.Balance, out var balanceOk);
 
             issue |= !totalOk || !costOk || !balanceOk;
