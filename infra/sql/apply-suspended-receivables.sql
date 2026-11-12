@@ -61,6 +61,12 @@ COMMIT;
 
 
 
+-- The app user holds UPDATE/DELETE per table, not schema-wide (see narrow-app-user-grants.sh), so a new
+-- table needs its own grant — without it, reinstating or settling a suspension fails with
+-- "UPDATE command denied". (Added 2026-11-12, after exactly that happened on live.)
+GRANT UPDATE, DELETE ON `smartnet_invsys`.`suspended_receivables` TO 'smartnet_invsys_next'@'%';
+FLUSH PRIVILEGES;
+
 -- Should show the new table, and one receivables.suspend row per administrator role.
 SHOW TABLES LIKE 'suspended_receivables';
 SELECT r.name, rp.permission FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE rp.permission = 'receivables.suspend';
