@@ -39,6 +39,7 @@ import {
   customerContactNames,
   DraftCostRow,
   LineDraftEditor,
+  withFreshKeys,
   linesArePostable,
   useDraftTotals,
   type DocumentKind,
@@ -133,7 +134,7 @@ function NewInvoiceForm() {
     setContact(state.contact);
     setDocumentDiscount(state.documentDiscount);
     setServiceCost(state.serviceCost);
-    setLines(state.lines);
+    setLines(withFreshKeys(state.lines));
   });
 
   const draft = useDraftAutosave<InvoiceDraftState>({

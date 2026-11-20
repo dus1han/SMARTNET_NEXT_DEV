@@ -36,6 +36,7 @@ import { DraftNotices, DraftStatus } from "@/components/documents/draft-status";
 import { useDraftAutosave, useDraftResume } from "@/components/documents/use-draft-autosave";
 import {
   LineDraftEditor,
+  withFreshKeys,
   linesArePostable,
   useDraftTotals,
   type DocumentKind,
@@ -109,7 +110,7 @@ function NewPurchaseOrderForm() {
     setSupplierId(state.supplierId);
     setDate(state.date);
     setDocumentDiscount(state.documentDiscount);
-    setLines(state.lines);
+    setLines(withFreshKeys(state.lines));
   });
 
   const draft = useDraftAutosave<PurchaseOrderDraftState>({

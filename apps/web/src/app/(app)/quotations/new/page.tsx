@@ -37,6 +37,7 @@ import {
   customerContactNames,
   DraftCostRow,
   LineDraftEditor,
+  withFreshKeys,
   linesArePostable,
   useDraftTotals,
   type DocumentKind,
@@ -104,7 +105,7 @@ function NewQuotationForm() {
     setValidity(state.validity);
     setContact(state.contact);
     setDocumentDiscount(state.documentDiscount);
-    setLines(state.lines);
+    setLines(withFreshKeys(state.lines));
   });
 
   const draft = useDraftAutosave<QuotationDraftState>({

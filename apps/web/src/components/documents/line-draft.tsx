@@ -57,9 +57,21 @@ export interface DraftLine {
 
 export const toMinor = (major: number): Minor => roundHalf(major * MINOR_UNITS_PER_MAJOR);
 
-let lineSeq = 0;
+/**
+ * A line's key — what an edit to the line is applied by, so it must never repeat. Not a counter: a counter
+ * restarts at every page load while a resumed draft keeps the keys it was saved with, and a new line then
+ * shares a key with an old one — a price typed on the new line lands on both.
+ */
+const newLineKey = (): string => `l-${crypto.randomUUID()}`;
+
+/**
+ * Lines restored from a saved draft, re-keyed. A draft saved before keys were unique can hold repeats (or
+ * repeat keys a new line is given), so a resumed draft never keeps its stored keys.
+ */
+export const withFreshKeys = (lines: readonly DraftLine[]): DraftLine[] => lines.map((l) => ({ ...l, key: newLineKey() }));
+
 export const itemLine = (item: ItemSummary): DraftLine => ({
-  key: `l${lineSeq++}`,
+  key: newLineKey(),
   itemId: item.id,
   itemCode: item.code,
   description: item.name,
@@ -71,7 +83,7 @@ export const itemLine = (item: ItemSummary): DraftLine => ({
 });
 
 export const serviceLine = (description: string): DraftLine => ({
-  key: `l${lineSeq++}`,
+  key: newLineKey(),
   itemId: null,
   itemCode: null,
   description,
