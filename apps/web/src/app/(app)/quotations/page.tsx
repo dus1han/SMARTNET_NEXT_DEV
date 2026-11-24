@@ -103,7 +103,7 @@ export default function QuotationsPage() {
                 New quotation
               </Button>
             }
-            onRowClick={(row) => router.push(`/quotations/${row.id}`)}
+            rowHref={(row) => `/quotations/${row.id}`}
             empty={{
               title: "No quotations yet",
               description: "Quotations raised in the new system appear here.",

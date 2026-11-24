@@ -46,7 +46,7 @@ export default function ChequesPage() {
             Record a cheque
           </Button>
         }
-        onRowClick={(row) => router.push(`/cheques/${row.id}`)}
+        rowHref={(row) => `/cheques/${row.id}`}
         empty={{
           title: "No cheques yet",
           description: "Cheques recorded in the new system — and the legacy ones — appear here.",

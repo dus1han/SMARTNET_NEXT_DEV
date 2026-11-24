@@ -109,7 +109,7 @@ export default function InvoicesPage() {
               </Button>
             }
             // Both new and legacy invoices open the read view — the detail endpoint serves either.
-            onRowClick={(row) => router.push(`/invoices/${row.id}`)}
+            rowHref={(row) => `/invoices/${row.id}`}
             empty={{
               title: "No invoices yet",
               description: "Invoices raised in the new system appear here.",

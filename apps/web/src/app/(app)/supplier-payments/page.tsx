@@ -62,7 +62,7 @@ export default function SupplierPaymentsPage() {
             Record a payment
           </Button>
         }
-        onRowClick={(row) => router.push(`/supplier-payments/${row.id}`)}
+        rowHref={(row) => `/supplier-payments/${row.id}`}
         empty={{
           title: "No supplier payments yet",
           description: "Money paid to suppliers — this app's own and the legacy ones — appears here.",

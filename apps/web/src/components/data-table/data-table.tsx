@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   flexRender,
   getCoreRowModel,
@@ -84,6 +85,13 @@ export interface DataTableProps<T> {
 
   onRowClick?: (row: T) => void;
 
+  /**
+   * Where a row opens. Preferred over `onRowClick` for navigation: the row's page is prefetched as the
+   * pointer reaches it, so by the click the route is already here. The server is a round trip away from
+   * the office, and a detail route that is only fetched on click costs that trip before anything changes.
+   */
+  rowHref?: (row: T) => string;
+
   pageSize?: number;
 
   /**
@@ -126,10 +134,15 @@ export function DataTable<T>({
   actions,
   empty,
   onRowClick,
+  rowHref,
   pageSize = 25,
   server,
   defaultSort,
 }: DataTableProps<T>) {
+  const router = useRouter();
+  const opensRow = onRowClick !== undefined || rowHref !== undefined;
+  const openRow = (row: T) => (rowHref ? router.push(rowHref(row)) : onRowClick?.(row));
+
   const [sorting, setSorting] = useState<SortingState>(
     defaultSort ? [{ id: defaultSort.id, desc: defaultSort.desc ?? false }] : [],
   );
@@ -310,14 +323,15 @@ export function DataTable<T>({
               {visible.map((row, index) => (
                 <tr
                   key={row.id}
-                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                  onClick={opensRow ? () => openRow(row.original) : undefined}
+                  onMouseEnter={rowHref ? () => router.prefetch(rowHref(row.original)) : undefined}
                   style={{ animationDelay: `${Math.min(index, 8) * 20}ms` }}
                   className={cn(
                     "animate-in fade-in-0 fill-mode-backwards border-b border-subtle duration-300 last:border-0",
                     "transition-colors",
                     // Every row lifts a touch on hover so the eye can track across a wide grid of
                     // figures; a clickable row lifts more and shows it is clickable.
-                    onRowClick ? "cursor-pointer hover:bg-surface-sunken" : "hover:bg-surface-sunken/50",
+                    opensRow ? "cursor-pointer hover:bg-surface-sunken" : "hover:bg-surface-sunken/50",
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (

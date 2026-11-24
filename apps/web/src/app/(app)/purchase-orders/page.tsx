@@ -68,7 +68,7 @@ export default function PurchaseOrdersPage() {
                 New purchase order
               </Button>
             }
-            onRowClick={(row) => router.push(`/purchase-orders/${row.id}`)}
+            rowHref={(row) => `/purchase-orders/${row.id}`}
             empty={{
               title: "No purchase orders yet",
               description: "Purchase orders raised in the new system appear here.",

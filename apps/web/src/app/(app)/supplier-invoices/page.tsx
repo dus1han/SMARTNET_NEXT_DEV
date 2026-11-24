@@ -62,7 +62,7 @@ export default function SupplierInvoicesPage() {
             New supplier invoice
           </Button>
         }
-        onRowClick={(row) => router.push(`/supplier-invoices/${row.id}`)}
+        rowHref={(row) => `/supplier-invoices/${row.id}`}
         empty={{
           title: "No supplier invoices yet",
           description: "Supplier invoices recorded in the new system appear here.",

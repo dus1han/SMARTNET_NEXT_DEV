@@ -68,7 +68,7 @@ export default function JobCardsPage() {
                 New job card
               </Button>
             }
-            onRowClick={(row) => router.push(`/job-cards/${row.id}`)}
+            rowHref={(row) => `/job-cards/${row.id}`}
             empty={{ title: "No job cards yet", description: "Job cards raised in the new system appear here." }}
           />
         </>

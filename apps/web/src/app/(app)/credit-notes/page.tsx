@@ -44,7 +44,7 @@ export default function CreditNotesPage() {
             New credit note
           </Button>
         }
-        onRowClick={(row) => router.push(`/credit-notes/${row.id}`)}
+        rowHref={(row) => `/credit-notes/${row.id}`}
         empty={{
           title: "No credit notes yet",
           description: "Credit notes raised in the new system appear here.",

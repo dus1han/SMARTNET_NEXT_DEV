@@ -10,7 +10,6 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/api";
 import { getDeletedInvoices, type DeletedInvoiceSummary } from "@/lib/invoices";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -19,7 +18,6 @@ import { formatMoney, formatReportDate } from "@/components/reports";
 import { ErrorBanner, FadeIn } from "@/components/ui";
 
 export default function DeletedInvoicesPage() {
-  const router = useRouter();
   const deleted = useQuery({ queryKey: ["deleted-invoices"], queryFn: getDeletedInvoices });
   const error = deleted.error as ApiError | null;
 
@@ -40,7 +38,7 @@ export default function DeletedInvoicesPage() {
         searchPlaceholder="Search by number, customer or reason…"
         defaultSort={{ id: "deletedAt", desc: true }}
         // Keyed by number, not id — a legacy deletion has no surrogate id (it lives in del_invoice_h).
-        onRowClick={(row) => router.push(`/invoices/deleted/${encodeURIComponent(row.number)}`)}
+        rowHref={(row) => `/invoices/deleted/${encodeURIComponent(row.number)}`}
         empty={{ title: "Nothing voided", description: "Invoices that are voided appear here." }}
       />
     </FadeIn>

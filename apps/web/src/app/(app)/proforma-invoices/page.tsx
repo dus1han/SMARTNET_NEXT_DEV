@@ -75,7 +75,7 @@ export default function ProformaInvoicesPage() {
           </Button>
         }
         defaultSort={{ id: "date", desc: true }}
-        onRowClick={(row) => router.push(`/proforma-invoices/${row.id}`)}
+        rowHref={(row) => `/proforma-invoices/${row.id}`}
         empty={
           voided
             ? { title: "No voided proformas", description: "A voided proforma is kept here for the record." }
