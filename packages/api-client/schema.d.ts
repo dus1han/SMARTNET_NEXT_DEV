@@ -3084,6 +3084,7 @@ export interface paths {
                 query?: {
                     customerId?: number;
                     companyId?: number;
+                    excludeInvoiceId?: number;
                 };
                 header?: never;
                 path?: never;
@@ -10128,7 +10129,6 @@ export interface components {
             /** Format: date */
             date: string;
             invoiceNumber: string;
-            forCustomer: boolean;
         };
         ItemStockResponse: {
             /** Format: int64 */

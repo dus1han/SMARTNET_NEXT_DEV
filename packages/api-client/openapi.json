@@ -3849,6 +3849,14 @@
               "type": "integer",
               "format": "int64"
             }
+          },
+          {
+            "name": "excludeInvoiceId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
           }
         ],
         "responses": {
@@ -15630,7 +15638,6 @@
       "ItemLastPrice": {
         "required": [
           "date",
-          "forCustomer",
           "invoiceNumber",
           "itemId",
           "unitPrice"
@@ -15651,9 +15658,6 @@
           },
           "invoiceNumber": {
             "type": "string"
-          },
-          "forCustomer": {
-            "type": "boolean"
           }
         },
         "additionalProperties": false

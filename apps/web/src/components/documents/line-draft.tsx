@@ -53,8 +53,6 @@ export interface DraftLine {
   discountPercent: number;
   /** The line's cost, in minor units — carried from the item master so the save can record margin. */
   cost: Minor | null;
-  /** Where the starting price came from, when it was a last sale rather than the list price — shown on the line. */
-  priceNote?: string | null;
 }
 
 export const toMinor = (major: number): Minor => roundHalf(major * MINOR_UNITS_PER_MAJOR);
@@ -73,9 +71,8 @@ const newLineKey = (): string => `l-${crypto.randomUUID()}`;
 export const withFreshKeys = (lines: readonly DraftLine[]): DraftLine[] => lines.map((l) => ({ ...l, key: newLineKey() }));
 
 /**
- * A new line for an item. It starts at the price the item last sold for — to this customer if they have
- * bought it, otherwise to anyone — and only falls back to the master's selling price when it has never been
- * sold. The price is still typed over freely.
+ * A new line for an item. It starts at what this customer last paid for it, or the master's selling price
+ * when they have never bought it. The line can be switched between the two (see PriceChoice) or typed over.
  */
 export const itemLine = (item: ItemSummary, last?: ItemLastPrice): DraftLine => ({
   key: newLineKey(),
@@ -87,9 +84,6 @@ export const itemLine = (item: ItemSummary, last?: ItemLastPrice): DraftLine => 
   unitPrice: toMinor(last?.unitPrice ?? item.sellingPrice ?? 0),
   discountPercent: 0,
   cost: item.cost == null ? null : toMinor(item.cost),
-  priceNote: last
-    ? `${last.forCustomer ? "Customer's last price" : "Last sold (another customer)"} · ${last.invoiceNumber} · ${last.date}`
-    : null,
 });
 
 export const serviceLine = (description: string): DraftLine => ({
@@ -229,7 +223,10 @@ export function LineDraftEditor({
    * costs are their own.
    */
   cost?: { vatPercent: number };
-  /** What each item last sold for to this customer (or anyone) — a new item line starts at it. */
+  /**
+   * What this customer last paid for each item they have bought. A new item line starts at it, and — on a
+   * selling document (`cost` given) — every item line offers Last and List prices to switch between.
+   */
   lastPrices?: readonly ItemLastPrice[];
 }) {
   const entry = useRef<HTMLInputElement>(null);
@@ -322,6 +319,14 @@ export function LineDraftEditor({
                   key={line.key}
                   line={line}
                   costVatPercent={withCost ? cost.vatPercent : null}
+                  pricing={
+                    withCost && line.itemId !== null
+                      ? {
+                          list: listPriceOf(items, line.itemId),
+                          last: lastPrices?.find((p) => p.itemId === line.itemId) ?? null,
+                        }
+                      : null
+                  }
                   patch={(changes) => patch(line.key, changes)}
                   remove={() => {
                     onLinesChange((current) => current.filter((l) => l.key !== line.key));
@@ -411,8 +416,39 @@ function DocumentPicker({ kind, onChange }: { kind: DocumentKind; onChange: (kin
   );
 }
 
-function Row({ line, costVatPercent, patch, remove, registerQuantity, registerPrice, onDone }: {
+/** The two prices an item line can be switched between. */
+interface LinePricing {
+  /** The item master's selling price, or null when it has none. */
+  list: Minor | null;
+  /** What this customer last paid, or null when they have never bought it — never another customer's. */
+  last: ItemLastPrice | null;
+}
+
+type PriceTone = "last" | "list" | null;
+
+/** Which of the two prices the line holds — Last wins a tie; a typed price matches neither. */
+function toneOf(unitPrice: Minor, pricing: LinePricing | null): PriceTone {
+  if (pricing === null) return null;
+  if (pricing.last !== null && unitPrice === toMinor(pricing.last.unitPrice)) return "last";
+  if (pricing.list !== null && unitPrice === pricing.list) return "list";
+  return null;
+}
+
+/** Last is green (this customer's own price), List is blue (the master). The unit price box takes the same. */
+const TONE_BOX: Record<"last" | "list", string> = {
+  last: "border-success/40 bg-success-subtle text-success-text",
+  list: "border-primary/40 bg-primary-ghost text-primary-text",
+};
+
+function listPriceOf(items: readonly ItemSummary[], itemId: number): Minor | null {
+  const price = items.find((i) => i.id === itemId)?.sellingPrice;
+  return price == null ? null : toMinor(price);
+}
+
+function Row({ line, costVatPercent, pricing, patch, remove, registerQuantity, registerPrice, onDone }: {
   line: DraftLine;
+  /** Last and List prices to switch between — null on a typed line or a non-selling document. */
+  pricing: LinePricing | null;
   /** Null hides the cost column; otherwise the VAT rate added to the unit cost (0 for a non-VAT company). */
   costVatPercent: number | null;
   patch: (changes: Partial<DraftLine>) => void;
@@ -433,7 +469,6 @@ function Row({ line, costVatPercent, patch, remove, registerQuantity, registerPr
         <span className="mt-0.5 block px-2 font-mono text-xs text-muted">
           {line.itemCode ?? <span className="font-sans">Typed line — no item</span>}
         </span>
-        {line.priceNote && <span className="block px-2 text-xs text-muted">{line.priceNote}</span>}
       </td>
 
       <td className="px-3 py-1.5">
@@ -455,7 +490,15 @@ function Row({ line, costVatPercent, patch, remove, registerQuantity, registerPr
           onCommit={(unitPrice) => patch({ unitPrice })}
           onDone={onDone}
           label={`Unit price of ${line.description}`}
+          tone={toneOf(line.unitPrice, pricing)}
         />
+        {pricing && (
+          <PriceChoice
+            pricing={pricing}
+            current={toneOf(line.unitPrice, pricing)}
+            onPick={(unitPrice) => patch({ unitPrice })}
+          />
+        )}
       </td>
 
       <td className="px-3 py-1.5">
@@ -508,8 +551,10 @@ function Row({ line, costVatPercent, patch, remove, registerQuantity, registerPr
  * number, so the raw string is local state and the draft is only told when it parses. Enter or Escape
  * gets back to the entry field, ready for the next line.
  */
-function NumberCell({ value, parse, onCommit, onDone, label, ref }: {
+function NumberCell({ value, parse, onCommit, onDone, label, tone = null, ref }: {
   value: string;
+  /** Tints the box as the price it holds — see TONE_BOX. */
+  tone?: PriceTone;
   parse: (raw: string) => number | null;
   onCommit: (parsed: number) => void;
   onDone: () => void;
@@ -543,11 +588,85 @@ function NumberCell({ value, parse, onCommit, onDone, label, ref }: {
       onBlur={() => setRaw(null)}
       onKeyDown={onKeyDown}
       className={cn(
-        "w-full rounded border border-transparent bg-transparent px-2 py-1 text-right tabular text-text",
+        "w-full rounded border px-2 py-1 text-right tabular",
+        tone === null ? "border-transparent bg-transparent text-text" : TONE_BOX[tone],
         "transition-colors duration-150 hover:border-subtle",
-        "focus:border-primary focus:bg-canvas focus:outline-none",
+        "focus:border-primary focus:bg-canvas focus:text-text focus:outline-none",
       )}
     />
+  );
+}
+
+/**
+ * The line's two prices, under its unit price: Last (what this customer last paid) and List (the item
+ * master's selling price). Picking one puts it on the line; the one the line holds is filled in. A
+ * customer who has never bought the item shows Last at 0.00, greyed — another customer's price is never
+ * offered. A price typed by hand fills neither.
+ */
+function PriceChoice({ pricing, current, onPick }: {
+  pricing: LinePricing;
+  current: PriceTone;
+  onPick: (unitPrice: Minor) => void;
+}) {
+  const last = pricing.last;
+  return (
+    <div className="mt-1 flex flex-col gap-1">
+      <PriceChip
+        label="Last"
+        amount={last === null ? 0 : toMinor(last.unitPrice)}
+        tone="last"
+        active={current === "last"}
+        disabled={last === null}
+        title={
+          last === null
+            ? "This customer has not bought this item"
+            : `Last sold to this customer · ${last.invoiceNumber} · ${last.date}`
+        }
+        onPick={onPick}
+      />
+      <PriceChip
+        label="List"
+        amount={pricing.list ?? 0}
+        tone="list"
+        active={current === "list"}
+        disabled={pricing.list === null}
+        title={pricing.list === null ? "The item has no selling price" : "The item master's selling price"}
+        onPick={onPick}
+      />
+    </div>
+  );
+}
+
+function PriceChip({ label, amount, tone, active, disabled, title, onPick }: {
+  label: string;
+  amount: Minor;
+  tone: "last" | "list";
+  active: boolean;
+  disabled: boolean;
+  title: string;
+  onPick: (unitPrice: Minor) => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      disabled={disabled}
+      aria-pressed={active}
+      onClick={() => onPick(amount)}
+      className={cn(
+        "flex items-center justify-between gap-2 rounded-full border px-2 py-0.5 text-xs tabular transition-colors duration-150",
+        disabled
+          ? "cursor-not-allowed border-subtle text-muted opacity-60"
+          : active
+            ? TONE_BOX[tone]
+            : tone === "last"
+              ? "border-success/30 text-success-text hover:bg-success-subtle"
+              : "border-primary/30 text-primary-text hover:bg-primary-ghost",
+      )}
+    >
+      <span className="font-medium">{label}</span>
+      <span>{formatAmount(amount)}</span>
+    </button>
   );
 }
 

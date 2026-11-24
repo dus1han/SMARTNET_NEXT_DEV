@@ -122,8 +122,9 @@ function EditForm({ invoice, invoiceId }: { invoice: InvoiceDetail; invoiceId: n
   const ratePercent = invoice.taxRatePercentage;
   const customerId = invoice.customerId ?? null;
   const lastPrices = useQuery({
-    queryKey: ["item-last-prices", customerId, invoice.companyId ?? null],
-    queryFn: () => getLastPrices(customerId!, invoice.companyId ?? null),
+    queryKey: ["item-last-prices", customerId, invoice.companyId ?? null, invoiceId],
+    // Without this invoice — otherwise its own price would come back as the customer's last one.
+    queryFn: () => getLastPrices(customerId!, invoice.companyId ?? null, invoiceId),
     enabled: customerId != null,
   });
   const docPercent = useMemo(() => {

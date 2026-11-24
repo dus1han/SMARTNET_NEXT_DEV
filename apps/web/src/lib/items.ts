@@ -14,13 +14,15 @@ export type { ItemLastPrice, ItemStock, ItemSummary, SaveItemRequest };
 export const listItems = () => api<ItemSummary[]>("/api/items");
 
 /**
- * What each item last sold for — to this customer where they have bought it, otherwise to anyone — so a new
- * line starts at the price actually charged. Invoices only, in the given company.
+ * What this customer last paid for each item they have bought — invoices only, in the given company. An
+ * item they never bought is absent. `excludeInvoiceId` leaves out the invoice being edited.
  */
-export const getLastPrices = (customerId: number, companyId: number | null) =>
-  api<ItemLastPrice[]>(
-    `/api/items/last-prices?customerId=${customerId}${companyId != null ? `&companyId=${companyId}` : ""}`,
-  );
+export const getLastPrices = (customerId: number, companyId: number | null, excludeInvoiceId?: number) => {
+  const query = new URLSearchParams({ customerId: String(customerId) });
+  if (companyId != null) query.set("companyId", String(companyId));
+  if (excludeInvoiceId != null) query.set("excludeInvoiceId", String(excludeInvoiceId));
+  return api<ItemLastPrice[]>(`/api/items/last-prices?${query}`);
+};
 
 /**
  * Creates an item. The code — "I-501" — is allocated by the server from the same sequence the legacy

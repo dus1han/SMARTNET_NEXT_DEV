@@ -226,28 +226,31 @@ public sealed class ItemsController : ControllerBase
     }
 
     /// <summary>
-    /// What each item last sold for — to this customer if they have bought it, otherwise to anyone — so a
-    /// new quotation, proforma or invoice line starts at the price actually being charged rather than the
-    /// list price.
+    /// What this customer last paid for each item they have bought, so a new quotation, proforma or invoice
+    /// line starts at the price they are actually charged rather than the list price. An item the customer
+    /// has never bought is simply absent — another customer's price is never offered.
     /// </summary>
     /// <remarks>
     /// Read from invoices only: a quotation or proforma is an offer, not a sale. Voided invoices and lines
     /// removed by an edit are excluded by the query filters. Legacy invoice lines never referenced an item,
     /// so only invoices raised in this app contribute. Scoped to one company when given — each company
-    /// prices on its own — and always to the companies the caller can see.
+    /// prices on its own — and always to the companies the caller can see. <paramref name="excludeInvoiceId"/>
+    /// leaves out the invoice being edited, which would otherwise offer its own price back as the last one.
     /// </remarks>
     [HttpGet("last-prices")]
     [RequirePermission(Permissions.ItemM)]
     public async Task<ActionResult<IReadOnlyList<ItemLastPrice>>> LastPrices(
         [FromQuery] long customerId,
         [FromQuery] long? companyId,
+        [FromQuery] long? excludeInvoiceId,
         CancellationToken cancellationToken)
     {
         var accessible = _company.Accessible.ToList();
         var scope = companyId is { } wanted && accessible.Contains(wanted) ? [wanted] : accessible;
 
         var sales = await _db.InvoiceLines
-            .Where(l => l.ItemId != null)
+            .Where(l => l.ItemId != null && l.Invoice.CustomerId == customerId)
+            .Where(l => excludeInvoiceId == null || l.InvoiceId != excludeInvoiceId)
             .Where(l => l.Invoice.CompanyId != null && scope.Contains(l.Invoice.CompanyId.Value))
             .Select(l => new
             {
@@ -255,7 +258,6 @@ public sealed class ItemsController : ControllerBase
                 l.UnitPrice,
                 l.Invoice.Date,
                 l.Invoice.Number,
-                l.Invoice.CustomerId,
                 LineId = l.Id,
             })
             .ToListAsync(cancellationToken)
@@ -266,10 +268,8 @@ public sealed class ItemsController : ControllerBase
             .GroupBy(s => s.ItemId)
             .Select(g =>
             {
-                var ordered = g.OrderByDescending(s => s.Date).ThenByDescending(s => s.LineId).ToList();
-                var own = ordered.FirstOrDefault(s => s.CustomerId == customerId);
-                var last = own ?? ordered[0];
-                return new ItemLastPrice(last.ItemId, last.UnitPrice, last.Date, last.Number, own is not null);
+                var last = g.OrderByDescending(s => s.Date).ThenByDescending(s => s.LineId).First();
+                return new ItemLastPrice(last.ItemId, last.UnitPrice, last.Date, last.Number);
             })
             .ToList();
 

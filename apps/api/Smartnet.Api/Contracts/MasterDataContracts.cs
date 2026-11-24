@@ -171,18 +171,15 @@ public sealed record ItemStockResponse(
 /// becomes the item's latest cost — the cost every new quotation, proforma and invoice line takes.
 /// </param>
 /// <summary>
-/// The unit price an item last sold at — the price a new line for it starts at.
+/// The unit price this customer last paid for an item — what a new line for it starts at, and the "Last"
+/// price a line can be switched to. Only the customer's own purchases: another customer's price is never
+/// offered.
 /// </summary>
-/// <param name="ForCustomer">
-/// True when it is this customer's own last price; false when they have never bought the item and it is
-/// the last price anyone paid.
-/// </param>
 public sealed record ItemLastPrice(
     long ItemId,
     decimal UnitPrice,
     DateOnly Date,
-    string InvoiceNumber,
-    bool ForCustomer);
+    string InvoiceNumber);
 
 public sealed record CreateStockAdjustmentRequest(
     decimal Quantity,
