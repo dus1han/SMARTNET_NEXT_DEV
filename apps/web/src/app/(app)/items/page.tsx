@@ -380,6 +380,15 @@ function ItemDialog({ target, onClose, onSaved }: {
             value={markup}
             onChange={(e) => {
               setMarkup(e.target.value);
+              if (e.target.value.trim() === "") {
+                // Markup erased: the price it set is withdrawn — back to what the item was opened with
+                // (its saved price, or blank for a new item), never left at the last computed figure.
+                form.setValue("sellingPrice", editing ? toForm(editing).sellingPrice : emptyItem.sellingPrice, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+                return;
+              }
               priceFrom(form.getValues("cost"), e.target.value);
             }}
           />
