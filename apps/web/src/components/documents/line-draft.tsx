@@ -330,7 +330,12 @@ export function LineDraftEditor({
         </div>
 
         {kind === "item" ? (
-          <ItemSearch ref={entry} items={items} onPick={(item) => add(itemLine(item))} />
+          <ItemSearch
+            ref={entry}
+            items={items}
+            vatPercent={cost?.vatPercent ?? 0}
+            onPick={(item) => add(itemLine(item))}
+          />
         ) : (
           <ServiceEntry ref={entry} onAdd={(description) => add(serviceLine(description))} />
         )}
@@ -564,8 +569,10 @@ function TextCell({ value, onCommit, onDone, label }: {
  * items is the thing the two separate paths exist to prevent. An item the master does not have is added
  * on the Items screen first; here it is picked.
  */
-function ItemSearch({ items, onPick, ref }: {
+function ItemSearch({ items, vatPercent, onPick, ref }: {
   items: readonly ItemSummary[];
+  /** Added to the cost shown in each result — the document's VAT rate, 0 where there is none. */
+  vatPercent: number;
   onPick: (item: ItemSummary) => void;
   ref?: React.Ref<HTMLInputElement>;
 }) {
@@ -653,7 +660,11 @@ function ItemSearch({ items, onPick, ref }: {
                 <span className="w-36 shrink-0 font-mono text-xs text-muted">{item.code}</span>
                 <span className="min-w-0 flex-1 truncate">{item.name}</span>
                 <Stock item={item} />
-                <span className="tabular text-muted">{formatAmount(toMinor(item.sellingPrice ?? 0))}</span>
+                {/* The item's latest cost (+ VAT on a VAT-registered company's document) — what the line will
+                    cost, to price it against. The selling price still lands on the line when it is picked. */}
+                <span className="tabular text-muted" title={vatPercent > 0 ? `Cost + VAT (${vatPercent}%)` : "Cost"}>
+                  {item.cost == null ? "No cost" : formatAmount(costWithVat(toMinor(item.cost), vatPercent))}
+                </span>
               </button>
             </li>
           ))}
