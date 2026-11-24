@@ -507,7 +507,9 @@ public sealed class QuotationsController : ControllerBase
             [.. quotation.Lines.Select(l => new InvoiceLineDetail(
                 l.Id, l.ItemId, l.ItemCode, l.Description, l.Quantity, l.UnitPrice, l.DiscountPercent, l.Gross, l.Net, l.Cost))],
             proforma?.Id,
-            proforma?.Number));
+            proforma?.Number,
+            quotation.CustomerId,
+            quotation.CompanyId));
     }
 
     /// <summary>
@@ -616,7 +618,9 @@ public sealed class QuotationsController : ControllerBase
                 LegacyValue.Money(l.Total),
                 null))],
             proforma?.Id,
-            proforma?.Number));
+            proforma?.Number,
+            customer?.Id,
+            companyName is null ? null : legacyCompanyId));
     }
 
     /// <summary>

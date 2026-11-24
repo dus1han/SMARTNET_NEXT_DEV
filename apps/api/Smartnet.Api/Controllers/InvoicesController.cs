@@ -407,7 +407,9 @@ public sealed class InvoicesController : ControllerBase
             payments,
             proforma?.Id,
             proforma?.Number,
-            await SuspensionOfAsync(invoice.Id, cancellationToken).ConfigureAwait(false)));
+            await SuspensionOfAsync(invoice.Id, cancellationToken).ConfigureAwait(false),
+            invoice.CustomerId,
+            invoice.CompanyId));
     }
 
     /// <summary>The invoice's live suspension, if it has money on the suspended account.</summary>
@@ -531,7 +533,9 @@ public sealed class InvoicesController : ControllerBase
                 LegacyValue.Money(l.Tot),
                 null))],
             payments,
-            Suspension: await SuspensionOfAsync(h.Id, cancellationToken).ConfigureAwait(false)));
+            Suspension: await SuspensionOfAsync(h.Id, cancellationToken).ConfigureAwait(false),
+            CustomerId: customer?.Id,
+            CompanyId: company is null ? null : legacyCompanyId));
     }
 
     /// <summary>

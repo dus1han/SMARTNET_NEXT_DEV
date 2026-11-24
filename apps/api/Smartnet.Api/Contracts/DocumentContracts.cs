@@ -239,7 +239,10 @@ public sealed record InvoiceDetail(
     long? ProformaId = null,
     string? ProformaNumber = null,
     // The amount on the suspended account, when there is one — already left out of Outstanding.
-    InvoiceSuspension? Suspension = null);
+    InvoiceSuspension? Suspension = null,
+    // Who and which company it is for — the edit screen prices new lines at this customer's last price.
+    long? CustomerId = null,
+    long? CompanyId = null);
 
 /// <summary>An invoice's live suspension — the amount moved to the suspended account, and why.</summary>
 public sealed record InvoiceSuspension(long Id, decimal Amount, DateOnly SuspendedOn, string Reason, int RowVersion);
@@ -379,7 +382,10 @@ public sealed record QuotationDetail(
     // The quotation's live proforma, or the one it was invoiced through. While one is open the quotation is
     // converted, edited and voided through it, not directly.
     long? ProformaId = null,
-    string? ProformaNumber = null);
+    string? ProformaNumber = null,
+    // Who and which company it is for — the edit screen prices new lines at this customer's last price.
+    long? CustomerId = null,
+    long? CompanyId = null);
 
 /// <summary>An edit to a quotation. Lines carry ids to reconcile in place; a reason is required by the endpoint.</summary>
 public sealed record EditQuotationRequest(

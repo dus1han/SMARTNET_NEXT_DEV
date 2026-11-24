@@ -20,7 +20,7 @@ import { ApiError } from "@/lib/api";
 import { getQuotationTaxRate } from "@/lib/quotations";
 import { createStandaloneProforma } from "@/lib/proformas";
 import { listCompanies, listCustomers } from "@/lib/customers";
-import { listItems } from "@/lib/items";
+import { getLastPrices, listItems } from "@/lib/items";
 import { today } from "@/lib/period";
 import { formatAmount } from "@/lib/money";
 import { cn } from "@/lib/cn";
@@ -48,6 +48,12 @@ export default function NewProformaPage() {
   const [kind, setKind] = useState<DocumentKind>("service");
   const [companyId, setCompanyId] = useState("");
   const [customerId, setCustomerId] = useState("");
+  // A new item line starts at this customer's last price for it (or anyone's) — see itemLine.
+  const lastPrices = useQuery({
+    queryKey: ["item-last-prices", customerId, companyId],
+    queryFn: () => getLastPrices(Number(customerId), companyId === "" ? null : Number(companyId)),
+    enabled: customerId !== "",
+  });
   const [date, setDate] = useState(today);
   const [validity, setValidity] = useState("30 Days");
   const [contact, setContact] = useState("");
@@ -163,6 +169,7 @@ export default function NewProformaPage() {
         onLinesChange={setLines}
         items={items.data ?? []}
         cost={{ vatPercent: ratePercent }}
+        lastPrices={lastPrices.data}
       />
 
       <div className="grid gap-4 sm:grid-cols-2">

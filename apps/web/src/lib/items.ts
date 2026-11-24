@@ -1,6 +1,7 @@
 import type {
   CreateItemResponse,
   CreateStockAdjustmentRequest,
+  ItemLastPrice,
   ItemStock,
   ItemSummary,
   SaveItemRequest,
@@ -8,9 +9,18 @@ import type {
 import { api } from "./api";
 
 // Generated from the API's OpenAPI schema — see packages/api-client. Re-exported, never redeclared.
-export type { ItemStock, ItemSummary, SaveItemRequest };
+export type { ItemLastPrice, ItemStock, ItemSummary, SaveItemRequest };
 
 export const listItems = () => api<ItemSummary[]>("/api/items");
+
+/**
+ * What each item last sold for — to this customer where they have bought it, otherwise to anyone — so a new
+ * line starts at the price actually charged. Invoices only, in the given company.
+ */
+export const getLastPrices = (customerId: number, companyId: number | null) =>
+  api<ItemLastPrice[]>(
+    `/api/items/last-prices?customerId=${customerId}${companyId != null ? `&companyId=${companyId}` : ""}`,
+  );
 
 /**
  * Creates an item. The code — "I-501" — is allocated by the server from the same sequence the legacy

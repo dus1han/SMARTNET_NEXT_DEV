@@ -16,7 +16,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { editQuotation, getQuotation, type QuotationDetail } from "@/lib/quotations";
-import { listItems } from "@/lib/items";
+import { getLastPrices, listItems } from "@/lib/items";
 import { formatAmount, MINOR_UNITS_PER_MAJOR, QUANTITY_SCALE } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -116,6 +116,12 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
   const [error, setError] = useState<ApiError | null>(null);
 
   const ratePercent = quotation.taxRatePercentage;
+  const customerId = quotation.customerId ?? null;
+  const lastPrices = useQuery({
+    queryKey: ["item-last-prices", customerId, quotation.companyId ?? null],
+    queryFn: () => getLastPrices(customerId!, quotation.companyId ?? null),
+    enabled: customerId != null,
+  });
   const docPercent = useMemo(() => {
     const value = Number(documentDiscount);
     return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
@@ -206,7 +212,7 @@ function EditForm({ quotation, quotationId }: { quotation: QuotationDetail; quot
         <Input label="Valid for" value={validity} onChange={(e) => setValidity(e.target.value)} hint="e.g. 30 Days." />
       </Card>
 
-      <LineDraftEditor kind={kind} onKindChange={setKind} lines={lines} onLinesChange={setLines} items={items.data ?? []} cost={{ vatPercent: ratePercent }} />
+      <LineDraftEditor kind={kind} onKindChange={setKind} lines={lines} onLinesChange={setLines} items={items.data ?? []} cost={{ vatPercent: ratePercent }} lastPrices={lastPrices.data} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="space-y-3 p-5">

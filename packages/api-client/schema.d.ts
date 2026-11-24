@@ -3072,6 +3072,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/items/last-prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    customerId?: number;
+                    companyId?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ItemLastPrice"][];
+                        "application/json": components["schemas"]["ItemLastPrice"][];
+                        "text/json": components["schemas"]["ItemLastPrice"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/items/{id}/stock": {
         parameters: {
             query?: never;
@@ -9957,6 +9997,10 @@ export interface components {
             proformaId?: number | null;
             proformaNumber?: string | null;
             suspension?: components["schemas"]["InvoiceSuspension"] | null;
+            /** Format: int64 */
+            customerId?: number | null;
+            /** Format: int64 */
+            companyId?: number | null;
         };
         InvoiceEditedResponse: {
             /** Format: int64 */
@@ -10075,6 +10119,16 @@ export interface components {
             name: string;
             /** Format: double */
             percentage: number;
+        };
+        ItemLastPrice: {
+            /** Format: int64 */
+            itemId: number;
+            /** Format: double */
+            unitPrice: number;
+            /** Format: date */
+            date: string;
+            invoiceNumber: string;
+            forCustomer: boolean;
         };
         ItemStockResponse: {
             /** Format: int64 */
@@ -10674,6 +10728,10 @@ export interface components {
             /** Format: int64 */
             proformaId?: number | null;
             proformaNumber?: string | null;
+            /** Format: int64 */
+            customerId?: number | null;
+            /** Format: int64 */
+            companyId?: number | null;
         };
         QuotationEditedResponse: {
             /** Format: int64 */

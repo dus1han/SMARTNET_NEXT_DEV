@@ -17,7 +17,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { editInvoice, getInvoice, type InvoiceDetail } from "@/lib/invoices";
-import { listItems } from "@/lib/items";
+import { getLastPrices, listItems } from "@/lib/items";
 import { formatAmount, MINOR_UNITS_PER_MAJOR, QUANTITY_SCALE } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -120,6 +120,12 @@ function EditForm({ invoice, invoiceId }: { invoice: InvoiceDetail; invoiceId: n
   const [error, setError] = useState<ApiError | null>(null);
 
   const ratePercent = invoice.taxRatePercentage;
+  const customerId = invoice.customerId ?? null;
+  const lastPrices = useQuery({
+    queryKey: ["item-last-prices", customerId, invoice.companyId ?? null],
+    queryFn: () => getLastPrices(customerId!, invoice.companyId ?? null),
+    enabled: customerId != null,
+  });
   const docPercent = useMemo(() => {
     const value = Number(documentDiscount);
     return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
@@ -204,7 +210,7 @@ function EditForm({ invoice, invoiceId }: { invoice: InvoiceDetail; invoiceId: n
         )}
       </Card>
 
-      <LineDraftEditor kind={kind} onKindChange={setKind} lines={lines} onLinesChange={setLines} items={items.data ?? []} cost={{ vatPercent: ratePercent }} />
+      <LineDraftEditor kind={kind} onKindChange={setKind} lines={lines} onLinesChange={setLines} items={items.data ?? []} cost={{ vatPercent: ratePercent }} lastPrices={lastPrices.data} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="space-y-3 p-5">

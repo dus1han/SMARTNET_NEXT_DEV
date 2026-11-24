@@ -32,6 +32,7 @@ public sealed class ItemsController : ControllerBase
     private readonly IItemCodeAllocator _codes;
     private readonly IExcelExporter _excel;
     private readonly IAuditWriter _audit;
+    private readonly ICompanyContext _company;
     private readonly TimeProvider _time;
 
     public ItemsController(
@@ -39,12 +40,14 @@ public sealed class ItemsController : ControllerBase
         IItemCodeAllocator codes,
         IExcelExporter excel,
         IAuditWriter audit,
+        ICompanyContext company,
         TimeProvider time)
     {
         _db = db;
         _codes = codes;
         _excel = excel;
         _audit = audit;
+        _company = company;
         _time = time;
     }
 
@@ -220,6 +223,57 @@ public sealed class ItemsController : ControllerBase
         await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// What each item last sold for — to this customer if they have bought it, otherwise to anyone — so a
+    /// new quotation, proforma or invoice line starts at the price actually being charged rather than the
+    /// list price.
+    /// </summary>
+    /// <remarks>
+    /// Read from invoices only: a quotation or proforma is an offer, not a sale. Voided invoices and lines
+    /// removed by an edit are excluded by the query filters. Legacy invoice lines never referenced an item,
+    /// so only invoices raised in this app contribute. Scoped to one company when given — each company
+    /// prices on its own — and always to the companies the caller can see.
+    /// </remarks>
+    [HttpGet("last-prices")]
+    [RequirePermission(Permissions.ItemM)]
+    public async Task<ActionResult<IReadOnlyList<ItemLastPrice>>> LastPrices(
+        [FromQuery] long customerId,
+        [FromQuery] long? companyId,
+        CancellationToken cancellationToken)
+    {
+        var accessible = _company.Accessible.ToList();
+        var scope = companyId is { } wanted && accessible.Contains(wanted) ? [wanted] : accessible;
+
+        var sales = await _db.InvoiceLines
+            .Where(l => l.ItemId != null)
+            .Where(l => l.Invoice.CompanyId != null && scope.Contains(l.Invoice.CompanyId.Value))
+            .Select(l => new
+            {
+                ItemId = l.ItemId!.Value,
+                l.UnitPrice,
+                l.Invoice.Date,
+                l.Invoice.Number,
+                l.Invoice.CustomerId,
+                LineId = l.Id,
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // Newest sale first — by invoice date, then by line, so two sales on one day take the later entry.
+        var prices = sales
+            .GroupBy(s => s.ItemId)
+            .Select(g =>
+            {
+                var ordered = g.OrderByDescending(s => s.Date).ThenByDescending(s => s.LineId).ToList();
+                var own = ordered.FirstOrDefault(s => s.CustomerId == customerId);
+                var last = own ?? ordered[0];
+                return new ItemLastPrice(last.ItemId, last.UnitPrice, last.Date, last.Number, own is not null);
+            })
+            .ToList();
+
+        return Ok(prices);
     }
 
     // --- Stock (itemstock) -------------------------------------------------------------------

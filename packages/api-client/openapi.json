@@ -3828,6 +3828,62 @@
         }
       }
     },
+    "/api/items/last-prices": {
+      "get": {
+        "tags": [
+          "Items"
+        ],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ItemLastPrice"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ItemLastPrice"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ItemLastPrice"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/items/{id}/stock": {
       "get": {
         "tags": [
@@ -15190,6 +15246,16 @@
               }
             ],
             "nullable": true
+          },
+          "customerId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "companyId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -15557,6 +15623,37 @@
           "percentage": {
             "type": "number",
             "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ItemLastPrice": {
+        "required": [
+          "date",
+          "forCustomer",
+          "invoiceNumber",
+          "itemId",
+          "unitPrice"
+        ],
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unitPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "invoiceNumber": {
+            "type": "string"
+          },
+          "forCustomer": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -17528,6 +17625,16 @@
           },
           "proformaNumber": {
             "type": "string",
+            "nullable": true
+          },
+          "customerId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "companyId": {
+            "type": "integer",
+            "format": "int64",
             "nullable": true
           }
         },

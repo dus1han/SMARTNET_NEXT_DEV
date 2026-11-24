@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Package, PenLine, Plus, Search, Trash2 } from "lucide-react";
 import type { CustomerSummary } from "@/lib/customers";
-import type { ItemSummary } from "@/lib/items";
+import type { ItemLastPrice, ItemSummary } from "@/lib/items";
 import {
   extend,
   formatAmount,
@@ -53,6 +53,8 @@ export interface DraftLine {
   discountPercent: number;
   /** The line's cost, in minor units — carried from the item master so the save can record margin. */
   cost: Minor | null;
+  /** Where the starting price came from, when it was a last sale rather than the list price — shown on the line. */
+  priceNote?: string | null;
 }
 
 export const toMinor = (major: number): Minor => roundHalf(major * MINOR_UNITS_PER_MAJOR);
@@ -70,16 +72,24 @@ const newLineKey = (): string => `l-${crypto.randomUUID()}`;
  */
 export const withFreshKeys = (lines: readonly DraftLine[]): DraftLine[] => lines.map((l) => ({ ...l, key: newLineKey() }));
 
-export const itemLine = (item: ItemSummary): DraftLine => ({
+/**
+ * A new line for an item. It starts at the price the item last sold for — to this customer if they have
+ * bought it, otherwise to anyone — and only falls back to the master's selling price when it has never been
+ * sold. The price is still typed over freely.
+ */
+export const itemLine = (item: ItemSummary, last?: ItemLastPrice): DraftLine => ({
   key: newLineKey(),
   itemId: item.id,
   itemCode: item.code,
   description: item.name,
   // One, because one is what it usually is — a quantity already right is a keystroke saved.
   quantity: QUANTITY_SCALE,
-  unitPrice: toMinor(item.sellingPrice ?? 0),
+  unitPrice: toMinor(last?.unitPrice ?? item.sellingPrice ?? 0),
   discountPercent: 0,
   cost: item.cost == null ? null : toMinor(item.cost),
+  priceNote: last
+    ? `${last.forCustomer ? "Customer's last price" : "Last sold (another customer)"} · ${last.invoiceNumber} · ${last.date}`
+    : null,
 });
 
 export const serviceLine = (description: string): DraftLine => ({
@@ -205,6 +215,7 @@ export function LineDraftEditor({
   onLinesChange,
   items,
   cost,
+  lastPrices,
 }: {
   kind: DocumentKind;
   onKindChange: (kind: DocumentKind) => void;
@@ -218,6 +229,8 @@ export function LineDraftEditor({
    * costs are their own.
    */
   cost?: { vatPercent: number };
+  /** What each item last sold for to this customer (or anyone) — a new item line starts at it. */
+  lastPrices?: readonly ItemLastPrice[];
 }) {
   const entry = useRef<HTMLInputElement>(null);
   const quantities = useRef(new Map<string, HTMLInputElement>());
@@ -334,7 +347,7 @@ export function LineDraftEditor({
             ref={entry}
             items={items}
             vatPercent={cost?.vatPercent ?? 0}
-            onPick={(item) => add(itemLine(item))}
+            onPick={(item) => add(itemLine(item, lastPrices?.find((p) => p.itemId === item.id)))}
           />
         ) : (
           <ServiceEntry ref={entry} onAdd={(description) => add(serviceLine(description))} />
@@ -420,6 +433,7 @@ function Row({ line, costVatPercent, patch, remove, registerQuantity, registerPr
         <span className="mt-0.5 block px-2 font-mono text-xs text-muted">
           {line.itemCode ?? <span className="font-sans">Typed line — no item</span>}
         </span>
+        {line.priceNote && <span className="block px-2 text-xs text-muted">{line.priceNote}</span>}
       </td>
 
       <td className="px-3 py-1.5">

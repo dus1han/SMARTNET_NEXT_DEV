@@ -170,6 +170,20 @@ public sealed record ItemStockResponse(
 /// For stock coming in (a positive quantity): what one unit cost. Given, it is recorded on the movement and
 /// becomes the item's latest cost — the cost every new quotation, proforma and invoice line takes.
 /// </param>
+/// <summary>
+/// The unit price an item last sold at — the price a new line for it starts at.
+/// </summary>
+/// <param name="ForCustomer">
+/// True when it is this customer's own last price; false when they have never bought the item and it is
+/// the last price anyone paid.
+/// </param>
+public sealed record ItemLastPrice(
+    long ItemId,
+    decimal UnitPrice,
+    DateOnly Date,
+    string InvoiceNumber,
+    bool ForCustomer);
+
 public sealed record CreateStockAdjustmentRequest(
     decimal Quantity,
     string Reason,

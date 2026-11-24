@@ -80,6 +80,7 @@ export type ItemSummary = Schemas["ItemSummary"];
 export type SaveItemRequest = Schemas["SaveItemRequest"];
 export type CreateItemResponse = Schemas["CreateItemResponse"];
 export type ItemStock = Schemas["ItemStockResponse"];
+export type ItemLastPrice = Schemas["ItemLastPrice"];
 export type StockMovement = Schemas["StockMovementDto"];
 export type StockBatch = Schemas["StockBatchDto"];
 export type CreateStockAdjustmentRequest = Schemas["CreateStockAdjustmentRequest"];
