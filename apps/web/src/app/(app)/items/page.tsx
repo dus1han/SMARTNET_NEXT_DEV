@@ -283,13 +283,30 @@ function ItemDialog({ target, onClose, onSaved }: {
   const form = useAppForm<ItemForm>(itemSchema, emptyItem);
   const [banner, setBanner] = useState<string[]>([]);
   const [loaded, setLoaded] = useState<number | "new" | null>(null);
+  const [markup, setMarkup] = useState("");
 
   const key = editing?.id ?? (target === "new" ? "new" : null);
   if (target !== null && loaded !== key) {
     form.reset(editing ? toForm(editing) : emptyItem);
+    // Opened on an item that has both, the field shows the markup it is priced at now.
+    setMarkup(editing ? markupOf(editing.cost, editing.sellingPrice) : "");
     setBanner([]);
     setLoaded(key);
   }
+
+  // Markup % sets the selling price from the cost — cost × (1 + markup / 100). Kept in step while either
+  // the cost or the markup is typed; typing the selling price directly shows the markup it works out to.
+  const priceFrom = (costText: string, markupText: string) => {
+    const costValue = Number(costText);
+    const percent = Number(markupText);
+    if (costText.trim() === "" || markupText.trim() === "" || !Number.isFinite(costValue) || !Number.isFinite(percent)) return;
+    form.setValue("sellingPrice", (Math.round(costValue * (100 + percent)) / 100).toFixed(2), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+  const costField = form.register("cost");
+  const priceField = form.register("sellingPrice");
 
   const save = useMutation({
     mutationFn: async (values: ItemForm): Promise<void> => {
@@ -340,22 +357,43 @@ function ItemDialog({ target, onClose, onSaved }: {
           <Input label="Unit" hint="pcs, box, m…" error={form.formState.errors.unit?.message} {...form.register("unit")} />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Selling price"
-            type="number"
-            inputMode="decimal"
-            step="0.01"
-            error={form.formState.errors.sellingPrice?.message}
-            {...form.register("sellingPrice")}
-          />
+        <div className="grid gap-4 sm:grid-cols-3">
           <Input
             label="Cost"
             type="number"
             inputMode="decimal"
             step="0.01"
             error={form.formState.errors.cost?.message}
-            {...form.register("cost")}
+            {...costField}
+            onChange={(e) => {
+              void costField.onChange(e);
+              priceFrom(e.target.value, markup);
+            }}
+          />
+          <Input
+            label="Markup %"
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            placeholder="e.g. 25"
+            hint="Sets the selling price from the cost."
+            value={markup}
+            onChange={(e) => {
+              setMarkup(e.target.value);
+              priceFrom(form.getValues("cost"), e.target.value);
+            }}
+          />
+          <Input
+            label="Selling price"
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            error={form.formState.errors.sellingPrice?.message}
+            {...priceField}
+            onChange={(e) => {
+              void priceField.onChange(e);
+              setMarkup(markupOf(nullableNumber(form.getValues("cost")), nullableNumber(e.target.value)));
+            }}
           />
         </div>
 
@@ -570,4 +608,16 @@ const formatDate = (iso: string): string => formatInstant(iso);
 
 function message(error: unknown) {
   return error instanceof ApiError ? error.message : "That did not work.";
+}
+
+/** The markup a selling price is at over a cost, as the Markup % field shows it — blank when either is missing. */
+function markupOf(cost: number | null | undefined, price: number | null | undefined): string {
+  if (cost == null || price == null || cost <= 0) return "";
+  return String(Math.round(((price - cost) / cost) * 10000) / 100);
+}
+
+function nullableNumber(text: string): number | null {
+  if (text.trim() === "") return null;
+  const value = Number(text);
+  return Number.isFinite(value) ? value : null;
 }
